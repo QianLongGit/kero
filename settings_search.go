@@ -144,6 +144,7 @@ var actionWords = map[string]string{
 	quickAction:           "quake doom drop down dropdown hotkey global visor guake iterm console",
 	"sidebar.toggle":      "show hide sidebar sessions list",
 	"changes.toggle":      "git diff branch panel changes",
+	"files.toggle":        "file tree browser folder explore panel",
 	"text.bigger":         "zoom in font size larger increase text",
 	"text.smaller":        "zoom out font size decrease text",
 	"text.reset":          "zoom reset font size default text",
