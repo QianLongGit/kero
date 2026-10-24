@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -74,6 +76,65 @@ func TestFilesView(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("No folder") {
 		t.Errorf("no note of a session without a folder; texts %q", tt.Texts())
+	}
+}
+
+// What a click on a file does follows the row under the tree: it shows
+// the file there, opens it in a file pane, or in the host's editor.
+func TestFileOpenChoice(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	a.prefs.Side = sideFiles
+	a.local().cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		return nil, errors.New("not in a test")
+	})
+	s.Panes[0].ProcessDir = "/tmp/demo"
+	pane, root := a.filesRoot(s)
+	tree := a.tree(pane, root)
+	tree.dirs[root] = &fileDir{paths: []string{"/tmp/demo/main.go"}}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	// The row names every choice, the first by default.
+	for _, want := range []string{"Open with", "Preview", "File Pane", "Editor"} {
+		if !tt.HasText(want) {
+			t.Fatalf("no %q; texts %q", want, tt.Texts())
+		}
+	}
+
+	// The default shows the file under the tree.
+	a.chooseFile(tree, "/tmp/demo/main.go")
+	if tree.shown != "/tmp/demo/main.go" {
+		t.Errorf("a click showed %q, want the file under the tree", tree.shown)
+	}
+
+	// A file pane, once chosen, splits the tree's pane on the file.
+	var called proto.CreateParams
+	a.local().cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "split" {
+			return nil, errors.New("not in a test")
+		}
+		if err := json.Unmarshal(raw, &called); err != nil {
+			return nil, err
+		}
+		return s, nil
+	})
+	// The row still shows with the file under the tree: the file pane
+	// leaves it be.
+	tt.Frame()
+	if err := tt.Click("File Pane"); err != nil {
+		t.Fatalf("click File Pane: %v", err)
+	}
+	tt.Frame()
+	if a.prefs.FileOpen != "pane" {
+		t.Fatalf("the choice is %q, want pane", a.prefs.FileOpen)
+	}
+	a.chooseFile(tree, "/tmp/demo/main.go")
+	// The call runs on the app's own goroutine; a frame lands it.
+	for i := 0; i < 100 && called.File == ""; i++ {
+		tt.Frame()
+	}
+	if called.File != "/tmp/demo/main.go" || called.Split != tree.pane {
+		t.Errorf("split %+v, want a file pane on main.go beside %s", called, tree.pane)
 	}
 }
 

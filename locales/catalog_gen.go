@@ -4208,6 +4208,46 @@ func (msgs Messages) FilesOpenInEditor() string {
 	return Catalog.Format(msgs.locale, "filesOpenInEditor", nil)
 }
 
+// FilesOpenWith says "Open with"
+// in the language the app shows.
+func FilesOpenWith() string { return In(i18n.Locale()).FilesOpenWith() }
+
+// FilesOpenWith says "Open with"
+// in the language of msgs.
+func (msgs Messages) FilesOpenWith() string {
+	return Catalog.Format(msgs.locale, "filesOpenWith", nil)
+}
+
+// FilesOpenPreview says "Preview"
+// in the language the app shows.
+func FilesOpenPreview() string { return In(i18n.Locale()).FilesOpenPreview() }
+
+// FilesOpenPreview says "Preview"
+// in the language of msgs.
+func (msgs Messages) FilesOpenPreview() string {
+	return Catalog.Format(msgs.locale, "filesOpenPreview", nil)
+}
+
+// FilesOpenPane says "File Pane"
+// in the language the app shows.
+func FilesOpenPane() string { return In(i18n.Locale()).FilesOpenPane() }
+
+// FilesOpenPane says "File Pane"
+// in the language of msgs.
+func (msgs Messages) FilesOpenPane() string {
+	return Catalog.Format(msgs.locale, "filesOpenPane", nil)
+}
+
+// FilesOpenEditor says "Editor"
+// in the language the app shows.
+func FilesOpenEditor() string { return In(i18n.Locale()).FilesOpenEditor() }
+
+// FilesOpenEditor says "Editor"
+// in the language of msgs.
+func (msgs Messages) FilesOpenEditor() string {
+	return Catalog.Format(msgs.locale, "filesOpenEditor", nil)
+}
+
 // FilesUpdateHost says "The kerod on this host is older than this version of Kero. Update it on the host to browse its files."
 // in the language the app shows.
 func FilesUpdateHost() string { return In(i18n.Locale()).FilesUpdateHost() }

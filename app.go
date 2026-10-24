@@ -59,6 +59,10 @@ type prefs struct {
 	// SideWidth its width.
 	Side      string  `json:"side,omitempty"`
 	SideWidth float32 `json:"sideWidth,omitempty"`
+	// FileOpen is what a click on a file of the side panel's Files view
+	// does: "" or "pane" opens it in a file pane, "editor" in the host's
+	// editor and "preview" under the tree.
+	FileOpen string `json:"fileOpen,omitempty"`
 	// EndedOpen and ArchivedOpen tell the sidebar's sections of the
 	// agents' ended conversations unfolded (session-history).
 	EndedOpen    bool `json:"endedOpen,omitempty"`

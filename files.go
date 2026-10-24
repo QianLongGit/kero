@@ -193,7 +193,7 @@ func (a *App) filesView(c *ui.Context, pal *palette, s *proto.Session) {
 		}
 		ui.Column(c.Key("files")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef("files-body")).Children(func() {
 			ui.Column(c.Key("tree")).Grow(share).Basis(0).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-				a.treeView(c, pal, t)
+				a.treeView(c, pal, t, true)
 			})
 			a.filesEdge(c, pal)
 			ui.Column(c.Key("file")).Grow(1 - share).Basis(0).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
@@ -203,7 +203,45 @@ func (a *App) filesView(c *ui.Context, pal *palette, s *proto.Session) {
 		return
 	}
 	ui.Column(c.Key("files")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		a.treeView(c, pal, t)
+		a.treeView(c, pal, t, true)
+	})
+}
+
+// fileOpenPicker is the row that sets what a click on a file of the tree
+// does: it shows it under the tree, opens it in a file pane, or opens it
+// in the host's editor.
+func (a *App) fileOpenPicker(c *ui.Context, pal *palette) {
+	row := ui.Row(c.Key("files-open")).Shrink(0).Padding(6, 8, 10, 8).Gap(4).AlignItems(ui.Center)
+	row.Children(func() {
+		ui.Text(c, locales.FilesOpenWith()).FontSize(11.5).TextColor(pal.textFaint).Shrink(0)
+		ui.Spacer(c)
+		for _, o := range []struct{ id, label, key string }{
+			{"preview", locales.FilesOpenPreview(), "files-open-preview"},
+			{"pane", locales.FilesOpenPane(), "files-open-pane"},
+			{"editor", locales.FilesOpenEditor(), "files-open-editor"},
+		} {
+			on := a.prefs.FileOpen == o.id || a.prefs.FileOpen == "" && o.id == "preview"
+			fg := pal.textFaint
+			if on {
+				fg = pal.text
+			}
+			b := ui.ButtonBase(c.Key(o.key)).Height(22).Padding(0, 7).Radius(5).AlignItems(ui.Center).Shrink(0).
+				Cursor(ui.CursorPointer).Label(o.label)
+			if on {
+				b.Background(pal.chip)
+			} else if b.Hovered() {
+				b.Background(pal.rowHover)
+			}
+			if b.Clicked() && a.prefs.FileOpen != o.id {
+				a.defer_(func() {
+					a.prefs.FileOpen = o.id
+					a.savePrefs()
+				})
+			}
+			b.Children(func() {
+				ui.Text(c, o.label).FontSize(12).FontWeight(600).TextColor(fg).SingleLine().Shrink(0)
+			})
+		}
 	})
 }
 
@@ -281,7 +319,12 @@ func (a *App) fetchDir(t *fileTree, path string) {
 // treeView is the tree: a folder's folders and files, whose folders open
 // on the arrow, a double click or a click on them, and whose files open
 // under the tree.
-func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree) {
+func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
+	// The row that sets what a click on a file does, above the tree: the
+	// tree's own column, which a file under it leaves.
+	if picker {
+		a.fileOpenPicker(c, pal)
+	}
 	d := t.dirs[t.root]
 	switch {
 	case d == nil || d.paths == nil && d.err == "":
@@ -298,13 +341,13 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree) {
 	tree := ui.Outline(c.Key("outline"), &t.outline, d.paths, t.children, func(path string) {
 		dir := t.isDir[path]
 		row := ui.Row(c).Grow(1).MinWidth(0).Gap(7).AlignItems(ui.Center)
-		// A folder opens or closes on a click on its name; a file opens
-		// under the tree.
+		// A folder opens or closes on a click on its name; a file opens as
+		// the prefs say, under the tree by default.
 		if row.Clicked() && row.ClickModifiers() == 0 {
 			if dir {
 				toggle = path
 			} else {
-				a.openFile(t, path)
+				a.chooseFile(t, path)
 			}
 		}
 		fg := pal.text
@@ -347,8 +390,21 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree) {
 		case t.isDir[p]:
 			t.outline.Open.Add(p)
 		default:
-			a.openFile(t, p)
+			a.chooseFile(t, p)
 		}
+	}
+}
+
+// chooseFile opens a file of the tree the way a click on it does: under
+// the tree, in a file pane, or in the host's editor, as the prefs say.
+func (a *App) chooseFile(t *fileTree, path string) {
+	switch a.prefs.FileOpen {
+	case "pane":
+		a.openInPane(t, path)
+	case "editor":
+		a.openInEditor(t, path)
+	default:
+		a.openFile(t, path)
 	}
 }
 
