@@ -84,6 +84,9 @@ func programIcon(p *proto.Pane) *ui.SVG {
 	if p.Browser() {
 		return globeIcon
 	}
+	if p.FilePane() {
+		return docIcon
+	}
 	for _, name := range []string{p.Agent, p.Process, p.Runtime} {
 		if i := programIcons[name]; i != nil {
 			return i

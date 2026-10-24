@@ -110,6 +110,7 @@ type App struct {
 	selected   string
 	terms      map[string]*termEntry
 	webs       map[string]*webEntry // browser panes' pages, by pane
+	files      filePaneStates       // file panes' files, by pane
 	ads        adBlock              // what their pages block
 	icons      favicons             // and the icons they show
 	lru        []string
@@ -338,6 +339,11 @@ func (a *App) setState(h *host, st proto.State) {
 	for id := range a.webs {
 		if !live[id] {
 			a.dropWeb(id)
+		}
+	}
+	for id := range a.files {
+		if !live[id] {
+			delete(a.files, id)
 		}
 	}
 	a.quickChanged()
@@ -831,7 +837,7 @@ func (g *gated) Read(p []byte) (int, error) {
 // ensureTerm attaches a terminal to a session, unless one is.
 func (a *App) ensureTerm(id string) {
 	h := a.hostOf(id)
-	if a.terms[id] != nil || h.conn != connReady || a.isBrowser(id) {
+	if a.terms[id] != nil || h.conn != connReady || a.shows(id) {
 		return
 	}
 	e := &termEntry{started: time.Now()}
