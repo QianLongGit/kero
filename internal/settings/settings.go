@@ -33,10 +33,11 @@ type Settings struct {
 	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
 
 	// Appearance
-	Appearance string `json:"appearance"` // "system", "light" or "dark"
-	Language   string `json:"language"`   // "system", or one of Languages
-	Background string `json:"background"` // a wash, see Backgrounds
-	Vibrancy   bool   `json:"vibrancy"`   // the window's material under the wash
+	Appearance     string `json:"appearance"`     // "system", "light" or "dark"
+	Language       string `json:"language"`       // "system", or one of Languages
+	Background     string `json:"background"`     // a wash, see Backgrounds
+	Vibrancy       bool   `json:"vibrancy"`       // the window's material under the wash
+	SidebarDensity string `json:"sidebarDensity"` // the sidebar's rows: "compact" or "standard"
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -144,6 +145,7 @@ func Default() Settings {
 		Language:        "system",
 		Background:      "rex",
 		Vibrancy:        true,
+		SidebarDensity:  "compact",
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,
@@ -317,6 +319,7 @@ func (s *Settings) normalize() {
 	}
 	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home")
 	oneOf(&s.Appearance, d.Appearance, "system", "light", "dark")
+	oneOf(&s.SidebarDensity, d.SidebarDensity, "compact", "standard")
 	oneOf(&s.Language, d.Language, append([]string{"system"}, Languages...)...)
 	oneOf(&s.Cursor, d.Cursor, "block", "bar", "underline")
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")

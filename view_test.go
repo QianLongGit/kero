@@ -956,6 +956,38 @@ func TestSidebarDateGroups(t *testing.T) {
 	}
 }
 
+// The sidebar's rows follow its density setting: compact, the default,
+// and standard, the look before the setting.
+func TestSidebarDensity(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200})
+	if got := a.sidebarDensity(); got != (densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5}) {
+		t.Errorf("compact metrics %+v", got)
+	}
+	a.set.SidebarDensity = "standard"
+	if got := a.sidebarDensity(); got != (densityMetrics{rowH: 34, hdrH: 28, fontPx: 13.5}) {
+		t.Errorf("standard metrics %+v", got)
+	}
+	// The rows take their metrics: two sessions' names sit a row's height
+	// and margin apart, standard's as it was.
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	sess, _ := tt.Find("sess")
+	beta, _ := tt.Find("beta")
+	if d := beta.Y - sess.Y; d != 34+1 {
+		t.Errorf("standard rows %g apart, want 35", d)
+	}
+	a.set.SidebarDensity = "compact"
+	tt.Frame()
+	sess, _ = tt.Find("sess")
+	beta, _ = tt.Find("beta")
+	if d := beta.Y - sess.Y; d != 26+1 {
+		t.Errorf("compact rows %g apart, want 27", d)
+	}
+}
+
 // A project's square takes its first letter, and keeps its color by id,
 // with a color of its own among the projects.
 func TestProjectBadge(t *testing.T) {
@@ -1230,7 +1262,7 @@ func TestSidebarShortcutOrder(t *testing.T) {
 		proto.Session{ID: "s4", Project: "p2", Name: "delta", Created: 400},
 		proto.Session{ID: "s5", Project: "p2", Name: "epsilon", Created: 500})
 	a.prefs.Collapsed = map[string]bool{"p2": true}
-	a.selected = "s5" // in the folded project, hidden with it
+	a.selected = "s5"                  // in the folded project, hidden with it
 	want := []string{"s1", "s3", "s2"} // gamma pinned after demo
 	tt := ui.NewTester(a.view, 1100, 640)
 	tt.Frame()

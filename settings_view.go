@@ -648,6 +648,10 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetTranslucent(), locales.SetTranslucentDetail(), func() {
 			toggle(c.Key("vibrancy"), &s.Vibrancy, pal)
 		})
+		settingRow(c, pal, locales.SetSidebarDensity(), locales.SetSidebarDensityDetail(), func() {
+			segmented(c, "sidebar-density", &s.SidebarDensity, []string{"compact", "standard"},
+				[]string{locales.SetDensityCompact(), locales.SetDensityStandard()})
+		})
 	})
 	ui.Column(c).Gap(8).Children(func() {
 		groupTitle(c, pal, locales.SetBackground())

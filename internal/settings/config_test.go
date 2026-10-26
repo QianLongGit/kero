@@ -160,6 +160,30 @@ func TestMigratesSettingsJSON(t *testing.T) {
 	}
 }
 
+// The sidebar's density is compact unless the user takes standard, the
+// look before the setting, and a value the file got wrong keeps the
+// default.
+func TestSidebarDensity(t *testing.T) {
+	if d := Default().SidebarDensity; d != "compact" {
+		t.Errorf("default density %q, want compact", d)
+	}
+	s, probs := parse("sidebar.density = standard\n")
+	if s.SidebarDensity != "standard" || len(probs) != 0 {
+		t.Errorf("standard read as %q, problems %q", s.SidebarDensity, probs)
+	}
+	// What is saved reads back the same, and the default writes nothing.
+	if back, _ := parse(format(s, "")); back.SidebarDensity != "standard" {
+		t.Errorf("saved and read back %q", back.SidebarDensity)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "sidebar.density") {
+		t.Errorf("the default density was written:\n%s", out)
+	}
+	bad, probs := parse("sidebar.density = cozy\n")
+	if bad.SidebarDensity != "compact" || len(probs) != 1 {
+		t.Errorf("unknown density %q, problems %q", bad.SidebarDensity, probs)
+	}
+}
+
 func TestAdLists(t *testing.T) {
 	tests := []struct {
 		file     string

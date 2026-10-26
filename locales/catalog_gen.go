@@ -2552,6 +2552,46 @@ func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
 }
 
+// SetSidebarDensity says "Sidebar density"
+// in the language the app shows.
+func SetSidebarDensity() string { return In(i18n.Locale()).SetSidebarDensity() }
+
+// SetSidebarDensity says "Sidebar density"
+// in the language of msgs.
+func (msgs Messages) SetSidebarDensity() string {
+	return Catalog.Format(msgs.locale, "setSidebarDensity", nil)
+}
+
+// SetSidebarDensityDetail says "How much room the sidebar’s sessions take. Compact fits more of them."
+// in the language the app shows.
+func SetSidebarDensityDetail() string { return In(i18n.Locale()).SetSidebarDensityDetail() }
+
+// SetSidebarDensityDetail says "How much room the sidebar’s sessions take. Compact fits more of them."
+// in the language of msgs.
+func (msgs Messages) SetSidebarDensityDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarDensityDetail", nil)
+}
+
+// SetDensityCompact says "Compact"
+// in the language the app shows.
+func SetDensityCompact() string { return In(i18n.Locale()).SetDensityCompact() }
+
+// SetDensityCompact says "Compact"
+// in the language of msgs.
+func (msgs Messages) SetDensityCompact() string {
+	return Catalog.Format(msgs.locale, "setDensityCompact", nil)
+}
+
+// SetDensityStandard says "Standard"
+// in the language the app shows.
+func SetDensityStandard() string { return In(i18n.Locale()).SetDensityStandard() }
+
+// SetDensityStandard says "Standard"
+// in the language of msgs.
+func (msgs Messages) SetDensityStandard() string {
+	return Catalog.Format(msgs.locale, "setDensityStandard", nil)
+}
+
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }

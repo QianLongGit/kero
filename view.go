@@ -35,6 +35,20 @@ const (
 	projectBadgeGap = 6
 )
 
+// densityMetrics are the sidebar's geometry at a density: how tall a
+// session's row and a group's header stand, and the size of their text.
+type densityMetrics struct{ rowH, hdrH, fontPx float32 }
+
+// sidebarDensity is the sidebar's metrics for its density setting.
+// Standard is the look before the setting; compact, the default, fits
+// more rows by standing lower and smaller.
+func (a *App) sidebarDensity() densityMetrics {
+	if a.set.SidebarDensity == "standard" {
+		return densityMetrics{rowH: rowH, hdrH: 28, fontPx: 13.5}
+	}
+	return densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5}
+}
+
 // chrome is where the sidebar's animation puts things, in whole pixels so
 // that edges stay crisp. Each is rounded once, from one progress quantized
 // to the sidebar's pixels, so that they move together: rounded apart,
@@ -462,7 +476,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if pal.dark {
 		inset++
 	}
-	hdr := ui.Row(c.Key("project-"+key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
+	hdr := ui.Row(c.Key("project-"+key)).Height(a.sidebarDensity().hdrH).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
 	renaming := id != "" && a.renamingProject == id
 	// The name is the project's handle: dragged, it moves the project to
 	// another place under its host.
@@ -665,7 +679,8 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	index := *n
 	selected := s.ID == a.selected
 	h := a.hostOf(s.ID)
-	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
+	m := a.sidebarDensity()
+	row := ui.Row(c.Key(s.ID)).Height(m.rowH).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
 	if pal.dark {
 		// Room for the chosen row's edge in every row, so that choosing
@@ -731,7 +746,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	row.ContextMenu(func(m *ui.Menu) { a.sessionMenu(m, s) })
 	row.Children(func() {
 		if a.renaming == s.ID {
-			in := ui.TextInputBase(c.Key("rename"), &a.renameBuf).Grow(1).MinWidth(0).FontSize(13.5).AutoFocus()
+			in := ui.TextInputBase(c.Key("rename"), &a.renameBuf).Grow(1).MinWidth(0).FontSize(m.fontPx).AutoFocus()
 			if in.Submitted() || in.Shortcut(0, ui.KeyEscape) {
 				if in.Shortcut(0, ui.KeyEscape) {
 					a.renaming = ""
@@ -744,7 +759,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 			}
 			return
 		}
-		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(13.5).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
+		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(m.fontPx).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
 		if s.Unread {
 			name.FontWeight(650)
 		}
