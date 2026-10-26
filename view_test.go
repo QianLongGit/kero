@@ -358,7 +358,9 @@ func TestSidebarFooter(t *testing.T) {
 // A session's tooltip shows below the pointer where it rested, as macOS
 // shows tooltips, not centered over the row ($KERO_SHOTS).
 func TestSessionTooltipAtPointer(t *testing.T) {
-	for _, dx := range []float32{20, 160} {
+	// 30 keeps the pointer inside the row in every density: compact's
+	// block inset puts the row's left edge 34 in.
+	for _, dx := range []float32{30, 160} {
 		a := testApp(t)
 		a.st.Sessions[0].Process = "claude"
 		a.st.Sessions[0].Dir = "/Users/someone/dev/kero"
@@ -368,7 +370,8 @@ func TestSessionTooltipAtPointer(t *testing.T) {
 		if !ok {
 			t.Fatal("no project header")
 		}
-		x, y := 12+dx, r.Y+r.H/2+34 // the session row's middle
+		m := a.sidebarDensity()
+		x, y := 12+dx, r.Y+r.H/2+m.hdrH/2+3+m.rowH/2 // the session row's middle
 		tt.Move(x, y)
 		tt.Advance(2 * time.Second)
 		tt.Frame()
@@ -821,9 +824,12 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	}
 }
 
-// A session's name starts where its project's does, past the badge.
+// A session's name starts where its project's does, past the badge —
+// standard's inset; compact's block has its own, as TestCompactBlock
+// shows.
 func TestSessionAlign(t *testing.T) {
 	a := testApp(t)
+	a.set.SidebarDensity = "standard"
 	a.st.Projects[0].Name = "proj"
 	a.st.Sessions[0].Name = "sess"
 	tt := ui.NewTester(a.view, 1100, 640)
@@ -963,7 +969,7 @@ func TestSidebarDensity(t *testing.T) {
 	a.st.Projects[0].Name = "proj"
 	a.st.Sessions[0].Name = "sess"
 	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200})
-	if got := a.sidebarDensity(); got != (densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5}) {
+	if got := a.sidebarDensity(); got != (densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5, block: true}) {
 		t.Errorf("compact metrics %+v", got)
 	}
 	a.set.SidebarDensity = "standard"
@@ -985,6 +991,102 @@ func TestSidebarDensity(t *testing.T) {
 	beta, _ = tt.Find("beta")
 	if d := beta.Y - sess.Y; d != 26+1 {
 		t.Errorf("compact rows %g apart, want 27", d)
+	}
+}
+
+// Compact, a project's children stand as one block, a bar of the
+// project's color down the block's left edge spanning its rows, their
+// names inset past the bar — less than standard's badge's room, which
+// keeps today's layout, no bar.
+func TestCompactBlockIndent(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200})
+	badge := a.projectBadgeColor(a.st.Projects[0])
+	col := color.RGBA{R: badge.R, G: badge.G, B: badge.B, A: badge.A}
+	tt := ui.NewTester(a.view, 1100, 640)
+
+	// Standard: the project's name and its children's sit at one inset,
+	// the badge's room, and nothing bars the block's edge.
+	a.set.SidebarDensity = "standard"
+	tt.Frame()
+	proj, ok := tt.Find("proj")
+	if !ok {
+		t.Fatalf("no project name; texts %q", tt.Texts())
+	}
+	std, ok := tt.Find("sess")
+	if !ok {
+		t.Fatalf("no session name; texts %q", tt.Texts())
+	}
+	if std.X != proj.X {
+		t.Errorf("standard children at %g, the project's name at %g: the badge's room insets both", std.X, proj.X)
+	}
+	barX := std.X - blockGap - blockBar/2
+	if got := tt.Image().RGBAAt(int(barX), int(std.Y+std.H/2)); got == col {
+		t.Error("standard shows a bar at the block's edge")
+	}
+
+	// Compact: the block's own inset takes the badge's place, and a bar
+	// of the project's color runs down its left edge, spanning the rows.
+	a.set.SidebarDensity = "compact"
+	tt.Frame()
+	sess, _ := tt.Find("sess")
+	beta, ok := tt.Find("beta")
+	if !ok {
+		t.Fatalf("no second session; texts %q", tt.Texts())
+	}
+	stdInset := float32(rowInset + projectBadge + projectBadgeGap)
+	blockInset := float32(blockEdge + blockBar + blockGap)
+	if d := std.X - sess.X; d != stdInset-blockInset {
+		t.Errorf("compact children at %g, standard's %g: the block's %g inset takes the badge's room of %g, %g apart", sess.X, std.X, blockInset, stdInset, stdInset-blockInset)
+	}
+	barX = sess.X - blockGap - blockBar/2
+	at := func(y float32) color.RGBA { return tt.Image().RGBAAt(int(barX), int(y)) }
+	for _, y := range []float32{sess.Y + sess.H/2, beta.Y + beta.H/2, (sess.Y + sess.H + beta.Y) / 2} {
+		if got := at(y); got != col {
+			t.Errorf("no bar of the project's color at (%.0f, %.0f): %v", barX, y, got)
+		}
+	}
+	// The bar spans the block's rows, and no more.
+	past := beta.Y + beta.H/2 + a.sidebarDensity().rowH/2 + 2
+	if got := at(past); got == col {
+		t.Errorf("the bar runs past the block, to %g", past)
+	}
+}
+
+// By Date's headers take the density's height too, compacting with the
+// rows; standard keeps the 28 it had.
+func TestSidebarDateHeaderDensity(t *testing.T) {
+	a := testApp(t)
+	a.prefs.SidebarGroup = "date"
+	a.st.Sessions[0].Name = "sess"
+	a.st.Sessions[0].Created = time.Now().UnixMilli()
+	tt := ui.NewTester(a.view, 1100, 640)
+	gap := func() (sess, hdr ui.Rect) {
+		tt.Frame()
+		hdr, ok := tt.Find(locales.SidebarToday())
+		if !ok {
+			t.Fatalf("no Today header; texts %q", tt.Texts())
+		}
+		sess, ok = tt.Find("sess")
+		if !ok {
+			t.Fatalf("no session name; texts %q", tt.Texts())
+		}
+		return sess, hdr
+	}
+	a.set.SidebarDensity = "standard"
+	sStd, hStd := gap()
+	mStd := a.sidebarDensity()
+	a.set.SidebarDensity = "compact"
+	sCpt, hCpt := gap()
+	mCpt := a.sidebarDensity()
+	// A session's name sits below a date header by half the header, its
+	// bottom margin of 3, and half a row, less the taller name's share:
+	// between the densities, only those heights differ.
+	want := (mStd.hdrH-mCpt.hdrH)/2 + (mStd.rowH-mCpt.rowH)/2 - (sStd.H-sCpt.H)/2
+	if got := (sStd.Y - hStd.Y) - (sCpt.Y - hCpt.Y); got != want {
+		t.Errorf("the header's gap grows %g from compact to standard, want %g", got, want)
 	}
 }
 

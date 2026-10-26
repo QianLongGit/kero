@@ -33,11 +33,19 @@ const (
 	// letter; projectBadgeGap is the room after it.
 	projectBadge    = 20
 	projectBadgeGap = 6
+	// Compact, a project's children stand as one block: blockEdge from
+	// the sidebar's edge to the block's bar, blockBar the bar's width,
+	// blockGap the bar to the children's text.
+	blockEdge, blockBar, blockGap = 14, 2, 8
 )
 
 // densityMetrics are the sidebar's geometry at a density: how tall a
-// session's row and a group's header stand, and the size of their text.
-type densityMetrics struct{ rowH, hdrH, fontPx float32 }
+// session's row and a group's header stand, the size of their text, and
+// whether a group's children stand as one block.
+type densityMetrics struct {
+	rowH, hdrH, fontPx float32
+	block              bool
+}
 
 // sidebarDensity is the sidebar's metrics for its density setting.
 // Standard is the look before the setting; compact, the default, fits
@@ -46,7 +54,7 @@ func (a *App) sidebarDensity() densityMetrics {
 	if a.set.SidebarDensity == "standard" {
 		return densityMetrics{rowH: rowH, hdrH: 28, fontPx: 13.5}
 	}
-	return densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5}
+	return densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5, block: true}
 }
 
 // chrome is where the sidebar's animation puts things, in whole pixels so
@@ -431,7 +439,7 @@ func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count i
 	if pal.dark {
 		inset++
 	}
-	hdr := ui.Row(c.Key(key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
+	hdr := ui.Row(c.Key(key)).Height(a.sidebarDensity().hdrH).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
 	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.session != "" && d.host == h && a.madeOn(d.session, day) {
 		hdr.Background(pal.rowHover)
 		hdr.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -637,9 +645,24 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if collapsed {
 		return
 	}
-	for i, s := range g.sessions {
-		a.sessionRow(c, pal, s, g.sessions, i, n, float32(rowInset+projectBadge+projectBadgeGap))
+	if !a.sidebarDensity().block {
+		for i, s := range g.sessions {
+			a.sessionRow(c, pal, s, g.sessions, i, n, float32(rowInset+projectBadge+projectBadgeGap))
+		}
+		return
 	}
+	// Compact, the children stand as one block, told from their neighbors
+	// by a bar of the project's color down the block's left edge: the
+	// block's own inset in the badge's place, which no child carries.
+	block := ui.Column(c.Key("block-"+key)).Shrink(0).Padding(0, 0, 0, blockEdge+blockBar+blockGap)
+	block.Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Fill(ui.Rect{X: r.X + blockEdge, Y: r.Y, W: blockBar, H: r.H}, a.projectBadgeColor(g.project), 0)
+	})
+	block.Children(func() {
+		for i, s := range g.sessions {
+			a.sessionRow(c, pal, s, g.sessions, i, n, 0)
+		}
+	})
 }
 
 // projectBadges are the squares before project names: muted colors, far

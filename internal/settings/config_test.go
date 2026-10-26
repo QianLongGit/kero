@@ -167,7 +167,7 @@ func TestSidebarDensity(t *testing.T) {
 	if d := Default().SidebarDensity; d != "compact" {
 		t.Errorf("default density %q, want compact", d)
 	}
-	s, probs := parse("sidebar.density = standard\n")
+	s, probs := parse("sidebar-density = standard\n")
 	if s.SidebarDensity != "standard" || len(probs) != 0 {
 		t.Errorf("standard read as %q, problems %q", s.SidebarDensity, probs)
 	}
@@ -175,10 +175,10 @@ func TestSidebarDensity(t *testing.T) {
 	if back, _ := parse(format(s, "")); back.SidebarDensity != "standard" {
 		t.Errorf("saved and read back %q", back.SidebarDensity)
 	}
-	if out := format(Default(), ""); strings.Contains(out, "sidebar.density") {
+	if out := format(Default(), ""); strings.Contains(out, "sidebar-density") {
 		t.Errorf("the default density was written:\n%s", out)
 	}
-	bad, probs := parse("sidebar.density = cozy\n")
+	bad, probs := parse("sidebar-density = cozy\n")
 	if bad.SidebarDensity != "compact" || len(probs) != 1 {
 		t.Errorf("unknown density %q, problems %q", bad.SidebarDensity, probs)
 	}
