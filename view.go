@@ -382,10 +382,10 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 				if gi == 0 && *n == 0 {
 					top = 2
 				}
-				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top)
+				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top, h, dg.day)
 				gi++
-				for _, s := range dg.sessions {
-					a.sessionRow(c, pal, s, n, rowInset)
+				for i, s := range dg.sessions {
+					a.sessionRow(c, pal, s, dg.sessions, i, n, rowInset)
 				}
 			}
 		} else {
@@ -399,8 +399,8 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 				a.hostLine(c, pal, h, top)
 				gi++
 			}
-			for _, s := range ss {
-				a.sessionRow(c, pal, s, n, rowInset)
+			for i, s := range ss {
+				a.sessionRow(c, pal, s, ss, i, n, rowInset)
 			}
 		}
 		if h == local && empty && h.conn == connReady && len(a.hosts) == 1 {
@@ -409,13 +409,26 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 	}
 }
 
-// dateHeader is a day in the sidebar's By Date.
-func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count int, top float32) {
+// dateHeader is a day in the sidebar's By Date. A session dragged onto
+// it goes to the day's head — its own day, as the days are when the
+// sessions were made, which no drag changes.
+func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count int, top float32, h *host, day time.Time) {
 	inset := float32(rowInset)
 	if pal.dark {
 		inset++
 	}
-	ui.Row(c.Key(key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Children(func() {
+	hdr := ui.Row(c.Key(key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
+	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.session != "" && d.host == h && a.madeOn(d.session, day) {
+		hdr.Background(pal.rowHover)
+		hdr.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 2}, pal.accent, 1)
+		})
+	}
+	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.session != "" && d.host == h && a.madeOn(d.session, day) {
+		sid := d.session
+		a.defer_(func() { a.moveSession(sid, "head", nil) })
+	}
+	hdr.Children(func() {
 		ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(pal.textMuted).SingleLine().Shrink(1)
 		ui.Textf(c, "%d", count).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
 	})
@@ -454,13 +467,17 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	// The name is the project's handle: dragged, it moves the project to
 	// another place under its host.
 	if id != "" && !renaming {
-		hdr.Drag(projectDrag{host: g.host, id: id}).Cursor(ui.CursorGrab)
+		hdr.Drag(sidebarDrag{host: g.host, id: id}).Cursor(ui.CursorGrab)
 		if hdr.Dragging() {
 			hdr.Opacity(0.35)
 		}
 	}
-	if id != "" {
-		if d, over := ui.DragOver[projectDrag](hdr); over && d.host == g.host && d.id != id {
+	// A project lands before or after this one; a session at the head of
+	// its sessions, moving into the project when it stood in another's —
+	// the sessions without a project have a header of their own, which
+	// only heads them, no project to move into.
+	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.host == g.host {
+		if d.id != "" && d.id != id {
 			y, _, _ := hdr.PointerPosition()
 			after := y > 14
 			a.projectAt, a.projectAfter = id, after
@@ -472,16 +489,31 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 				}
 				p.Fill(ui.Rect{X: r.X, Y: ly, W: r.W, H: 2}, pal.accent, 1)
 			})
+		} else if d.session != "" {
+			hdr.Background(pal.rowHover)
+			hdr.Draw(func(p *ui.Painter, r ui.Rect) {
+				p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 2}, pal.accent, 1)
+			})
 		}
-		if d, ok := ui.Drop[projectDrag](hdr); ok && d.host == g.host && d.id != id {
+	}
+	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.host == g.host {
+		if d.id != "" && d.id != id {
 			y, _, _ := hdr.PointerPosition()
 			after := y > 14
 			if a.projectAt == id {
 				// The side the insertion line last showed.
 				after = a.projectAfter
 			}
-			target := id
-			a.defer_(func() { a.moveProject(d, target, after) })
+			target, pd := id, projectDrag{host: d.host, id: d.id}
+			a.defer_(func() { a.moveProject(pd, target, after) })
+		} else if d.session != "" {
+			sid := d.session
+			var project *string
+			if id != "" && d.project != id {
+				p := id
+				project = &p
+			}
+			a.defer_(func() { a.moveSession(sid, "head", project) })
 		}
 	}
 	hovered := hdr.Hovered()
@@ -591,8 +623,8 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if collapsed {
 		return
 	}
-	for _, s := range g.sessions {
-		a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap))
+	for i, s := range g.sessions {
+		a.sessionRow(c, pal, s, g.sessions, i, n, float32(rowInset+projectBadge+projectBadgeGap))
 	}
 }
 
@@ -628,10 +660,11 @@ func projectInitial(name string) string {
 	return ""
 }
 
-func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, inset float32) {
+func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*proto.Session, at int, n *int, inset float32) {
 	*n++
 	index := *n
 	selected := s.ID == a.selected
+	h := a.hostOf(s.ID)
 	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
 	if pal.dark {
@@ -650,8 +683,32 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, 
 	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
 	// A session of a host the app lost shows as it was, faded, until the
 	// host is back.
-	if h := a.hostOf(s.ID); h.remote() && h.conn != connReady {
+	if h.remote() && h.conn != connReady {
 		row.Opacity(0.55)
+	}
+	// A row dragged to another place in its host's sidebar: faded while
+	// it travels, as a project's name is.
+	row.Drag(sidebarDrag{host: h, session: s.ID, project: s.Project}).Cursor(ui.CursorGrab)
+	if row.Dragging() {
+		row.Opacity(0.35)
+	}
+	if d, over := ui.DragOver[sidebarDrag](row); over && d.session != "" && d.host == h && d.session != s.ID && a.inSameGroup(d, s) {
+		// A drop pins after the row, so the line sits under it.
+		row.Background(pal.rowHover)
+		row.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H - 2, W: r.W, H: 2}, pal.accent, 1)
+		})
+	}
+	if d, ok := ui.Drop[sidebarDrag](row); ok && d.session != "" && d.host == h && d.session != s.ID && a.inSameGroup(d, s) {
+		sid, pin := d.session, s.ID
+		// Dropped in another project's row, the session moves house with
+		// its pin; the project of none has no house to name.
+		var project *string
+		if s.Project != "" && d.project != s.Project {
+			p := s.Project
+			project = &p
+		}
+		a.defer_(func() { a.moveSession(sid, pin, project) })
 	}
 	if (row.Pressed() || row.Clicked()) && !selected {
 		a.selectSession(s.ID)
@@ -659,7 +716,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, 
 	if row.DoubleClicked() {
 		a.startRename(s.ID)
 	}
-	tip := a.hostOf(s.ID).shortDir(s.WorkDir())
+	tip := h.shortDir(s.WorkDir())
 	if s.Process != "" {
 		tip = s.Process + " · " + tip
 	}
@@ -705,6 +762,38 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, 
 			}
 		}
 		ui.Spacer(c)
+		// The arrows a hovered or chosen row shows stand in for a drag of
+		// one place. Up trades with the row above — past two rows it pins
+		// after the one before that, at the group's top it pins at the
+		// head — and down, when a row is below, pins after it.
+		if hovered || selected {
+			up := ui.ButtonBase(c.Key("up-" + s.ID)).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
+				Label(locales.SidebarMoveUp()).Tooltip(locales.SidebarMoveUp())
+			if up.Hovered() {
+				up.Background(pal.rowHover).TextColor(pal.text)
+			}
+			up.Children(func() { ui.Icon(c, chevronUpIcon).Size(13, 13) })
+			if up.Clicked() {
+				pin := "head"
+				if at >= 2 {
+					pin = ss[at-2].ID
+				}
+				sid := s.ID
+				a.defer_(func() { a.moveSession(sid, pin, nil) })
+			}
+			if at+1 < len(ss) {
+				down := ui.ButtonBase(c.Key("down-" + s.ID)).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
+					Label(locales.SidebarMoveDown()).Tooltip(locales.SidebarMoveDown())
+				if down.Hovered() {
+					down.Background(pal.rowHover).TextColor(pal.text)
+				}
+				down.Children(func() { ui.Icon(c, chevronDownIcon).Size(13, 13) })
+				if down.Clicked() {
+					sid, pin := s.ID, ss[at+1].ID
+					a.defer_(func() { a.moveSession(sid, pin, nil) })
+				}
+			}
+		}
 		cmd := c.Modifiers() == ui.Cmd
 		if cmd && index <= 9 {
 			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
@@ -725,6 +814,24 @@ func (a *App) renameStarted(c *ui.Context) bool {
 		return false
 	}
 	return true
+}
+
+// inSameGroup tells whether a dragged session stands in the group s's
+// row belongs to: By Date's groups are the days its sessions were made
+// on, which no drag crosses. Grouped by project or flat, a host's rows
+// are one family — a drop in another project's row moves house instead.
+func (a *App) inSameGroup(d sidebarDrag, s *proto.Session) bool {
+	if a.prefs.SidebarGroup != "date" {
+		return true
+	}
+	src := a.session(d.session)
+	return src != nil && dayStart(src.Created).Equal(dayStart(s.Created))
+}
+
+// madeOn tells whether session id was made on day, as By Date groups it.
+func (a *App) madeOn(id string, day time.Time) bool {
+	s := a.session(id)
+	return s != nil && dayStart(s.Created).Equal(day)
 }
 
 func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
@@ -748,10 +855,14 @@ func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
 		for _, p := range a.projectsOf(h) {
 			if m.Item(p.Name).Checked(p.ID == s.Project).Disabled(p.ID == s.Project).Chosen() {
 				pid := p.ID
-				a.defer_(func() { a.moveSession(id, pid) })
+				a.defer_(func() { a.moveSession(id, "", &pid) })
 			}
 		}
 	})
+	// The order a drag left goes; the sidebar's own order takes back.
+	if m.Item(locales.SidebarResetOrder()).Chosen() {
+		a.defer_(func() { a.moveSession(id, "", nil) })
+	}
 	m.Separator()
 	if m.Item(locales.SessionCopyId()).Chosen() {
 		a.copyText = id

@@ -502,7 +502,7 @@ func (a *App) hostGroups(h *host) []group {
 				g.sessions = append(g.sessions, &a.st.Sessions[i])
 			}
 		}
-		a.sortSessions(g.sessions)
+		a.orderGroup(g.sessions)
 		gs = append(gs, g)
 	}
 	other := group{host: h, project: proto.Project{ID: "", Name: locales.SidebarOtherProject()}}
@@ -512,7 +512,7 @@ func (a *App) hostGroups(h *host) []group {
 		}
 	}
 	if len(other.sessions) > 0 {
-		a.sortSessions(other.sessions)
+		a.orderGroup(other.sessions)
 		gs = append(gs, other)
 	}
 	return gs
@@ -551,6 +551,18 @@ func (a *App) orderProjects(ps []proto.Project) {
 type projectDrag struct {
 	host *host
 	id   string
+}
+
+// sidebarDrag is what the sidebar drags to another place under a host: a
+// session (session set), which pins where it lands — after a row, or at
+// a group's head — or a project (id set), which moves before or after
+// the one it lands on. One type serves both: an element takes values of
+// one drag type only, and a group's header takes either.
+type sidebarDrag struct {
+	host    *host
+	session string
+	id      string // the project dragged, when not a session
+	project string // the dragged session's project, to move house with it
 }
 
 // moveProject puts a project drag before or after target, under its
@@ -594,32 +606,26 @@ func (a *App) moveProject(d projectDrag, target string, after bool) {
 	a.savePrefs()
 }
 
-// sortSessions orders sessions as the sidebar's Order says: the ones
-// created first, or the ones updated last.
-func (a *App) sortSessions(ss []*proto.Session) {
-	order := a.prefs.SidebarOrder
-	if order == "" {
-		order = "created"
+// orderGroup orders a sidebar group's sessions for showing: the auto
+// order the sidebar's Order choice keeps, then the pins the user's
+// drags left, each session standing after the one it is pinned to
+// (orderSessions, in order.go).
+func (a *App) orderGroup(ss []*proto.Session) {
+	vals := make([]proto.Session, len(ss))
+	for i, s := range ss {
+		vals[i] = *s
 	}
-	sort.SliceStable(ss, func(i, j int) bool {
-		if order == "updated" {
-			return sessionUpdated(ss[i]) > sessionUpdated(ss[j])
-		}
-		return ss[i].Created < ss[j].Created
-	})
-}
-
-// sessionUpdated is when a session last did something, for the updated
-// order: its program's last write, else its status's since, else its
-// creation.
-func sessionUpdated(s *proto.Session) int64 {
-	if s.Activity > 0 {
-		return s.Activity
+	at := make(map[string]int, len(ss))
+	for i, s := range ss {
+		at[s.ID] = i
 	}
-	if s.Since > 0 {
-		return s.Since
+	// The reordering cannot stand in place: a session read early would
+	// find its place taken by one written before it.
+	ordered := make([]*proto.Session, len(ss))
+	for i, s := range orderSessions(vals, a.prefs.SidebarOrder) {
+		ordered[i] = ss[at[s.ID]]
 	}
-	return s.Created
+	copy(ss, ordered)
 }
 
 // flatSessions are a host's sessions, ordered, for a sidebar that does
@@ -631,7 +637,7 @@ func (a *App) flatSessions(h *host) []*proto.Session {
 			out = append(out, &a.st.Sessions[i])
 		}
 	}
-	a.sortSessions(out)
+	a.orderGroup(out)
 	return out
 }
 
@@ -639,6 +645,12 @@ func (a *App) flatSessions(h *host) []*proto.Session {
 type dateGroup struct {
 	day      time.Time
 	sessions []*proto.Session
+}
+
+// dayStart is the day ms falls on, as By Date groups sessions by.
+func dayStart(ms int64) time.Time {
+	d := time.UnixMilli(ms)
+	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
 }
 
 // dateGroups groups a host's sessions by the day they were created, the
@@ -653,15 +665,14 @@ func (a *App) dateGroups(h *host) []dateGroup {
 	sort.SliceStable(all, func(i, j int) bool { return all[i].Created > all[j].Created })
 	var gs []dateGroup
 	for _, s := range all {
-		d := time.UnixMilli(s.Created)
-		d = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
+		d := dayStart(s.Created)
 		if len(gs) == 0 || !gs[len(gs)-1].day.Equal(d) {
 			gs = append(gs, dateGroup{day: d})
 		}
 		gs[len(gs)-1].sessions = append(gs[len(gs)-1].sessions, s)
 	}
 	for i := range gs {
-		a.sortSessions(gs[i].sessions)
+		a.orderGroup(gs[i].sessions)
 	}
 	return gs
 }
@@ -694,7 +705,9 @@ func (a *App) projectName(id string) string {
 func (a *App) collapsed(g group) bool { return a.prefs.Collapsed[g.key()] }
 
 // visibleOrder returns the sessions in the sidebar's order, those of
-// collapsed projects left out unless selected.
+// collapsed projects left out: what the shortcuts reach is what the
+// screen shows, a folded project's rows — the chosen session's among
+// them — are not on it.
 func (a *App) visibleOrder() []string {
 	var ids []string
 	switch a.prefs.SidebarGroup {
@@ -717,7 +730,7 @@ func (a *App) visibleOrder() []string {
 	}
 	for _, g := range a.groups() {
 		for _, s := range g.sessions {
-			if !a.collapsed(g) || s.ID == a.selected {
+			if !a.collapsed(g) {
 				ids = append(ids, s.ID)
 			}
 		}
@@ -1587,11 +1600,17 @@ func (a *App) commitProjectRename() {
 	a.focusTerminal()
 }
 
-func (a *App) moveSession(id, project string) {
+// moveSession pins a session where the user put it in its sidebar, and
+// moves it to another project when asked to (session.move): the pin and
+// the move show at once, and the daemon's state follows.
+func (a *App) moveSession(id, pin string, project *string) {
 	if s := a.session(id); s != nil {
-		s.Project = project
+		s.Pin = pin
+		if project != nil {
+			s.Project = *project
+		}
 	}
-	a.call(id, "move", proto.MoveParams{ID: id, Project: project, Index: -1}, nil)
+	a.call(id, "session.move", proto.MoveSessionParams{Session: id, Pin: pin, Project: project}, nil)
 }
 
 func (a *App) selectOffset(d int) {

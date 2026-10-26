@@ -1027,3 +1027,239 @@ func TestCollapseSelectedProject(t *testing.T) {
 		t.Error("the opened project's badge still shows the dot")
 	}
 }
+
+// dragSessions is the app of the session-drag tests: three sessions of
+// p1 (demo s1, beta s2, gamma s3, by created) and one of p2 (delta s4),
+// with a daemon that records each session.move.
+func dragSessions(t *testing.T) (*App, *ui.Tester, chan proto.MoveSessionParams) {
+	t.Helper()
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200},
+		proto.Session{ID: "s3", Project: "p1", Name: "gamma", Created: 300},
+		proto.Session{ID: "s4", Project: "p2", Name: "delta", Created: 400})
+	moves := make(chan proto.MoveSessionParams, 16)
+	a.local().conn = connReady
+	a.local().cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "session.move" {
+			var p proto.MoveSessionParams
+			if err := json.Unmarshal(raw, &p); err == nil {
+				moves <- p
+			}
+		}
+		return nil, nil
+	})
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	return a, tt, moves
+}
+
+// dragged moves the row at src onto dst, as the project-drag test does.
+func dragged(tt *ui.Tester, src, dst ui.Rect) {
+	tt.Press(src.X+10, src.Y+src.H/2)
+	for i := 1; i <= 10; i++ {
+		f := float32(i) / 10
+		x := src.X + 10
+		y := src.Y + src.H/2 + (dst.Y+dst.H-4-src.Y-src.H/2)*f
+		tt.Move(x, y)
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+	tt.Release(dst.X+10, dst.Y+dst.H-4)
+	tt.Frame()
+	tt.Advance(50 * time.Millisecond)
+	tt.Frame()
+}
+
+// moved is the one session.move the test expects, or none at all.
+func moved(t *testing.T, moves chan proto.MoveSessionParams, want *proto.MoveSessionParams) {
+	t.Helper()
+	select {
+	case got := <-moves:
+		if want == nil {
+			t.Fatalf("session.move %+v, want none", got)
+		}
+		if got.Session != want.Session || got.Pin != want.Pin {
+			t.Fatalf("session.move %+v, want session %q pin %q", got, want.Session, want.Pin)
+		}
+		switch {
+		case got.Project == nil && want.Project != nil:
+			t.Fatalf("session.move without a project, want %q", *want.Project)
+		case got.Project != nil && want.Project == nil:
+			t.Fatalf("session.move to project %q, want none", *got.Project)
+		case got.Project != nil && *got.Project != *want.Project:
+			t.Fatalf("session.move to project %q, want %q", *got.Project, *want.Project)
+		}
+	case <-time.After(2 * time.Second):
+		if want != nil {
+			t.Fatal("no session.move call")
+		}
+	}
+}
+
+// A session dragged onto another row of its host pins after that row,
+// onto another project's header goes to its head, and across hosts pins
+// nothing: a session cannot leave the kerod that owns its terminal.
+func TestSessionDrag(t *testing.T) {
+	t.Run("row to row", func(t *testing.T) {
+		_, tt, moves := dragSessions(t)
+		src, ok := tt.Find("gamma")
+		if !ok {
+			t.Fatalf("no gamma row; texts %q", tt.Texts())
+		}
+		dst, ok := tt.Find("beta")
+		if !ok {
+			t.Fatalf("no beta row; texts %q", tt.Texts())
+		}
+		dragged(tt, src, dst)
+		moved(t, moves, &proto.MoveSessionParams{Session: "s3", Pin: "s2"})
+	})
+	t.Run("onto another project's header", func(t *testing.T) {
+		_, tt, moves := dragSessions(t)
+		src, ok := tt.Find("gamma")
+		if !ok {
+			t.Fatalf("no gamma row; texts %q", tt.Texts())
+		}
+		dst, ok := tt.Find("two")
+		if !ok {
+			t.Fatalf("no two project; texts %q", tt.Texts())
+		}
+		dragged(tt, src, dst)
+		two := "p2"
+		moved(t, moves, &proto.MoveSessionParams{Session: "s3", Pin: "head", Project: &two})
+	})
+	t.Run("across hosts", func(t *testing.T) {
+		a, tt, moves := dragSessions(t)
+		h := &host{name: "remote", conn: connReady, loaded: true}
+		a.hosts = append(a.hosts, h)
+		a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "r1", Name: "remote one", Created: 500})
+		a.owner = map[string]*host{"r1": h}
+		tt.Frame()
+		src, ok := tt.Find("demo")
+		if !ok {
+			t.Fatalf("no demo row; texts %q", tt.Texts())
+		}
+		dst, ok := tt.Find("remote one")
+		if !ok {
+			t.Fatalf("no remote row; texts %q", tt.Texts())
+		}
+		dragged(tt, src, dst)
+		time.Sleep(200 * time.Millisecond)
+		moved(t, moves, nil)
+	})
+}
+
+// The arrows a hovered or chosen row shows stand in for a drag of one
+// place: up pins before the row above's place, down after the row below.
+func TestSessionArrows(t *testing.T) {
+	hover := func(t *testing.T, tt *ui.Tester, name string) {
+		t.Helper()
+		r, ok := tt.Find(name)
+		if !ok {
+			t.Fatalf("no %s row; texts %q", name, tt.Texts())
+		}
+		tt.Move(r.X+20, r.Y+r.H/2)
+		tt.Frame()
+	}
+	t.Run("up to the head", func(t *testing.T) {
+		a, tt, moves := dragSessions(t)
+		a.selected = "s2"
+		hover(t, tt, "beta")
+		if err := tt.Click(locales.SidebarMoveUp()); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		moved(t, moves, &proto.MoveSessionParams{Session: "s2", Pin: "head"})
+	})
+	t.Run("up past one row", func(t *testing.T) {
+		a, tt, moves := dragSessions(t)
+		a.selected = "s3"
+		hover(t, tt, "gamma")
+		if err := tt.Click(locales.SidebarMoveUp()); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		moved(t, moves, &proto.MoveSessionParams{Session: "s3", Pin: "s1"})
+	})
+	t.Run("down", func(t *testing.T) {
+		a, tt, moves := dragSessions(t)
+		a.selected = "s2"
+		hover(t, tt, "beta")
+		if err := tt.Click(locales.SidebarMoveDown()); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		moved(t, moves, &proto.MoveSessionParams{Session: "s2", Pin: "s3"})
+	})
+	t.Run("the last row has no down", func(t *testing.T) {
+		a, tt, _ := dragSessions(t)
+		a.selected = "s4"
+		hover(t, tt, "delta")
+		if _, ok := tt.Find(locales.SidebarMoveDown()); ok {
+			t.Error("the last row of its project shows a down arrow")
+		}
+	})
+}
+
+// Reset to Auto Order takes a session's pin off, back to where the
+// order the sidebar keeps would put it.
+func TestSessionReset(t *testing.T) {
+	_, tt, moves := dragSessions(t)
+	if err := tt.RightClick("gamma"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem(locales.SidebarResetOrder()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	moved(t, moves, &proto.MoveSessionParams{Session: "s3"})
+}
+
+// ⌘1–9 (Ctrl+1–9 elsewhere) reach the rows as the sidebar shows them:
+// the pins' order, and, a project folded away with the session shown in
+// it, none of its rows — the shortcuts follow what is on the screen.
+func TestSidebarShortcutOrder(t *testing.T) {
+	a := testApp(t)
+	a.st.Sessions[0].Name = "alpha" // not "demo": the project takes that name
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200},
+		proto.Session{ID: "s3", Project: "p1", Name: "gamma", Pin: "s1", Created: 300})
+	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s4", Project: "p2", Name: "delta", Created: 400},
+		proto.Session{ID: "s5", Project: "p2", Name: "epsilon", Created: 500})
+	a.prefs.Collapsed = map[string]bool{"p2": true}
+	a.selected = "s5" // in the folded project, hidden with it
+	want := []string{"s1", "s3", "s2"} // gamma pinned after demo
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	if got := a.visibleOrder(); !slices.Equal(got, want) {
+		t.Fatalf("visibleOrder %v, want %v", got, want)
+	}
+	for _, name := range []string{"delta", "epsilon"} {
+		if tt.HasText(name) {
+			t.Errorf("%s shows in the folded project", name)
+		}
+	}
+	tt.HoldModifiers(ui.Cmd)
+	tt.Frame()
+	names := map[string]string{"s1": "alpha", "s2": "beta", "s3": "gamma"}
+	for i, id := range want {
+		row, ok := tt.Find(names[id])
+		if !ok {
+			t.Fatalf("no %s row; texts %q", names[id], tt.Texts())
+		}
+		key, ok := tt.Find(actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", i+1)))
+		if !ok {
+			t.Fatalf("row %d (%s) shows no ⌘%d", i+1, names[id], i+1)
+		}
+		// The number stands in the row it names: their centers share a row.
+		if d := key.Y + key.H/2 - (row.Y + row.H/2); d < -rowH/2 || d > rowH/2 {
+			t.Errorf("⌘%d centers %g off the %s row", i+1, d, names[id])
+		}
+	}
+	if _, ok := tt.Find(actions.Glyphs("CmdOrCtrl+4")); ok {
+		t.Error("a fourth ⌘ number shows, past the rows on the screen")
+	}
+}
