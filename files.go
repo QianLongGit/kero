@@ -350,6 +350,13 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 				a.chooseFile(t, path)
 			}
 		}
+		// A right click on a file opens it in an app the user names. A
+		// remote host's files are not of this machine to open — the
+		// spec's cache step brings them here for it — and a folder has
+		// nothing to open with one.
+		if !dir && !a.hostOf(t.pane).remote() {
+			row.ContextMenu(func(m *ui.Menu) { a.openWithMenu(m, path) })
+		}
 		fg := pal.text
 		if t.shown == path {
 			fg = pal.attention

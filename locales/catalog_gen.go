@@ -4248,6 +4248,36 @@ func (msgs Messages) FilesOpenEditor() string {
 	return Catalog.Format(msgs.locale, "filesOpenEditor", nil)
 }
 
+// FilesOpenVSCode says "Open in VSCode"
+// in the language the app shows.
+func FilesOpenVSCode() string { return In(i18n.Locale()).FilesOpenVSCode() }
+
+// FilesOpenVSCode says "Open in VSCode"
+// in the language of msgs.
+func (msgs Messages) FilesOpenVSCode() string {
+	return Catalog.Format(msgs.locale, "filesOpenVSCode", nil)
+}
+
+// FilesChooseApp says "Choose App…"
+// in the language the app shows.
+func FilesChooseApp() string { return In(i18n.Locale()).FilesChooseApp() }
+
+// FilesChooseApp says "Choose App…"
+// in the language of msgs.
+func (msgs Messages) FilesChooseApp() string {
+	return Catalog.Format(msgs.locale, "filesChooseApp", nil)
+}
+
+// FilesNoApps says "No app found that opens this file"
+// in the language the app shows.
+func FilesNoApps() string { return In(i18n.Locale()).FilesNoApps() }
+
+// FilesNoApps says "No app found that opens this file"
+// in the language of msgs.
+func (msgs Messages) FilesNoApps() string {
+	return Catalog.Format(msgs.locale, "filesNoApps", nil)
+}
+
 // FilesUpdateHost says "The kerod on this host is older than this version of Kero. Update it on the host to browse its files."
 // in the language the app shows.
 func FilesUpdateHost() string { return In(i18n.Locale()).FilesUpdateHost() }
