@@ -125,11 +125,14 @@ func TestOrderSessions(t *testing.T) {
 			want: []string{"a", "b", "x"},
 		},
 		{
+			// x stands between a and b in the auto order, so only a live
+			// pin — across projects, as a whole-host group allows — moves
+			// it behind b: an ignored pin would leave a, x, b.
 			name: "a whole-host group (no projects) keeps pins",
 			group: []proto.Session{
 				{ID: "a", Project: "p1", Created: 100},
 				{ID: "b", Project: "p2", Created: 200},
-				{ID: "x", Project: "p1", Created: 400, Pin: "b"},
+				{ID: "x", Project: "p1", Created: 150, Pin: "b"},
 			},
 			want: []string{"a", "b", "x"},
 		},
