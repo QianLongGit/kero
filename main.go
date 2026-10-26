@@ -97,6 +97,8 @@ func runApp() {
 		})
 	})
 	mygo.App.OnSecondInstance(func([]string, string) { a.showWindow() })
+	// kero://focus, as Vibe Island writes it, goes to the pane it names.
+	mygo.App.OnOpenURL(a.openJump)
 	mygo.App.OnDidBecomeActive(func() {
 		mygo.ClearNotifications()
 		a.update(func() { a.active = true; a.reportView() })

@@ -167,6 +167,7 @@ func (s *pane) start(command []string, env []string) error {
 	s.proc = proc
 	s.shellPID = proc.PID()
 	s.info.PID = s.shellPID
+	s.info.TTY = proc.tty
 	s.info.Dir = dir
 	s.info.Shell = name
 	s.info.CommandExit = nil

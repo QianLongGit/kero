@@ -209,6 +209,9 @@ type Pane struct {
 	Cols     int  `json:"cols"`
 	Rows     int  `json:"rows"`
 	PID      int  `json:"pid,omitempty"`
+	// TTY is the pane's terminal device (/dev/ttys012), as a jump from
+	// outside names it, set whenever the pane's pty (re)starts.
+	TTY string `json:"tty,omitempty"`
 	// Git is the git worktree the pane works in (WorkDir), nil for none,
 	// or while the configuration's git-status is off.
 	Git *GitInfo `json:"git,omitempty"`

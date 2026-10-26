@@ -75,6 +75,7 @@ func settingsIndex() []searchEntry {
 		{"agents", locales.SetCliRow(), "cli command line tool install path"},
 		{"agents", "Claude Code", "skill agents install"},
 		{"agents", "Codex, OpenCode, Pi", "skill agents install"},
+		{"agents", locales.SetVibeIsland(), "vibe island notch jump focus url scheme integration"},
 		{"agents", locales.SetProgramStatus(), "osc 7501 report progress"},
 
 		{"hosts", locales.SetHosts(), "host hosts remote server ssh tailscale tailnet wsl machine linux devbox -H kero hosts"},

@@ -3294,6 +3294,46 @@ func (msgs Messages) SetSkillMissing() string {
 	return Catalog.Format(msgs.locale, "setSkillMissing", nil)
 }
 
+// SetVibeIsland says "Vibe Island"
+// in the language the app shows.
+func SetVibeIsland() string { return In(i18n.Locale()).SetVibeIsland() }
+
+// SetVibeIsland says "Vibe Island"
+// in the language of msgs.
+func (msgs Messages) SetVibeIsland() string {
+	return Catalog.Format(msgs.locale, "setVibeIsland", nil)
+}
+
+// SetVibeIslandDetail says "Clicking an agent in Vibe Island's notch panel jumps to its session and pane. Needs Vibe Island 1.0.22 or newer, and …"
+// in the language the app shows.
+func SetVibeIslandDetail() string { return In(i18n.Locale()).SetVibeIslandDetail() }
+
+// SetVibeIslandDetail says "Clicking an agent in Vibe Island's notch panel jumps to its session and pane. Needs Vibe Island 1.0.22 or newer, and …"
+// in the language of msgs.
+func (msgs Messages) SetVibeIslandDetail() string {
+	return Catalog.Format(msgs.locale, "setVibeIslandDetail", nil)
+}
+
+// SetVibeIslandRow says "Jump rule"
+// in the language the app shows.
+func SetVibeIslandRow() string { return In(i18n.Locale()).SetVibeIslandRow() }
+
+// SetVibeIslandRow says "Jump rule"
+// in the language of msgs.
+func (msgs Messages) SetVibeIslandRow() string {
+	return Catalog.Format(msgs.locale, "setVibeIslandRow", nil)
+}
+
+// SetVibeIslandNotInstalled says "Not installed: Vibe Island only raises Kero's window."
+// in the language the app shows.
+func SetVibeIslandNotInstalled() string { return In(i18n.Locale()).SetVibeIslandNotInstalled() }
+
+// SetVibeIslandNotInstalled says "Not installed: Vibe Island only raises Kero's window."
+// in the language of msgs.
+func (msgs Messages) SetVibeIslandNotInstalled() string {
+	return Catalog.Format(msgs.locale, "setVibeIslandNotInstalled", nil)
+}
+
 // SetProgramStatus says "Program status"
 // in the language the app shows.
 func SetProgramStatus() string { return In(i18n.Locale()).SetProgramStatus() }

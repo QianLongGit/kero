@@ -289,3 +289,26 @@ func TestAgentPane(t *testing.T) {
 	a.shellPID = os.Getpid()
 	check("under the app server a's Codex started", server.Process.Pid, "", "b", true)
 }
+
+// A pane tells the terminal device its agent runs on, so an outside
+// jump can name it: set again when a restored pane's pty is a new one.
+func TestPaneTTY(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no /dev/ttys on windows")
+	}
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	d := &Daemon{changeCh: make(chan struct{}, 1), saveCh: make(chan struct{}, 1), panes: map[string]*pane{}}
+	d.viewed.Store(new(string))
+	p, err := newPane(d, "s", proto.Pane{ID: "a", Dir: t.TempDir(), Status: proto.Idle, Cols: 80, Rows: 24})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.start(nil, nil); err != nil {
+		p.term.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.close() })
+	if !strings.HasPrefix(p.info.TTY, "/dev/ttys") {
+		t.Errorf("pane tty %q, want a /dev/ttys* device", p.info.TTY)
+	}
+}

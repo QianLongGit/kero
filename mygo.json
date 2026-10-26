@@ -1,6 +1,7 @@
 {
   "name": "Kero",
   "identifier": "sh.kero",
+  "urlSchemes": ["kero"],
   "version": "2.1.21",
   "out": "build",
   "i18n": {

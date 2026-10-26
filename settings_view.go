@@ -67,6 +67,7 @@ type settingsState struct {
 	loginOpen    bool // open at login, as the system says
 	updates      updatePrefs
 	cliPath      string
+	vibeRule     string // the Vibe Island rule on disk: missing, current or outdated
 	service      string // kerod, as last asked
 	notice       string // a line under the keyboard page, as of a conflict
 	toast        string
@@ -137,6 +138,13 @@ func (a *App) refreshUpdates() {
 
 func (a *App) refreshAgents() {
 	a.ss.cliPath = cliInstalled()
+	// Vibe Island reads the rule from the real home, not KERO_HOME's —
+	// a home the app cannot even name just reads as none installed.
+	a.ss.vibeRule = "missing"
+	if home, err := os.UserHomeDir(); err == nil {
+		name, file, bundle := vibeIslandSetup()
+		a.ss.vibeRule = vibeIslandRuleState(home, file, vibeIslandRule(name, bundle))
+	}
 }
 
 // refreshService asks kerod how it is, off the main thread.
@@ -1025,6 +1033,38 @@ func (a *App) agentsPage(c *ui.Context, pal *palette) {
 				}
 			})
 		}
+	})
+	// The rule is a file write Vibe Island picks up on its next start —
+	// no install to wait out, so a click reads the state right back.
+	name, file, bundle := vibeIslandSetup()
+	want := vibeIslandRule(name, bundle)
+	home, _ := os.UserHomeDir()
+	settingsGroup(c, pal, locales.SetVibeIsland(), locales.SetVibeIslandDetail(), func() {
+		detail := locales.SetVibeIslandNotInstalled()
+		if a.ss.vibeRule == "current" {
+			detail = proto.ShortDir(vibeIslandRulePath(home, file))
+		}
+		settingRow(c, pal, locales.SetVibeIslandRow(), detail, func() {
+			if a.ss.vibeRule == "current" {
+				if button(c, "rm-vibe", locales.CommonRemove(), "", false, pal) {
+					if err := removeVibeIslandRule(home, file); err != nil {
+						a.toastIn(c, err.Error())
+					}
+					a.ss.vibeRule = vibeIslandRuleState(home, file, want)
+				}
+			} else {
+				label := locales.CommonInstall()
+				if a.ss.vibeRule == "outdated" {
+					label = locales.CommonUpdate()
+				}
+				if button(c, "in-vibe", label, "", true, pal) {
+					if err := installVibeIslandRule(home, name, file, bundle); err != nil {
+						a.toastIn(c, err.Error())
+					}
+					a.ss.vibeRule = vibeIslandRuleState(home, file, want)
+				}
+			}
+		})
 	})
 	settingsGroup(c, pal, locales.SetProgramStatus(), locales.SetProgramStatusDetail(), nil)
 	codeBlock(c, pal, "kero report working \"Deploying\" --progress 40\nkero report blocked \"Approve the migration?\" --kind permission\nkero report done \"Deployed\"")

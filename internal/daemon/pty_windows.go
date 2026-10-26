@@ -27,11 +27,14 @@ type ptyProc struct {
 	cols, rows int
 	in         *os.File
 	out        *os.File
-	process    windows.Handle
-	job        windows.Handle
-	pid        int
-	exited     chan struct{}
-	code       int
+	// tty is the terminal's device name: a Unix pseudo-terminal has one,
+	// a console has none, so it stays "".
+	tty     string
+	process windows.Handle
+	job     windows.Handle
+	pid     int
+	exited  chan struct{}
+	code    int
 }
 
 type ptyOptions struct {

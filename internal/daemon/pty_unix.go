@@ -15,6 +15,9 @@ import (
 // ptyProc is a program running in a pseudo-terminal of its own.
 type ptyProc struct {
 	master *os.File
+	// tty is the pseudo-terminal's slave, the device a jump from outside
+	// names the pane by.
+	tty    string
 	cmd    *exec.Cmd
 	exited chan struct{}
 	code   int
@@ -55,7 +58,7 @@ func startPTY(o ptyOptions) (*ptyProc, error) {
 		master.Close()
 		return nil, err
 	}
-	p := &ptyProc{master: master, cmd: cmd, exited: make(chan struct{})}
+	p := &ptyProc{master: master, tty: slaveName, cmd: cmd, exited: make(chan struct{})}
 	go func() {
 		err := cmd.Wait()
 		p.code = 0

@@ -88,10 +88,11 @@ type App struct {
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
 	// before, and owner the host of each session, pane and project.
-	hosts  []*host
-	owner  map[string]*host
-	st     proto.State
-	loaded bool // a state came
+	hosts   []*host
+	owner   map[string]*host
+	st      proto.State
+	loaded  bool       // a state came
+	pending *jumpQuery // a kero://focus URL that waits for the state to resolve it
 
 	prefs      prefs
 	set        settings.Settings // the user's settings: Settings' controls edit it
@@ -335,6 +336,7 @@ func (a *App) setState(h *host, st proto.State) {
 	} else if first || hostFirst && a.hostOf(a.selected) == h {
 		a.selectSession(a.selected)
 	}
+	a.takePendingJump(h)
 	a.notify(first)
 	a.updateTitle()
 }
