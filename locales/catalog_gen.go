@@ -4148,6 +4148,16 @@ func (msgs Messages) FilesCantRead() string {
 	return Catalog.Format(msgs.locale, "filesCantRead", nil)
 }
 
+// FilesCantWrite says "Can't write the file"
+// in the language the app shows.
+func FilesCantWrite() string { return In(i18n.Locale()).FilesCantWrite() }
+
+// FilesCantWrite says "Can't write the file"
+// in the language of msgs.
+func (msgs Messages) FilesCantWrite() string {
+	return Catalog.Format(msgs.locale, "filesCantWrite", nil)
+}
+
 // FilesBinary says "Binary file"
 // in the language the app shows.
 func FilesBinary() string { return In(i18n.Locale()).FilesBinary() }
@@ -4186,6 +4196,46 @@ func FilesCloseFile() string { return In(i18n.Locale()).FilesCloseFile() }
 // in the language of msgs.
 func (msgs Messages) FilesCloseFile() string {
 	return Catalog.Format(msgs.locale, "filesCloseFile", nil)
+}
+
+// FilesConflictTitle says "The file changed on the host"
+// in the language the app shows.
+func FilesConflictTitle() string { return In(i18n.Locale()).FilesConflictTitle() }
+
+// FilesConflictTitle says "The file changed on the host"
+// in the language of msgs.
+func (msgs Messages) FilesConflictTitle() string {
+	return Catalog.Format(msgs.locale, "filesConflictTitle", nil)
+}
+
+// FilesConflictDetail says "{path} changed on the host since it was read. Overwrite it with the edit here, or take the host's file again?"
+// in the language the app shows.
+func FilesConflictDetail(path string) string { return In(i18n.Locale()).FilesConflictDetail(path) }
+
+// FilesConflictDetail says "{path} changed on the host since it was read. Overwrite it with the edit here, or take the host's file again?"
+// in the language of msgs.
+func (msgs Messages) FilesConflictDetail(path string) string {
+	return Catalog.Format(msgs.locale, "filesConflictDetail", map[string]any{"path": path})
+}
+
+// FilesConflictOverwrite says "Overwrite"
+// in the language the app shows.
+func FilesConflictOverwrite() string { return In(i18n.Locale()).FilesConflictOverwrite() }
+
+// FilesConflictOverwrite says "Overwrite"
+// in the language of msgs.
+func (msgs Messages) FilesConflictOverwrite() string {
+	return Catalog.Format(msgs.locale, "filesConflictOverwrite", nil)
+}
+
+// FilesConflictRedownload says "Re-download"
+// in the language the app shows.
+func FilesConflictRedownload() string { return In(i18n.Locale()).FilesConflictRedownload() }
+
+// FilesConflictRedownload says "Re-download"
+// in the language of msgs.
+func (msgs Messages) FilesConflictRedownload() string {
+	return Catalog.Format(msgs.locale, "filesConflictRedownload", nil)
 }
 
 // FilesOpenInPane says "Open in a File Pane"

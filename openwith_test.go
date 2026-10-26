@@ -17,13 +17,21 @@ import (
 )
 
 // The commands that open a file in an app are plain values, as the menu
-// runs them: on macOS open asks LaunchServices for an app by name.
+// runs them: on macOS open asks LaunchServices for an app by name, and
+// VS Code falls back to its CLI, which elsewhere is the one.
 func TestOpenWithCommand(t *testing.T) {
 	if got := openWithCommand("TextEdit", "/tmp/note.txt"); !slices.Equal(got, []string{"open", "-a", "TextEdit", "/tmp/note.txt"}) {
 		t.Errorf("openWithCommand = %q, want open -a TextEdit /tmp/note.txt", got)
 	}
-	if got := vscodeCommand("/tmp/main.go"); !slices.Equal(got, []string{"open", "-a", "Visual Studio Code", "/tmp/main.go"}) {
-		t.Errorf("vscodeCommand = %q, want open -a Visual Studio Code /tmp/main.go", got)
+	want := [][]string{{"open", "-a", "Visual Studio Code", "/tmp/main.go"}, {"code", "/tmp/main.go"}}
+	got := vscodeCommands("/tmp/main.go")
+	if len(got) != len(want) {
+		t.Fatalf("vscodeCommands = %q, want the app and then its CLI", got)
+	}
+	for i := range want {
+		if !slices.Equal(got[i], want[i]) {
+			t.Errorf("vscodeCommands[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 
@@ -81,26 +89,4 @@ func TestFilesOpenWithMenu(t *testing.T) {
 		t.Errorf("Choose App is not a submenu: %v", err)
 	}
 	tt.CloseMenu()
-}
-
-// A remote host's file has no menu to open it with: its path is not one
-// of this machine, until the spec's cache step brings the file here.
-func TestFilesOpenWithRemoteNone(t *testing.T) {
-	a := testApp(t)
-	s := &a.st.Sessions[0]
-	a.prefs.Side = sideFiles
-	h := &host{name: "remote", conn: connReady, cl: &client.Client{}, loaded: true}
-	a.hosts = append(a.hosts, h)
-	a.owner = map[string]*host{"s1": h, "p1": h, "a": h, "b": h}
-	s.Panes[0].ProcessDir = "/tmp/demo"
-	pane, root := a.filesRoot(s)
-	a.tree(pane, root).dirs[root] = &fileDir{paths: []string{"/tmp/demo/main.go"}}
-	tt := ui.NewTester(a.view, 1280, 720)
-	tt.Frame()
-	if err := tt.RightClick("main.go"); err != nil {
-		t.Fatal(err)
-	}
-	if menu := tt.Menu(); menu != nil {
-		t.Errorf("a remote file's menu is %q, want none", menu)
-	}
 }

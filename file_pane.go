@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -82,10 +83,13 @@ func (a *App) filePane(c *ui.Context, pal *palette, s *proto.Session, p *proto.P
 }
 
 // readFilePane reads a pane's file, once as it opens: a pane shows what
-// the file was then, as a terminal shows what its program printed.
+// the file was then, as a terminal shows what its program printed. A
+// file of the cache — a remote host's, brought here — reads from the
+// disk beside us.
 func (a *App) readFilePane(p *proto.Pane, f *filePane) {
 	h := a.hostOf(p.ID)
-	if h.cl == nil {
+	cached := a.cacheLocal(f.path)
+	if h.cl == nil && !cached {
 		return
 	}
 	if f.read {
@@ -98,23 +102,41 @@ func (a *App) readFilePane(p *proto.Pane, f *filePane) {
 	image := peekable[strings.ToLower(filepath.Ext(path))]
 	cl := h.cl
 	go func() {
-		var st proto.FSStat
-		var r proto.FSRead
+		var size int64
+		var data []byte
 		var bm *ui.Bitmap
-		err := cl.Call("fs.stat", proto.FSStatParams{Path: path}, &st)
-		large := err == nil && (image && st.Size > maxImage || !image && st.Size > maxText)
-		if err == nil && (!st.Exists || st.Dir) {
-			err = errFilesGone
+		var err error
+		if cached {
+			var fi os.FileInfo
+			if fi, err = os.Stat(path); err == nil {
+				size = fi.Size()
+			}
+		} else {
+			var st proto.FSStat
+			if err = cl.Call("fs.stat", proto.FSStatParams{Path: path}, &st); err == nil {
+				size = st.Size
+				if !st.Exists || st.Dir {
+					err = errFilesGone
+				}
+			}
 		}
+		large := err == nil && (image && size > maxImage || !image && size > maxText)
 		if err == nil && !large {
-			err = cl.Call("fs.read", proto.FSReadParams{Path: path, Max: max(maxImage, maxText)}, &r)
+			if cached {
+				data, err = os.ReadFile(path)
+			} else {
+				var r proto.FSRead
+				if err = cl.Call("fs.read", proto.FSReadParams{Path: path, Max: max(maxImage, maxText)}, &r); err == nil {
+					data = r.Data
+				}
+			}
 		}
 		if err == nil && !large && image {
-			bm, err = ui.DecodeBitmap(r.Data)
+			bm, err = ui.DecodeBitmap(data)
 		}
 		if err == nil && !large && image && bm == nil {
-			// The host's kerod cannot draw it: its bytes are as good a
-			// view as a text of them.
+			// The file cannot be drawn: its bytes are as good a view as
+			// a text of them.
 			image = false
 		}
 		a.update(func() {
@@ -133,11 +155,11 @@ func (a *App) readFilePane(p *proto.Pane, f *filePane) {
 				f.st, f.bm = nil, nil
 			case image && bm != nil:
 				f.bm, f.st = bm, nil
-			case isBinary(r.Data):
+			case isBinary(data):
 				f.binary, f.st, f.bm = true, nil, nil
 			default:
 				f.bm = nil
-				b := editor.NewBuffer(string(r.Data))
+				b := editor.NewBuffer(string(data))
 				b.SetLanguage(editor.LanguageFor(filepath.Base(path)))
 				f.st = &editor.State{Buffer: b}
 			}

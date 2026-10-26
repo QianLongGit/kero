@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -177,7 +178,14 @@ type App struct {
 	from   *host
 	picker folderPicker // the folders of a host, to open a project in
 	side   sideState    // the side panel, beside a session's panes
-	quick  quickTerm    // the terminal the global shortcut drops down
+	// cache holds the files of remote hosts brought here to open, whose
+	// edits write back; watchOnce starts the watcher that carries them.
+	cache     filesCache
+	watchOnce sync.Once
+	// updateFn runs what a window would run on the UI thread when there is
+	// none — a test's, inline.
+	updateFn func(fn func())
+	quick    quickTerm // the terminal the global shortcut drops down
 }
 
 // confirmation is a question the app asks before something it cannot undo.
@@ -242,6 +250,11 @@ func (a *App) savePrefs() {
 func (a *App) update(fn func()) {
 	if a.win != nil {
 		a.win.Update(fn)
+		return
+	}
+	// No window — a test: its own marshalling stands in for the thread.
+	if a.updateFn != nil {
+		a.updateFn(fn)
 	}
 }
 

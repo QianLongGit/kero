@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -77,7 +78,11 @@ type fileDir struct {
 
 // openFile is the file shown under the tree.
 type openFile struct {
+	// path is the file as this machine reads it: its own path, or the
+	// cache's copy of a remote host's; src is the path as the tree shows
+	// it, the host's own.
 	path   string
+	src    string
 	st     *editor.State
 	bm     *ui.Bitmap
 	busy   bool
@@ -350,12 +355,11 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 				a.chooseFile(t, path)
 			}
 		}
-		// A right click on a file opens it in an app the user names. A
-		// remote host's files are not of this machine to open — the
-		// spec's cache step brings them here for it — and a folder has
-		// nothing to open with one.
-		if !dir && !a.hostOf(t.pane).remote() {
-			row.ContextMenu(func(m *ui.Menu) { a.openWithMenu(m, path) })
+		// A right click on a file opens it in an app the user names — a
+		// remote host's file through the cache, as any open of it is; a
+		// folder has nothing to open with one.
+		if !dir {
+			row.ContextMenu(func(m *ui.Menu) { a.openWithMenu(m, a.hostOf(t.pane), path) })
 		}
 		fg := pal.text
 		if t.shown == path {
@@ -400,15 +404,18 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 			a.chooseFile(t, p)
 		}
 	}
-	// Space previews the chosen file as macOS does. A remote host's files
-	// are not of this machine to preview yet — the spec's cache step
-	// brings them here for it — and a folder has nothing to show.
+	// Space previews the chosen file as macOS does — a remote host's
+	// through the cache, as any preview of it is; a folder has nothing
+	// to show.
 	if tree.Shortcut(0, ui.KeySpace) && t.chosen >= 0 && t.chosen < t.outline.Rows() {
-		if p := t.outline.Item(t.chosen); !t.isDir[p] && !a.hostOf(t.pane).remote() {
+		if p := t.outline.Item(t.chosen); !t.isDir[p] {
+			h := a.hostOf(t.pane)
 			a.defer_(func() {
-				if err := quickLook(p); err != nil {
-					a.toast(err.Error())
-				}
+				a.withLocalFile(h, p, func(local string) {
+					if err := quickLook(local); err != nil {
+						a.toast(err.Error())
+					}
+				})
 			})
 		}
 	}
@@ -428,26 +435,46 @@ func (a *App) chooseFile(t *fileTree, path string) {
 }
 
 // openFile shows a file of the tree under it, read as it first opens; a
-// listing refresh keeps it.
+// listing refresh keeps it. A remote host's file comes to the cache
+// first, and reads from there.
 func (a *App) openFile(t *fileTree, path string) {
 	if t.shown == path && t.file != nil {
 		return
 	}
 	t.shown = t.shownPath(path)
-	f := &openFile{path: path}
+	f := &openFile{path: path, src: path, busy: true}
 	t.file = f
-	a.readFile(t, f)
+	h := a.hostOf(t.pane)
+	if !h.remote() {
+		a.readFile(t, f)
+		return
+	}
+	go func() {
+		local, err := a.materialize(h.name, path)
+		a.update(func() {
+			if err == nil {
+				f.path = local
+			}
+			// A file that will not come down stays its host's own path:
+			// the read is told why, in the host's words, as it falls
+			// back to reading it there.
+			a.readFile(t, f)
+		})
+	}()
 }
 
 // openInPane opens a file of the tree in a file pane beside the pane the
 // tree is of: the app's editor shows it, colored by its language, on the
-// host it is on.
+// host it is on. A remote host's file is the cache's copy here, its
+// title the file's own name.
 func (a *App) openInPane(t *fileTree, path string) {
 	s := a.sessionOfPane(t.pane)
 	if s == nil {
 		return
 	}
-	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", File: path})
+	a.withLocalFile(a.hostOf(t.pane), path, func(local string) {
+		a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", File: local})
+	})
 }
 
 // openInEditor opens a file of the tree in the host's editor, in a pane
@@ -457,14 +484,25 @@ func (a *App) openInEditor(t *fileTree, path string) {
 	if s == nil {
 		return
 	}
-	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", Command: editorCommand(a.hostOf(t.pane), path)})
+	h := a.hostOf(t.pane)
+	if h.remote() {
+		// The file comes to the cache for the opens that run here —
+		// Quick Look, Open With — though the host's editor opens the
+		// host's own path, in the host's own shell, where the edit
+		// lands on the host already.
+		go a.materialize(h.name, path)
+	}
+	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", Command: editorCommand(h, path)})
 }
 
-// readFile reads a file from the kerod of the tree's host: an image to
-// show, else its text. A file too large, or binary, is told of instead.
+// readFile reads a file to show: a file of the cache — a remote host's,
+// brought here — from the disk beside us, else from the kerod of the
+// tree's host. An image to show, else its text; a file too large, or
+// binary, is told of instead.
 func (a *App) readFile(t *fileTree, f *openFile) {
 	cl := a.hostOf(t.pane).cl
-	if cl == nil {
+	cached := a.cacheLocal(f.path)
+	if cl == nil && !cached {
 		return
 	}
 	f.busy, f.err = true, ""
@@ -472,19 +510,37 @@ func (a *App) readFile(t *fileTree, f *openFile) {
 	gen, path := f.gen, f.path
 	image := peekable[strings.ToLower(filepath.Ext(path))]
 	go func() {
-		var st proto.FSStat
-		var r proto.FSRead
+		var size int64
+		var data []byte
 		var bm *ui.Bitmap
-		err := cl.Call("fs.stat", proto.FSStatParams{Path: path}, &st)
-		large := err == nil && (image && st.Size > maxImage || !image && st.Size > maxText)
-		if err == nil && (!st.Exists || st.Dir) {
-			err = errFilesGone
+		var err error
+		if cached {
+			var fi os.FileInfo
+			if fi, err = os.Stat(path); err == nil {
+				size = fi.Size()
+			}
+		} else {
+			var st proto.FSStat
+			if err = cl.Call("fs.stat", proto.FSStatParams{Path: path}, &st); err == nil {
+				size = st.Size
+				if !st.Exists || st.Dir {
+					err = errFilesGone
+				}
+			}
 		}
+		large := err == nil && (image && size > maxImage || !image && size > maxText)
 		if err == nil && !large {
-			err = cl.Call("fs.read", proto.FSReadParams{Path: path, Max: max(maxImage, maxText)}, &r)
+			if cached {
+				data, err = os.ReadFile(path)
+			} else {
+				var r proto.FSRead
+				if err = cl.Call("fs.read", proto.FSReadParams{Path: path, Max: max(maxImage, maxText)}, &r); err == nil {
+					data = r.Data
+				}
+			}
 		}
 		if err == nil && !large && image {
-			bm, err = ui.DecodeBitmap(r.Data)
+			bm, err = ui.DecodeBitmap(data)
 		}
 		a.update(func() {
 			if f.gen != gen {
@@ -502,12 +558,12 @@ func (a *App) readFile(t *fileTree, f *openFile) {
 			case image:
 				f.bm = bm
 				f.st = nil
-			case isBinary(r.Data):
+			case isBinary(data):
 				f.binary = true
 				f.st, f.bm = nil, nil
 			default:
 				f.bm = nil
-				b := editor.NewBuffer(string(r.Data))
+				b := editor.NewBuffer(string(data))
 				b.SetLanguage(editor.LanguageFor(filepath.Base(path)))
 				if f.st == nil {
 					f.st = &editor.State{Buffer: b}
@@ -568,15 +624,17 @@ func (a *App) fileView(c *ui.Context, pal *palette, t *fileTree) {
 	f := t.file
 	ui.Column(c.Key("open-" + f.path)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 		hdr := ui.Row(c.Key("hdr")).Height(stickyH).Shrink(0).Padding(0, 6, 0, 12).Gap(8).AlignItems(ui.Center).Background(pal.chip)
-		hdr.Tooltip(f.path)
+		hdr.Tooltip(f.src)
 		hdr.Children(func() {
 			ui.Icon(c, docIcon).Size(13, 13).TextColor(pal.textFaint).Shrink(0)
-			ui.Text(c, proto.DirName(f.path)).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(0).MaxWidth(220)
-			ui.Text(c, strings.TrimSuffix(t.rel(f.path), proto.DirName(f.path))).FontSize(12).TextColor(pal.textFaint).
+			ui.Text(c, proto.DirName(f.src)).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(0).MaxWidth(220)
+			ui.Text(c, strings.TrimSuffix(t.rel(f.src), proto.DirName(f.src))).FontSize(12).TextColor(pal.textFaint).
 				SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 			ui.Spacer(c)
-			iconButton(c, "files-edit", docIcon, locales.FilesOpenInPane(), pal, func() { a.defer_(func() { a.openInPane(t, f.path) }) })
-			iconButton(c, "files-editor", splitRightIcon, locales.FilesOpenInEditor(), pal, func() { a.defer_(func() { a.openInEditor(t, f.path) }) })
+			// The buttons open the file as the tree knows it, the host's
+			// own path, which the cache itself is reached by.
+			iconButton(c, "files-edit", docIcon, locales.FilesOpenInPane(), pal, func() { a.defer_(func() { a.openInPane(t, f.src) }) })
+			iconButton(c, "files-editor", splitRightIcon, locales.FilesOpenInEditor(), pal, func() { a.defer_(func() { a.openInEditor(t, f.src) }) })
 			iconButton(c, "files-refresh", reloadIcon, locales.FilesRefresh(), pal, func() { a.defer_(func() { a.readFile(t, f) }) })
 			iconButton(c, "files-close", closeIcon, locales.FilesCloseFile(), pal, func() {
 				a.defer_(func() {

@@ -138,7 +138,7 @@ func applicationsForPath(path string) ([]AppEntry, error) {
 
 // chooseAppMenu adds the submenu of the apps the system says open the
 // file, which choosing one runs — macOS's own Open With, of the tree.
-func (a *App) chooseAppMenu(m *ui.Menu, path string) {
+func (a *App) chooseAppMenu(m *ui.Menu, h *host, path string) {
 	m.Submenu(locales.FilesChooseApp(), func(m *ui.Menu) {
 		apps, err := applicationsForPath(path)
 		switch {
@@ -149,7 +149,9 @@ func (a *App) chooseAppMenu(m *ui.Menu, path string) {
 		default:
 			for _, app := range apps {
 				if m.Item(app.Name).Chosen() {
-					a.runOpenWith(openWithCommand(app.Path, path))
+					a.withLocalFile(h, path, func(local string) {
+						a.runOpenWith(openWithCommand(app.Path, local))
+					})
 				}
 			}
 		}
