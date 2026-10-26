@@ -319,6 +319,11 @@ type Session struct {
 	// Worktree is the linked git worktree kero made for the session to
 	// work in, nil for none.
 	Worktree *Worktree `json:"worktree,omitempty"`
+	// Pin is where the client pinned the session in its sidebar group:
+	// "", the id of the session this one goes after, or "head" for before
+	// the group's first. The daemon only keeps it; the order it stands
+	// for is the client's to work out, per state.
+	Pin string `json:"pin,omitempty"`
 }
 
 // Worktree is a linked git worktree kero made for a session: Path checks
@@ -905,6 +910,16 @@ type (
 	MoveProjectParams struct {
 		ID    string `json:"id"`
 		Index int    `json:"index"`
+	}
+	// MoveSessionParams pin a session in its sidebar (session.move). Pin
+	// is the pin to keep ("", a session id, or "head"); Project, when
+	// present, is the project to move the session to, which must be one
+	// this daemon knows: a session cannot leave the kerod that owns its
+	// terminal.
+	MoveSessionParams struct {
+		Session string  `json:"session"`
+		Pin     string  `json:"pin"`
+		Project *string `json:"project,omitempty"`
 	}
 	ReadResult struct {
 		Text string `json:"text"`

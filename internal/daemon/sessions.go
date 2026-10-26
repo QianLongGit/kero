@@ -22,6 +22,7 @@ type session struct {
 	panes             []*pane
 	layout            *proto.Layout
 	focus, zoomed     string
+	pin               string          // the sidebar's pinned order (proto.Session.Pin)
 	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
 }
 
@@ -51,7 +52,7 @@ func (d *Daemon) stateLocked() proto.State {
 // sessionInfo describes a session; d.mu is held.
 func (d *Daemon) sessionInfo(s *session) proto.Session {
 	info := proto.Session{
-		ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed,
+		ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed, Pin: s.pin,
 		Layout: s.layout.Clone(), Focus: s.focus, Zoomed: s.zoomed, Worktree: s.worktree,
 		Panes: make([]proto.Pane, 0, len(s.panes)),
 	}
@@ -466,6 +467,32 @@ func (d *Daemon) move(p proto.MoveParams) error {
 		at = j + 1
 	}
 	d.sessions = slices.Insert(d.sessions, at, s)
+	return nil
+}
+
+// moveSession pins a session, and moves it to another project when asked
+// to (session.move). The daemon keeps the pin and the project membership
+// only: the order a pin stands for is the client's to work out, which it
+// does per state. The project must be one this daemon knows, for a
+// session cannot leave the kerod that owns its terminal; a name the
+// daemon does not know would else mint a project, as create would.
+func (d *Daemon) moveSession(p proto.MoveSessionParams) error {
+	d.mu.Lock()
+	s := d.findSessionLocked(p.Session)
+	if s == nil {
+		d.mu.Unlock()
+		return fmt.Errorf("no session %q", p.Session)
+	}
+	if p.Project != nil {
+		if !slices.ContainsFunc(d.projects, func(pr proto.Project) bool { return pr.ID == *p.Project }) {
+			d.mu.Unlock()
+			return fmt.Errorf("no project %q", *p.Project)
+		}
+		s.project = *p.Project
+	}
+	s.pin = p.Pin
+	d.mu.Unlock()
+	d.changed()
 	return nil
 }
 

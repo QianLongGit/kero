@@ -124,6 +124,13 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return true, d.move(p)
 
+	case "session.move":
+		var p proto.MoveSessionParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return true, d.moveSession(p)
+
 	case "focus":
 		var p proto.FocusParams
 		if err := decode(&p); err != nil {
