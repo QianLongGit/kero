@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.0
+
+- Clicking a coding agent in Vibe Island's notch panel jumps to its
+  session and pane in Kero, with the window in front. Set it up under
+  Settings › Agents (**Vibe Island**): the button writes the jump rule
+  Vibe Island needs (1.0.22 or newer, restarted after a change).
+  Without the rule, Vibe Island only raises Kero's window. Kero answers
+  `kero://focus` URLs, matching the agent's session, its pane's
+  terminal, or its working directory, in that order.
+
 ## 2.1.21
 
 - In a narrow sidebar, a session's time, and its ⌘ number while you
