@@ -393,6 +393,18 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 			a.chooseFile(t, p)
 		}
 	}
+	// Space previews the chosen file as macOS does. A remote host's files
+	// are not of this machine to preview yet — the spec's cache step
+	// brings them here for it — and a folder has nothing to show.
+	if tree.Shortcut(0, ui.KeySpace) && t.chosen >= 0 && t.chosen < t.outline.Rows() {
+		if p := t.outline.Item(t.chosen); !t.isDir[p] && !a.hostOf(t.pane).remote() {
+			a.defer_(func() {
+				if err := quickLook(p); err != nil {
+					a.toast(err.Error())
+				}
+			})
+		}
+	}
 }
 
 // chooseFile opens a file of the tree the way a click on it does: under
