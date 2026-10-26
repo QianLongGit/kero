@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -115,6 +117,82 @@ func fsRead(p proto.FSReadParams) (proto.FSRead, error) {
 	}
 	b, err := io.ReadAll(io.LimitReader(f, limit))
 	return proto.FSRead{Data: b}, err
+}
+
+// fileHash hashes a file's content, streaming: one larger than what
+// fs.read reads still checks against its hash.
+func fileHash(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// fsWrite writes a file of the host whole, as its user does, through a
+// temporary file renamed over it, so no program sees half of it. Hash
+// holds what was read (fs.read, sha256 hex): a file that changed meanwhile
+// is left as it is, a conflict, and one that is none takes only the empty
+// hash, which writes whatever is there. It returns the hash of what it
+// wrote.
+func fsWrite(p proto.FSWriteParams) (string, error) {
+	if len(p.Content) > maxRead {
+		return "", fmt.Errorf("a written file is at most %d MB", maxRead>>20)
+	}
+	path := hostPath(p.Path, "")
+	// The check and the rename race what lands between them, as
+	// git.revert's write does; the hash keeps the loser small.
+	perm := os.FileMode(0o644) // a new file, as any the user makes
+	st, err := os.Lstat(path)
+	switch {
+	case err == nil:
+		if !st.Mode().IsRegular() {
+			// Writing a link would break it, or write its target blind.
+			return "", fmt.Errorf("%s is no file", p.Path)
+		}
+		perm = st.Mode().Perm()
+		if p.Hash != "" {
+			cur, err := fileHash(path)
+			if err != nil {
+				return "", err
+			}
+			if cur != p.Hash {
+				return "", fmt.Errorf("conflict: %s changed since it was read", p.Path)
+			}
+		}
+	case errors.Is(err, os.ErrNotExist):
+		if p.Hash != "" {
+			return "", fmt.Errorf("conflict: %s changed since it was read", p.Path)
+		}
+	default:
+		return "", err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".kero-*")
+	if err != nil {
+		return "", err
+	}
+	name := tmp.Name()
+	_, err = tmp.Write(p.Content)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(name, perm)
+	}
+	if err == nil {
+		err = os.Rename(name, path)
+	}
+	if err != nil {
+		os.Remove(name)
+		return "", err
+	}
+	sum := sha256.Sum256(p.Content)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // maxPaste bounds a pasted file, which comes in a request of a control

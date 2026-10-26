@@ -143,6 +143,14 @@ type (
 	FSRead struct {
 		Data []byte `json:"data"` // base64 in JSON
 	}
+	// FSWriteParams write a file of the host back whole, as the app's
+	// cache edited it, when its content still hashes to Hash: one changed
+	// meanwhile is a conflict, not an overwrite.
+	FSWriteParams struct {
+		Path    string `json:"path"`
+		Content []byte `json:"content"`
+		Hash    string `json:"hash"` // sha256 hex of what was read; "" writes whatever is there
+	}
 	// PasteFileParams put a file the user pasted or dropped into a pane on
 	// the host, in a directory of kero's, for the program to read by its
 	// path.
