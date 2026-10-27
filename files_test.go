@@ -107,14 +107,17 @@ func TestFileOpenChoice(t *testing.T) {
 		t.Errorf("a click showed %q, want the file under the tree", tree.shown)
 	}
 
-	// A file pane, once chosen, splits the tree's pane on the file.
-	var called proto.CreateParams
+	// A file pane, once chosen, splits the tree's pane on the file. The
+	// handler runs on the client's goroutine, so the raw call travels a
+	// channel and unmarshals on this one, read once here.
+	calls := make(chan json.RawMessage, 1)
 	a.local().cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
 		if method != "split" {
 			return nil, errors.New("not in a test")
 		}
-		if err := json.Unmarshal(raw, &called); err != nil {
-			return nil, err
+		select {
+		case calls <- raw:
+		default:
 		}
 		return s, nil
 	})
@@ -130,8 +133,16 @@ func TestFileOpenChoice(t *testing.T) {
 	}
 	a.chooseFile(tree, "/tmp/demo/main.go")
 	// The call runs on the app's own goroutine; a frame lands it.
+	var called proto.CreateParams
 	for i := 0; i < 100 && called.File == ""; i++ {
 		tt.Frame()
+		select {
+		case raw := <-calls:
+			if err := json.Unmarshal(raw, &called); err != nil {
+				t.Fatal(err)
+			}
+		default:
+		}
 	}
 	if called.File != "/tmp/demo/main.go" || called.Split != tree.pane {
 		t.Errorf("split %+v, want a file pane on main.go beside %s", called, tree.pane)
