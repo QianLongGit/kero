@@ -200,6 +200,46 @@ func TestChangesInPalette(t *testing.T) {
 	}
 }
 
+// The pane headers' button hides the panel and shows it again with the
+// view it showed last — Files for one it never did — as this run remembers
+// the view, whichever way the panel came to show or hide it.
+func TestSidePanelToggle(t *testing.T) {
+	a := testApp(t)
+
+	// A run with no memory opens Files.
+	a.toggleSidePanel()
+	if a.prefs.Side != sideFiles {
+		t.Fatalf("the panel opened %q, want Files", a.prefs.Side)
+	}
+
+	// Switching views updates the memory, which comes back as the panel
+	// opens again.
+	a.showSide(sideChanges)
+	a.toggleSidePanel()
+	if a.prefs.Side != "" {
+		t.Fatal("the toggle left the panel open")
+	}
+	if a.side.last != sideChanges {
+		t.Fatalf("the panel remembers %q, want Changes", a.side.last)
+	}
+	a.toggleSidePanel()
+	if a.prefs.Side != sideChanges {
+		t.Fatalf("the panel opened %q, want the last view, Changes", a.prefs.Side)
+	}
+
+	// A panel open from an earlier run, which this run never recorded,
+	// hides and comes back with its own view.
+	a.prefs.Side, a.side.last = sideFiles, ""
+	a.toggleSidePanel()
+	if a.prefs.Side != "" || a.side.last != sideFiles {
+		t.Fatalf("hiding the panel left side %q, last %q", a.prefs.Side, a.side.last)
+	}
+	a.toggleSidePanel()
+	if a.prefs.Side != sideFiles {
+		t.Fatalf("the panel opened %q, want Files", a.prefs.Side)
+	}
+}
+
 // Moving between the panes of one worktree keeps the changes as they
 // were, scrolled where they were: the list is the worktree's, not a pane's.
 func TestChangesFollowWorktree(t *testing.T) {

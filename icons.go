@@ -30,6 +30,7 @@ func icon(shapes string) *ui.SVG {
 
 var (
 	sidebarIcon     = glyph("f7-sidebar-left")
+	sideIcon        = glyph("f7-sidebar-right")
 	plusIcon        = glyph("f7-plus")
 	chevronIcon     = glyph("f7-chevron-right")
 	chevronUpIcon   = glyph("f7-chevron-up")

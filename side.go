@@ -41,8 +41,12 @@ const (
 type sideState struct {
 	drag    float32 // the width as a drag of the edge began, 0 while none
 	focused bool    // the panel has the keyboard: its Escape, its diff's find
-	changes changesState
-	files   filesState
+	// last is the view the panel showed, which it opens with again after
+	// it hid — this run's own, for a restart's prefs say the panel open or
+	// closed, not what hid it showed.
+	last     string
+	changes  changesState
+	files    filesState
 	// theme is the diffs' colors, made again only as the window's
 	// appearance or the terminals' themes change.
 	theme    *editor.Theme
@@ -102,15 +106,32 @@ func (a *App) toggleSide(view string) {
 	} else {
 		a.prefs.Side = view
 	}
+	a.side.last = view // what hid, as what showed, opens again
 	a.savePrefs()
 }
 
 // showSide shows a view of the panel, keeping it open when it shows it.
 func (a *App) showSide(view string) {
+	a.side.last = view
 	if a.prefs.Side != view {
 		a.prefs.Side = view
 		a.savePrefs()
 	}
+}
+
+// toggleSidePanel hides the panel, or shows it again with the view it
+// showed last — Files for one this run never showed — as the pane
+// headers' button does.
+func (a *App) toggleSidePanel() {
+	if a.prefs.Side != "" {
+		a.toggleSide(a.prefs.Side)
+		return
+	}
+	view := a.side.last
+	if view == "" {
+		view = sideFiles
+	}
+	a.toggleSide(view)
 }
 
 // sideWidth is the panel's width in a row of width w, leaving the panes

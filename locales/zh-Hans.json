@@ -380,6 +380,8 @@
   "actionToggleFiles": "显示/隐藏文件",
   "sideChanges": "改动",
   "sideClose": "关闭面板",
+  "sideHide": "隐藏面板",
+  "sideShow": "显示面板",
   "changesTurn": "上一轮",
   "changesUncommitted": "未提交",
   "changesBranch": "分支",

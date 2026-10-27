@@ -528,6 +528,8 @@
   "actionToggleFiles": "Toggle Files",
   "sideChanges": "Changes",
   "sideClose": "Close Panel",
+  "sideHide": "Hide Panel",
+  "sideShow": "Show Panel",
   "changesTurn": "Last Turn",
   "changesUncommitted": "Uncommitted",
   "changesBranch": "Branch",

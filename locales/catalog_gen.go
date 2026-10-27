@@ -3868,6 +3868,26 @@ func (msgs Messages) SideClose() string {
 	return Catalog.Format(msgs.locale, "sideClose", nil)
 }
 
+// SideHide says "Hide Panel"
+// in the language the app shows.
+func SideHide() string { return In(i18n.Locale()).SideHide() }
+
+// SideHide says "Hide Panel"
+// in the language of msgs.
+func (msgs Messages) SideHide() string {
+	return Catalog.Format(msgs.locale, "sideHide", nil)
+}
+
+// SideShow says "Show Panel"
+// in the language the app shows.
+func SideShow() string { return In(i18n.Locale()).SideShow() }
+
+// SideShow says "Show Panel"
+// in the language of msgs.
+func (msgs Messages) SideShow() string {
+	return Catalog.Format(msgs.locale, "sideShow", nil)
+}
+
 // ChangesTurn says "Last Turn"
 // in the language the app shows.
 func ChangesTurn() string { return In(i18n.Locale()).ChangesTurn() }

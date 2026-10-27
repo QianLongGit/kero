@@ -521,6 +521,14 @@ func (a *App) paneControls(c *ui.Context, pal *palette, s *proto.Session, p *pro
 		if !show {
 			return
 		}
+		// The side panel's toggle, a window's own control that lives here,
+		// where the user pointed for it, as the zoom and close buttons
+		// repeat across the headers of the panes.
+		tip := locales.SideShow()
+		if a.prefs.Side != "" {
+			tip = locales.SideHide()
+		}
+		iconButton(c, "side", sideIcon, tip, pal, func() { a.defer_(a.toggleSidePanel) })
 		iconButton(c, "split-r", splitRightIcon, a.tip(locales.ActionSplitRight(), "pane.split.right"), pal, func() { a.splitPane(s, p.ID, "right") })
 		iconButton(c, "split-d", splitDownIcon, a.tip(locales.ActionSplitDown(), "pane.split.down"), pal, func() { a.splitPane(s, p.ID, "down") })
 		if multi {
