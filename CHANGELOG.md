@@ -10,6 +10,23 @@
   `kero://focus` URLs, matching the agent's session, its pane's
   terminal, or its working directory, in that order.
 
+## 2.1.24
+
+- On macOS, dragging Kero's window by its top no longer makes it
+  shake.
+
+## 2.1.23
+
+- On macOS, Kero keeps its place in the Dock after it updates itself.
+
+## 2.1.22
+
+- With no session open, Split Right (⌘D) starts one. Thanks @iamvicliu
+- Images a program like Pi showed no longer stay over the screen once
+  it clears it, as with Pi's `/new`. Thanks @jorben for the report
+- After Kero relaunches to use a newer kerod, quitting it quits it
+  instead of leaving it stuck open.
+
 ## 2.1.21
 
 - In a narrow sidebar, a session's time, and its ⌘ number while you
