@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.3
+
+- Installing on a host keeps trying a download the route cuts, instead
+  of stopping at the first broken read.
+
 ## 2.3.2
 
 - The sidebar groups by project only: the flat and by-date views are
