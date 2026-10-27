@@ -15,9 +15,9 @@ import (
 // between the chain's places in the auto order stands after the tail.
 // Pin "head" stands before the group's first item, head chains in auto
 // order. A pin that cannot stand — pointing at a session that is gone,
-// that lives in another group (By Date groups sessions by immutable
-// days), at itself, or around a cycle, which no order honors — falls
-// back to the auto place. The caller's slice is left as it was.
+// that lives in another group, at itself, or around a cycle, which no
+// order honors — falls back to the auto place. The caller's slice is
+// left as it was.
 func orderSessions(group []proto.Session, order string) []proto.Session {
 	base := slices.Clone(group)
 	sort.SliceStable(base, func(i, j int) bool {

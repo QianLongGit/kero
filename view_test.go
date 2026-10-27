@@ -932,34 +932,6 @@ func TestSidebarOrder(t *testing.T) {
 	if got := ids(); !slices.Equal(got, []string{"s3", "s1", "s2"}) {
 		t.Errorf("updated: %v", got)
 	}
-	a.prefs.SidebarGroup = "none"
-	if got := a.visibleOrder(); !slices.Equal(got, []string{"s3", "s1", "s2"}) {
-		t.Errorf("flat updated: %v", got)
-	}
-}
-
-// By Date groups sessions under the day they were created, the newest
-// day first.
-func TestSidebarDateGroups(t *testing.T) {
-	a := testApp(t)
-	now := time.Now()
-	a.st.Sessions[0].Created = now.UnixMilli()
-	a.st.Sessions = append(a.st.Sessions,
-		proto.Session{ID: "s2", Project: "p1", Created: now.Add(-24 * time.Hour).UnixMilli()})
-	dgs := a.dateGroups(a.local())
-	if len(dgs) != 2 {
-		t.Fatalf("%d date groups, want 2", len(dgs))
-	}
-	if !dgs[0].day.After(dgs[1].day) {
-		t.Errorf("days %v then %v", dgs[0].day, dgs[1].day)
-	}
-	if got := dgs[0].sessions[0].ID; got != "s1" {
-		t.Errorf("today's first session %s", got)
-	}
-	a.prefs.SidebarGroup = "date"
-	if got := a.visibleOrder(); !slices.Equal(got, []string{"s1", "s2"}) {
-		t.Errorf("date order: %v", got)
-	}
 }
 
 // The sidebar's rows follow its density setting: compact, the default,
@@ -1096,41 +1068,6 @@ func TestCompactBlockChosenHighlight(t *testing.T) {
 	tt.Frame()
 	if d := room(); d < blockGap-2 {
 		t.Errorf("dark: the chosen row's highlight begins %g from its text, want %g", d, float32(blockGap))
-	}
-}
-
-// By Date's headers take the density's height too, compacting with the
-// rows; standard keeps the 28 it had.
-func TestSidebarDateHeaderDensity(t *testing.T) {
-	a := testApp(t)
-	a.prefs.SidebarGroup = "date"
-	a.st.Sessions[0].Name = "sess"
-	a.st.Sessions[0].Created = time.Now().UnixMilli()
-	tt := ui.NewTester(a.view, 1100, 640)
-	gap := func() (sess, hdr ui.Rect) {
-		tt.Frame()
-		hdr, ok := tt.Find(locales.SidebarToday())
-		if !ok {
-			t.Fatalf("no Today header; texts %q", tt.Texts())
-		}
-		sess, ok = tt.Find("sess")
-		if !ok {
-			t.Fatalf("no session name; texts %q", tt.Texts())
-		}
-		return sess, hdr
-	}
-	a.set.SidebarDensity = "standard"
-	sStd, hStd := gap()
-	mStd := a.sidebarDensity()
-	a.set.SidebarDensity = "compact"
-	sCpt, hCpt := gap()
-	mCpt := a.sidebarDensity()
-	// A session's name sits below a date header by half the header, its
-	// bottom margin of 3, and half a row, less the taller name's share:
-	// between the densities, only those heights differ.
-	want := (mStd.hdrH-mCpt.hdrH)/2 + (mStd.rowH-mCpt.rowH)/2 - (sStd.H-sCpt.H)/2
-	if got := (sStd.Y - hStd.Y) - (sCpt.Y - hCpt.Y); got != want {
-		t.Errorf("the header's gap grows %g from compact to standard, want %g", got, want)
 	}
 }
 

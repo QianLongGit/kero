@@ -51,9 +51,7 @@ type prefs struct {
 	// ProjectOrder is the order the user dragged projects into, by id,
 	// across every host; unlisted projects follow in the daemon's order.
 	ProjectOrder []string `json:"projectOrder,omitempty"`
-	// SidebarGroup is how the sidebar groups sessions: "" or "project",
-	// "none" or "date"; SidebarOrder is "created" or "updated".
-	SidebarGroup string  `json:"sidebarGroup,omitempty"`
+	// SidebarOrder is the sidebar's order: "created" or "updated".
 	SidebarOrder string  `json:"sidebarOrder,omitempty"`
 	FontSize     float32 `json:"fontSize,omitempty"`
 	// Side is the view the side panel shows, "" while it is hidden, and
@@ -684,79 +682,6 @@ func (a *App) orderGroup(ss []*proto.Session) {
 	copy(ss, ordered)
 }
 
-// flatSessions are a host's sessions, ordered, for a sidebar that does
-// not group them by project.
-func (a *App) flatSessions(h *host) []*proto.Session {
-	var out []*proto.Session
-	for i := range a.st.Sessions {
-		if a.hostOf(a.st.Sessions[i].ID) == h {
-			out = append(out, &a.st.Sessions[i])
-		}
-	}
-	a.orderGroup(out)
-	return out
-}
-
-// dateGroup is sessions created on one day, for the sidebar's By Date.
-type dateGroup struct {
-	day      time.Time
-	sessions []*proto.Session
-}
-
-// dayStart is the day ms falls on, as By Date groups sessions by.
-func dayStart(ms int64) time.Time {
-	d := time.UnixMilli(ms)
-	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
-}
-
-// dateGroups groups a host's sessions by the day they were created, the
-// newest day first, with each day's sessions in the chosen order.
-func (a *App) dateGroups(h *host) []dateGroup {
-	var all []*proto.Session
-	for i := range a.st.Sessions {
-		if a.hostOf(a.st.Sessions[i].ID) == h {
-			all = append(all, &a.st.Sessions[i])
-		}
-	}
-	sort.SliceStable(all, func(i, j int) bool { return all[i].Created > all[j].Created })
-	var gs []dateGroup
-	for _, s := range all {
-		d := dayStart(s.Created)
-		if len(gs) == 0 || !gs[len(gs)-1].day.Equal(d) {
-			gs = append(gs, dateGroup{day: d})
-		}
-		gs[len(gs)-1].sessions = append(gs[len(gs)-1].sessions, s)
-	}
-	for i := range gs {
-		a.orderGroup(gs[i].sessions)
-	}
-	return gs
-}
-
-// dateLabel names a day in the sidebar's By Date: today, yesterday, or
-// the date.
-func dateLabel(day, now time.Time) string {
-	y, m, d := now.Date()
-	today := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
-	switch {
-	case day.Equal(today):
-		return locales.SidebarToday()
-	case day.Equal(today.AddDate(0, 0, -1)):
-		return locales.SidebarYesterday()
-	}
-	return day.Format("2006-01-02")
-}
-
-// projectName returns a project's name, or "".
-func (a *App) projectName(id string) string {
-	for _, p := range a.st.Projects {
-		if p.ID == id {
-			return p.Name
-		}
-	}
-	return ""
-}
-
 // collapsed reports whether a group's sessions are hidden in the sidebar.
 func (a *App) collapsed(g group) bool { return a.prefs.Collapsed[g.key()] }
 
@@ -766,24 +691,6 @@ func (a *App) collapsed(g group) bool { return a.prefs.Collapsed[g.key()] }
 // them — are not on it.
 func (a *App) visibleOrder() []string {
 	var ids []string
-	switch a.prefs.SidebarGroup {
-	case "none":
-		for _, h := range a.hosts {
-			for _, s := range a.flatSessions(h) {
-				ids = append(ids, s.ID)
-			}
-		}
-		return ids
-	case "date":
-		for _, h := range a.hosts {
-			for _, dg := range a.dateGroups(h) {
-				for _, s := range dg.sessions {
-					ids = append(ids, s.ID)
-				}
-			}
-		}
-		return ids
-	}
 	for _, g := range a.groups() {
 		for _, s := range g.sessions {
 			if !a.collapsed(g) {

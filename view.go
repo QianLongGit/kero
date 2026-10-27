@@ -292,10 +292,6 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	// bar does.
 	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
 		n := 0 // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
-		if g := a.prefs.SidebarGroup; g == "none" || g == "date" {
-			a.sessionSidebar(c, pal, g, &n)
-			return
-		}
 		gi := 0 // the groups shown, the first of which sits higher
 		// This machine's projects first, unlabeled; then each host's,
 		// under its name.
@@ -334,8 +330,8 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	c.After(20 * time.Second) // times ago move on
 }
 
-// sortButton opens the sidebar's Group and Order menu, as Otty's sort
-// icon does: how sessions group, and which order they take.
+// sortButton opens the sidebar's Order menu, as Otty's sort icon does:
+// which order the projects' sessions take.
 func (a *App) sortButton(c *ui.Context, pal *palette) {
 	b := ui.ButtonBase(c.Key("sort-sidebar")).Size(28, 26).Radius(6).Center().TextColor(pal.textMuted).
 		Label(locales.SidebarSort()).Tooltip(locales.SidebarSort())
@@ -343,28 +339,10 @@ func (a *App) sortButton(c *ui.Context, pal *palette) {
 		b.Background(pal.rowHover).TextColor(pal.text)
 	}
 	b.Menu(func(m *ui.Menu) {
-		group := a.prefs.SidebarGroup
-		if group == "" {
-			group = "project"
-		}
 		order := a.prefs.SidebarOrder
 		if order == "" {
 			order = "created"
 		}
-		m.Item(locales.SidebarGroup()).Disabled(true)
-		if m.Item(locales.SidebarGroupProject()).Checked(group == "project").Chosen() {
-			a.prefs.SidebarGroup = "project"
-			a.savePrefs()
-		}
-		if m.Item(locales.SidebarGroupNone()).Checked(group == "none").Chosen() {
-			a.prefs.SidebarGroup = "none"
-			a.savePrefs()
-		}
-		if m.Item(locales.SidebarGroupDate()).Checked(group == "date").Chosen() {
-			a.prefs.SidebarGroup = "date"
-			a.savePrefs()
-		}
-		m.Separator()
 		m.Item(locales.SidebarOrder()).Disabled(true)
 		if m.Item(locales.SidebarOrderCreated()).Checked(order == "created").Chosen() {
 			a.prefs.SidebarOrder = "created"
@@ -376,84 +354,6 @@ func (a *App) sortButton(c *ui.Context, pal *palette) {
 		}
 	})
 	b.Children(func() { ui.Icon(c, sortIcon).Size(16, 16) })
-}
-
-// sessionSidebar lists every session, without projects: flat, or under
-// the day it was created.
-func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) {
-	gi := 0
-	local := a.local()
-	for _, h := range a.hosts {
-		if h == local && !h.loaded {
-			continue
-		}
-		empty := true
-		if group == "date" {
-			dgs := a.dateGroups(h)
-			empty = len(dgs) == 0
-			if h.remote() && (!empty || a.hostNeedsRow(h)) {
-				top := float32(18)
-				if gi == 0 && *n == 0 {
-					top = 2
-				}
-				a.hostLine(c, pal, h, top)
-				gi++
-			}
-			for _, dg := range dgs {
-				top := float32(18)
-				if gi == 0 && *n == 0 {
-					top = 2
-				}
-				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top, h, dg.day)
-				gi++
-				for i, s := range dg.sessions {
-					a.sessionRow(c, pal, s, dg.sessions, i, n, rowInset)
-				}
-			}
-		} else {
-			ss := a.flatSessions(h)
-			empty = len(ss) == 0
-			if h.remote() && (!empty || a.hostNeedsRow(h)) {
-				top := float32(18)
-				if gi == 0 && *n == 0 {
-					top = 2
-				}
-				a.hostLine(c, pal, h, top)
-				gi++
-			}
-			for i, s := range ss {
-				a.sessionRow(c, pal, s, ss, i, n, rowInset)
-			}
-		}
-		if h == local && empty && h.conn == connReady && len(a.hosts) == 1 {
-			ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(8, 10)
-		}
-	}
-}
-
-// dateHeader is a day in the sidebar's By Date. A session dragged onto
-// it goes to the day's head — its own day, as the days are when the
-// sessions were made, which no drag changes.
-func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count int, top float32, h *host, day time.Time) {
-	inset := float32(rowInset)
-	if pal.dark {
-		inset++
-	}
-	hdr := ui.Row(c.Key(key)).Height(a.sidebarDensity().hdrH).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
-	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.session != "" && d.host == h && a.madeOn(d.session, day) {
-		hdr.Background(pal.rowHover)
-		hdr.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 2}, pal.accent, 1)
-		})
-	}
-	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.session != "" && d.host == h && a.madeOn(d.session, day) {
-		sid := d.session
-		a.defer_(func() { a.moveSession(sid, "head", nil) })
-	}
-	hdr.Children(func() {
-		ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(pal.textMuted).SingleLine().Shrink(1)
-		ui.Textf(c, "%d", count).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
-	})
 }
 
 func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
@@ -732,14 +632,14 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	if row.Dragging() {
 		row.Opacity(0.35)
 	}
-	if d, over := ui.DragOver[sidebarDrag](row); over && d.session != "" && d.host == h && d.session != s.ID && a.inSameGroup(d, s) {
+	if d, over := ui.DragOver[sidebarDrag](row); over && d.session != "" && d.host == h && d.session != s.ID {
 		// A drop pins after the row, so the line sits under it.
 		row.Background(pal.rowHover)
 		row.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H - 2, W: r.W, H: 2}, pal.accent, 1)
 		})
 	}
-	if d, ok := ui.Drop[sidebarDrag](row); ok && d.session != "" && d.host == h && d.session != s.ID && a.inSameGroup(d, s) {
+	if d, ok := ui.Drop[sidebarDrag](row); ok && d.session != "" && d.host == h && d.session != s.ID {
 		sid, pin := d.session, s.ID
 		// Dropped in another project's row, the session moves house with
 		// its pin; the project of none has no house to name.
@@ -795,12 +695,6 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 		if b := offBranch(g); b != "" {
 			ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
 		}
-		// Without project headers, the project says which list it is.
-		if a.prefs.SidebarGroup == "none" || a.prefs.SidebarGroup == "date" {
-			if p := a.projectName(s.Project); p != "" {
-				ui.Text(c, p).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).MaxWidth(90)
-			}
-		}
 		ui.Spacer(c)
 		// The arrows a hovered or chosen row shows stand in for a drag of
 		// one place. Up trades with the row above — past two rows it pins
@@ -854,24 +748,6 @@ func (a *App) renameStarted(c *ui.Context) bool {
 		return false
 	}
 	return true
-}
-
-// inSameGroup tells whether a dragged session stands in the group s's
-// row belongs to: By Date's groups are the days its sessions were made
-// on, which no drag crosses. Grouped by project or flat, a host's rows
-// are one family — a drop in another project's row moves house instead.
-func (a *App) inSameGroup(d sidebarDrag, s *proto.Session) bool {
-	if a.prefs.SidebarGroup != "date" {
-		return true
-	}
-	src := a.session(d.session)
-	return src != nil && dayStart(src.Created).Equal(dayStart(s.Created))
-}
-
-// madeOn tells whether session id was made on day, as By Date groups it.
-func (a *App) madeOn(id string, day time.Time) bool {
-	s := a.session(id)
-	return s != nil && dayStart(s.Created).Equal(day)
 }
 
 func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
