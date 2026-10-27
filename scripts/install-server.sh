@@ -5,16 +5,19 @@
 # or launchd's), so that Kero on another machine shows this one's sessions
 # (Settings › Hosts). Windows has install-server.ps1.
 #
-#   curl -fsSL https://github.com/egoist/kero/releases/latest/download/install-server.sh | sh
-#   sh install-server.sh [--version 2.1.0] [--no-service] [--dry-run]
+#   curl -fsSL https://github.com/QianLongGit/kero/releases/latest/download/install-server.sh | sh
+#   sh install-server.sh [--version 2.1.0] [--no-service] [--dry-run] [ARCHIVE]
 #   sh install-server.sh --uninstall
 #
 # The release workflow writes the version of its release in place of
 # @VERSION@. $KERO_RELEASES names a mirror of the releases, as kero daemon
-# update takes it.
+# update takes it. ARCHIVE, as $KERO_ARCHIVE, is the release's archive
+# already on this machine: nothing is downloaded, as Kero on another
+# machine relays a host's install over SSH, to one that cannot reach the
+# web.
 set -eu
 
-repo=egoist/kero
+repo=QianLongGit/kero
 version='@VERSION@'
 lib="$HOME/.local/lib/kero"
 bin="$HOME/.local/bin"
@@ -23,12 +26,14 @@ marker=.kero-server
 
 usage() {
 	cat <<EOF
-Usage: sh install-server.sh [--version VERSION] [--no-service] [--dry-run]
+Usage: sh install-server.sh [--version VERSION] [--no-service] [--dry-run] [ARCHIVE]
        sh install-server.sh --uninstall
 
 Installs the server build of Kero in $lib, the kero command in $bin, and
 runs kerod as a service: systemd's on Linux, launchd's on macOS
-(--no-service: kerod starts as Kero connects). --uninstall removes them, and leaves your settings and data in
+(--no-service: kerod starts as Kero connects). ARCHIVE, as \$KERO_ARCHIVE,
+installs from the release's archive at hand, with nothing downloaded.
+--uninstall removes them, and leaves your settings and data in
 ~/.config/kero.
 EOF
 }
@@ -78,6 +83,7 @@ uninstall() {
 main() {
 	service=1
 	dry_run=0
+	archive="${KERO_ARCHIVE:-}"
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--version)
@@ -99,9 +105,14 @@ main() {
 			usage
 			return
 			;;
-		*)
+		-*)
 			usage >&2
 			exit 2
+			;;
+		*)
+			# The release's archive at hand, of an offline install.
+			[ -z "$archive" ] || fail "two archives: $archive and $1"
+			archive=$1
 			;;
 		esac
 		shift
@@ -118,29 +129,48 @@ main() {
 	aarch64 | arm64) arch=arm64 ;;
 	*) fail "Kero is not made for $(uname -m)" ;;
 	esac
-	case "$version" in
-	@*) # This script, run from the repository: the latest release.
-		version="$(fetch "https://api.github.com/repos/$repo/releases/latest" | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)"
-		[ -n "$version" ] || fail "could not find Kero's latest release"
-		;;
-	esac
+	if [ -n "$archive" ]; then
+		# The version is the archive's name's, which the platform it names
+		# tells too; the machine that sent the archive checked what it
+		# downloaded, so nothing here is.
+		name="${archive##*/}"
+		case "$name" in
+		kero-server-*-"$os"-"$arch".tar.gz) ;;
+		*) fail "$name is not an archive of the server build of Kero for $os/$arch" ;;
+		esac
+		version="${name#kero-server-}"
+		version="${version%-"$os"-"$arch".tar.gz}"
+	else
+		case "$version" in
+		@*) # This script, run from the repository: the latest release.
+			version="$(fetch "https://api.github.com/repos/$repo/releases/latest" | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)"
+			[ -n "$version" ] || fail "could not find Kero's latest release"
+			;;
+		esac
+		name="kero-server-$version-$os-$arch.tar.gz"
+	fi
 	case "$version" in
 	*[!0-9A-Za-z.-]* | '') fail "$version is not a version of Kero" ;;
 	esac
 
-	name="kero-server-$version-$os-$arch.tar.gz"
-	url="${KERO_RELEASES:-https://github.com/$repo/releases/download}/v$version/$name"
 	work="$(mktemp -d)"
 	staging="$lib.new"
 	trap 'rm -rf "$work" "$staging"' EXIT
 	trap 'exit 1' HUP INT TERM
 
-	echo "Downloading Kero $version for $os/$arch"
-	fetch "$url" >"$work/$name" || fail "could not download $url"
-	fetch "$url.sha256" >"$work/$name.sha256" || fail "could not download $url.sha256"
-	want="$(cut -d' ' -f1 <"$work/$name.sha256")"
-	[ "$(sha256 "$work/$name")" = "$want" ] || fail "$name is not the release's: its SHA-256 differs"
-	tar -tzf "$work/$name" >"$work/names" || fail "$name is not a .tar.gz archive"
+	if [ -n "$archive" ]; then
+		echo "Installing Kero $version for $os/$arch from $archive"
+		src=$archive
+	else
+		url="${KERO_RELEASES:-https://github.com/$repo/releases/download}/v$version/$name"
+		echo "Downloading Kero $version for $os/$arch"
+		fetch "$url" >"$work/$name" || fail "could not download $url"
+		fetch "$url.sha256" >"$work/$name.sha256" || fail "could not download $url.sha256"
+		want="$(cut -d' ' -f1 <"$work/$name.sha256")"
+		[ "$(sha256 "$work/$name")" = "$want" ] || fail "$name is not the release's: its SHA-256 differs"
+		src="$work/$name"
+	fi
+	tar -tzf "$src" >"$work/names" || fail "$src is not a .tar.gz archive"
 	if grep -Eq '^/|(^|/)\.\.(/|$)' "$work/names"; then
 		fail "$name holds files outside it"
 	fi
@@ -157,7 +187,7 @@ main() {
 	echo "Installing in $lib"
 	rm -rf "$staging"
 	mkdir -p "$staging"
-	tar -xzf "$work/$name" -C "$staging"
+	tar -xzf "$src" -C "$staging"
 	[ -x "$staging/kero" ] || fail "$name holds no kero"
 	"$staging/kero" version >/dev/null || fail "the kero of $name does not run here"
 	: >"$staging/$marker"

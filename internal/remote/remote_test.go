@@ -121,8 +121,10 @@ func TestWindowsShell(t *testing.T) {
 }
 
 // fakeSSH is ssh to a host whose shell is $KERO_TEST_SHELL: cmd or
-// powershell, which run no sh, or sh. It logs the commands it runs, and
-// finds no kero.
+// powershell, which run no sh, or sh. It logs the commands it runs, finds
+// no kero, and takes the part of the host an install talks to: it names
+// its platform, keeps what it is sent of a file, and reads the install
+// script its standard input brings.
 func fakeSSH() {
 	cmd := os.Args[len(os.Args)-1]
 	if f, err := os.OpenFile(os.Getenv("KERO_TEST_SSH_LOG"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
@@ -133,6 +135,21 @@ func fakeSSH() {
 	sh := strings.HasPrefix(cmd, "sh -c ")
 	switch {
 	case shell == "sh" && cmd == "sh -c 'exit 0'":
+		os.Exit(0)
+	case shell == "sh" && cmd == "sh -c 'uname -s -m'":
+		fmt.Print("Linux x86_64\n")
+		os.Exit(0)
+	case shell == "sh" && strings.HasPrefix(cmd, "sh -c 'd=$(mktemp -d)"):
+		// The file an install sends, kept whole for the test to see, put
+		// where the host says it wrote it.
+		receive(os.Getenv("KERO_TEST_ARCHIVE"))
+		name := cmd[strings.Index(cmd, "kero-server-"):]
+		fmt.Print("/tmp/kero." + name[:strings.IndexByte(name, '"')])
+		os.Exit(0)
+	case shell == "sh" && strings.Contains(cmd, "sh -s -- "):
+		// The install script, read of the standard input, to install the
+		// file the sending wrote.
+		receive(os.Getenv("KERO_TEST_SCRIPT"))
 		os.Exit(0)
 	case shell == "sh" && sh:
 		fmt.Fprintln(os.Stderr, "kero is not installed on devbox")
@@ -149,6 +166,19 @@ func fakeSSH() {
 	}
 	fmt.Fprintln(os.Stderr, "unexpected command")
 	os.Exit(2)
+}
+
+// receive keeps what a command reads of its standard input — the file Kero
+// sends a host over the connection — at path, and says when nothing came.
+func receive(path string) {
+	b, err := io.ReadAll(os.Stdin)
+	if err != nil || len(b) == 0 {
+		fmt.Fprintln(os.Stderr, "nothing was sent")
+		os.Exit(1)
+	}
+	if path != "" {
+		os.WriteFile(path, b, 0o600)
+	}
 }
 
 func TestMain(m *testing.M) {
@@ -192,13 +222,14 @@ func TestDialWindows(t *testing.T) {
 		if Windows(a) != (shell != "sh") {
 			t.Errorf("%s: Windows(%s) = %v", shell, a, Windows(a))
 		}
-		cmd, err := InstallCommand(a, "2.1.0", true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		last := cmd.Args[len(cmd.Args)-1]
-		if strings.HasPrefix(last, "powershell ") != (shell != "sh") {
-			t.Errorf("%s: installs with %s", shell, last)
+		// A host of Windows installs with PowerShell, from the web still:
+		// the relay carries sh's flow only, so far.
+		if shell != "sh" {
+			cmd := windowsInstall(a, "2.1.0", true)
+			last := cmd.Args[len(cmd.Args)-1]
+			if !strings.HasPrefix(last, "powershell ") {
+				t.Errorf("%s: installs with %s", shell, last)
+			}
 		}
 	}
 }

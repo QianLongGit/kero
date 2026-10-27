@@ -270,16 +270,12 @@ func hostsCmd(args []string) error {
 			version = releasedVersion()
 		}
 		// A host of Windows, whose shell has no sh, installs with
-		// PowerShell.
+		// PowerShell; the rest through this machine, as their networks may
+		// not reach the web.
 		if err := remote.FindShell(a, false); err != nil {
 			return err
 		}
-		cmd, err := remote.InstallCommand(a, version, false)
-		if err != nil {
-			return err
-		}
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		return cmd.Run()
+		return remote.Install(context.Background(), a, version, false, os.Stdout)
 	}
 	return usageErr("kero hosts ls|add|remove|check|install")
 }

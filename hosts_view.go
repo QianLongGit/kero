@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -301,7 +302,7 @@ func (a *App) removeHost(name string) {
 }
 
 // installOnHost asks, then installs Kero on a host the app reaches over
-// SSH or WSL, as Kero's install script does, and connects.
+// SSH or WSL, relayed through this machine, and connects.
 func (a *App) installOnHost(h *host) {
 	a.confirm = &confirmation{
 		open:   true,
@@ -320,21 +321,19 @@ func (a *App) install(h *host) {
 	if !released(version) {
 		version = ""
 	}
-	cmd, err := remote.InstallCommand(h.addr, version, true)
-	if err != nil {
-		a.toast(err.Error())
-		return
-	}
 	h.busy = "install"
 	go func() {
-		out, err := cmd.CombinedOutput()
+		// What the install says, as a download through this machine takes
+		// a while: a failure's toast names its last word.
+		var out bytes.Buffer
+		err := remote.Install(context.Background(), h.addr, version, true, &out)
 		a.update(func() {
 			h.busy = ""
 			if !slices.Contains(a.hosts, h) {
 				return
 			}
 			if err != nil {
-				msg := strings.TrimSpace(string(out))
+				msg := strings.TrimSpace(out.String())
 				if i := strings.LastIndex(msg, "\n"); i >= 0 {
 					msg = msg[i+1:]
 				}

@@ -7,14 +7,81 @@ import (
 	"compress/gzip"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+// The releases are the fork's, where this Kero's versions live: an install
+// that reaches for one finds it there, not in the upstream it came from.
+func TestRepo(t *testing.T) {
+	if Repo != "QianLongGit/kero" {
+		t.Errorf("Repo is %q, want QianLongGit/kero", Repo)
+	}
+	for c, want := range map[string]string{
+		InstallScript("2.1.0"): "https://github.com/QianLongGit/kero/releases/download/v2.1.0/install-server.sh",
+		InstallScript(""):      "https://github.com/QianLongGit/kero/releases/latest/download/install-server.sh",
+		InstallScriptPS(""):    "https://github.com/QianLongGit/kero/releases/latest/download/install-server.ps1",
+	} {
+		if c != want {
+			t.Errorf("script at %s, want %s", c, want)
+		}
+	}
+}
+
+// Download writes a release's file to a directory of the caller's, as the
+// machine that relays an install to a host with no network of its own, and
+// Checksum checks what it wrote against the release's .sha256, as the
+// install script checks what it downloads.
+func TestDownloadAndChecksum(t *testing.T) {
+	const name = "kero-server-2.1.0-linux-amd64.tar.gz"
+	archive := []byte("the archive: kero, and the library it carries")
+	sum := sha256.Sum256(archive)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/" + name:
+			w.Write(archive)
+		case "/" + name + ".sha256":
+			io.WriteString(w, hex.EncodeToString(sum[:])+"  "+name+"\n")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	path, err := Download(t.Context(), srv.URL+"/"+name, dir, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); !bytes.Equal(b, archive) {
+		t.Errorf("wrote %q, want %q", b, archive)
+	}
+	if err := Checksum(t.Context(), path, srv.URL+"/"+name+".sha256"); err != nil {
+		t.Errorf("Checksum: %v", err)
+	}
+	// A checksum of anything else, as a download gone wrong, fails.
+	os.WriteFile(filepath.Join(dir, "other"), []byte("another file"), 0o644)
+	if err := Checksum(t.Context(), filepath.Join(dir, "other"), srv.URL+"/"+name+".sha256"); err == nil {
+		t.Error("a checksum of another file passes")
+	}
+	// A file the release does not have, or a checksum that is none, is no
+	// download of it.
+	if _, err := Download(t.Context(), srv.URL+"/none", dir, "none"); err == nil {
+		t.Error("downloaded a file the release does not have")
+	}
+	if err := Checksum(t.Context(), path, srv.URL+"/"+name); err == nil {
+		t.Error("took the archive itself for its checksum")
+	}
+}
 
 // The key Kero checks is the one mygo.json signs the app's updates with.
 func TestPublicKeyIsTheApps(t *testing.T) {

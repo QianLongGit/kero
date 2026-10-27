@@ -33,8 +33,10 @@ import (
 // private key signs the app's updates and the server build's archives.
 const PublicKey = "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ="
 
-// Repo is the GitHub repository of Kero's releases.
-const Repo = "egoist/kero"
+// Repo is the GitHub repository of Kero's releases: the fork's, where the
+// versions of this Kero live (an install that reached for the upstream's
+// found nothing there).
+const Repo = "QianLongGit/kero"
 
 // maxArchive bounds an archive's download.
 const maxArchive = 256 << 20
@@ -113,6 +115,71 @@ func get(ctx context.Context, url string, max int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s: too large", url)
 	}
 	return b, nil
+}
+
+// Download reads url into dir, as a file of name, and tells its path: the
+// file a machine that relays an install to a host keeps while it sends it,
+// bounded as the archives of the releases are. It is the caller's to
+// remove.
+func Download(ctx context.Context, url, dir, name string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s: %s", url, resp.Status)
+	}
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+	_, err = io.Copy(f, io.LimitReader(resp.Body, maxArchive+1))
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		if st, serr := os.Stat(path); serr != nil || st.Size() > maxArchive {
+			err = fmt.Errorf("%s: too large", url)
+		}
+	}
+	if err != nil {
+		os.Remove(path)
+	}
+	return path, err
+}
+
+// Checksum checks the file at path against the checksum at url, a release's
+// .sha256: what install-server.sh checks of what it downloads, made by the
+// machine that relays the archive, as the host it goes to has no network to
+// check it itself.
+func Checksum(ctx context.Context, path, url string) error {
+	b, err := get(ctx, url, 4096)
+	if err != nil {
+		return fmt.Errorf("downloading the checksum of %s: %w", filepath.Base(path), err)
+	}
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 || len(fields[0]) != 64 || strings.Trim(fields[0], "0123456789abcdef") != "" {
+		return fmt.Errorf("%s: no checksum of it at %s", filepath.Base(path), url)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	if hex.EncodeToString(h.Sum(nil)) != fields[0] {
+		return fmt.Errorf("%s is not the release's: its SHA-256 differs", filepath.Base(path))
+	}
+	return nil
 }
 
 // Latest is the version of Kero's latest release.
