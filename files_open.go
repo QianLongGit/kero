@@ -9,6 +9,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -68,13 +69,28 @@ type cacheEntry struct {
 	uploading bool
 }
 
+// cacheRoot is where the cache keeps the files it brings down: a folder
+// of kero's own, one of each host's under it.
+func cacheRoot() string { return filepath.Join(proto.Dir(), "files") }
+
 // cachePath is where a host's file comes to this machine: a folder of
 // the host's own, by its name, and in it the file by its path with its
 // own name kept after the hash — apps tell a file by its name's end.
 func cachePath(hostName, remotePath string) string {
 	host := fmt.Sprintf("%x", sha256.Sum256([]byte(hostName)))[:16]
 	path := fmt.Sprintf("%x", sha256.Sum256([]byte(remotePath)))[:16]
-	return filepath.Join(proto.Dir(), "files", host, path+"-"+cacheName(remotePath))
+	return filepath.Join(cacheRoot(), host, path+"-"+cacheName(remotePath))
+}
+
+// cacheIndexPath is where the cache's mappings live past the app: panes
+// of its files hold local paths, which a new app could not read back.
+func cacheIndexPath() string { return filepath.Join(cacheRoot(), "index.json") }
+
+// cacheIndexEntry is one mapping of the cache's index, as the file holds
+// it: the file's local path — the map's key — is not of it.
+type cacheIndexEntry struct {
+	Host   string `json:"host"`
+	Remote string `json:"remote"`
 }
 
 // cacheName is a remote path's own name, as either kind of host spells
@@ -141,6 +157,59 @@ func (a *App) cacheLocal(path string) bool {
 	return ok
 }
 
+// saveCacheIndexLocked writes the cache's mappings to its index, called
+// with the cache's lock held: what the file says and the map holds
+// cannot come apart. Best-effort and whole — writeCache's temporary
+// rename: a cache that cannot save its index still works for the app it
+// is in, a restart only forgets it.
+func (a *App) saveCacheIndexLocked() {
+	index := make(map[string]cacheIndexEntry, len(a.cache.entries))
+	for local, e := range a.cache.entries {
+		index[local] = cacheIndexEntry{Host: e.host, Remote: e.remote}
+	}
+	if b, err := json.Marshal(index); err == nil {
+		writeCache(cacheIndexPath(), b)
+	}
+}
+
+// loadCacheIndex reads the cache's mappings back as the app starts: a
+// pane of a cached file, saved with its local path, is read through the
+// cache again, and its edits still write back. The hash is not the
+// index's to hold: each file is read again, and the watcher carries only
+// what changes from here on. A missing or corrupt index, or a file gone
+// from the disk, leaves its mapping out — nothing of it syncs.
+func (a *App) loadCacheIndex() {
+	b, err := os.ReadFile(cacheIndexPath())
+	if err != nil {
+		return
+	}
+	var index map[string]cacheIndexEntry
+	if json.Unmarshal(b, &index) != nil {
+		return
+	}
+	entries := map[string]*cacheEntry{}
+	for local, ix := range index {
+		if ix.Host == "" || ix.Remote == "" {
+			continue
+		}
+		data, err := os.ReadFile(local)
+		if err != nil {
+			continue
+		}
+		fi, err := os.Stat(local)
+		if err != nil {
+			continue
+		}
+		entries[local] = &cacheEntry{host: ix.Host, remote: ix.Remote,
+			hash: git.Hash(data), mod: fi.ModTime(), size: fi.Size()}
+	}
+	if len(entries) == 0 {
+		return
+	}
+	a.cache.entries = entries
+	a.startUploadWatcher()
+}
+
 // materialize brings a file of a host to this machine, as the file the
 // user opens: a remote host's downloads once into the cache, from where
 // its edits write back; a local host's file is its own path already.
@@ -196,6 +265,7 @@ func (a *App) materialize(cl *client.Client, hostName, remotePath string) (strin
 	// itself is no edit.
 	a.cache.entries[local] = &cacheEntry{host: hostName, remote: remotePath, hash: git.Hash(r.Data),
 		mod: fi.ModTime(), size: fi.Size()}
+	a.saveCacheIndexLocked()
 	a.cache.mu.Unlock()
 	a.startUploadWatcher()
 	return local, nil
@@ -258,6 +328,7 @@ type cacheUpload struct {
 // app's but the cache.
 func (a *App) watchCache() {
 	var queue []cacheUpload
+	dropped := false
 	a.cache.mu.Lock()
 	now := time.Now()
 	for local, e := range a.cache.entries {
@@ -268,6 +339,7 @@ func (a *App) watchCache() {
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
 			delete(a.cache.entries, local)
+			dropped = true
 		case err != nil:
 			// A file the disk will not speak of this poll: the next one.
 		case st.ModTime() != e.mod || st.Size() != e.size:
@@ -278,6 +350,9 @@ func (a *App) watchCache() {
 			e.uploading = true
 			queue = append(queue, cacheUpload{local: local, host: e.host, remote: e.remote, hash: e.hash, of: e})
 		}
+	}
+	if dropped {
+		a.saveCacheIndexLocked()
 	}
 	a.cache.mu.Unlock()
 	if len(queue) > 0 {
@@ -345,6 +420,7 @@ func (a *App) cacheUploaded(u cacheUpload, sum string, err error) {
 	case errors.Is(err, fs.ErrNotExist):
 		// The file went as it uploaded: its record goes with it.
 		delete(a.cache.entries, u.local)
+		a.saveCacheIndexLocked()
 	case strings.HasPrefix(err.Error(), "conflict:"):
 		e.uploading = false
 		e.changed = time.Time{}

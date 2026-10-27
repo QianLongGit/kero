@@ -212,6 +212,9 @@ func newApp() *App {
 	a.applied = a.set.Clone()
 	a.selected = a.prefs.Selected
 	a.hosts = []*host{{conn: connConnecting}}
+	// The cache's mappings of the last run read back: a pane of a cached
+	// file opens where it left.
+	a.loadCacheIndex()
 	return a
 }
 

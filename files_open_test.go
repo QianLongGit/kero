@@ -699,6 +699,105 @@ func TestFilesOpenRemotePreview(t *testing.T) {
 	}
 }
 
+// The cache's mappings live past the app: a pane whose file is one of
+// the cache's — saved with its local path — reads the copy here again
+// after a restart, not a path of this machine through the host, where it
+// is no file.
+func TestFilesOpenPaneAfterRestart(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("package main\n")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The host's copy gone, the cache's is the only one to read.
+	f.mu.Lock()
+	delete(f.files, "/srv/demo/main.go")
+	f.mu.Unlock()
+
+	// A new app over the same home is what a restart is; its pane holds
+	// the local path the open left saved. (newApp, not testApp: a testApp
+	// would move the home to a directory of its own.)
+	a := newApp()
+	a.updateFn = func(fn func()) { f.ui.Lock(); defer f.ui.Unlock(); fn() }
+	h := &host{name: "remote", cl: f.h.cl, conn: connReady, loaded: true}
+	a.hosts = append(a.hosts, h)
+	a.owner = map[string]*host{"f": h}
+	p := &proto.Pane{ID: "f", File: local}
+	fp := a.filePaneFor(p)
+	a.readFilePane(p, fp)
+	f.waitsFor(t, func() error {
+		if fp.err != "" {
+			return fmt.Errorf("the pane erred: %s", fp.err)
+		}
+		if fp.st == nil || fp.st.Buffer == nil || fp.st.Buffer.String() != "package main\n" {
+			return errors.New("the pane did not read the cache's copy")
+		}
+		return nil
+	})
+	// The pane's read was the cache's alone: the host answered one
+	// fs.read, the materialize's.
+	if n := func() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads["/srv/demo/main.go"] }(); n != 1 {
+		t.Errorf("fs.read came %d times, want the materialize's one", n)
+	}
+}
+
+// The cache's index holds its mappings across restarts: written whole on
+// each change, read back tolerant, each file's hash taken from its own
+// content — so nothing uploads that did not change, and a mapping whose
+// file went stays gone.
+func TestFilesOpenIndex(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("one")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A materialize writes the index.
+	ix := map[string]cacheIndexEntry{}
+	b, err := os.ReadFile(cacheIndexPath())
+	if err != nil {
+		t.Fatalf("no index came of a materialize: %v", err)
+	}
+	if err := json.Unmarshal(b, &ix); err != nil || ix[local] != (cacheIndexEntry{Host: "remote", Remote: "/srv/demo/main.go"}) {
+		t.Errorf("the index holds %v, %v", ix, err)
+	}
+
+	// A restart reads the mappings back: the hash is of the file's own
+	// content, and what did not change does not write back.
+	a := newApp()
+	e := a.cacheRecord(local)
+	if e == nil || e.host != "remote" || e.remote != "/srv/demo/main.go" || e.hash != fileSHA([]byte("one")) {
+		t.Errorf("a restart left the record %+v", e)
+	}
+	time.Sleep(1600 * time.Millisecond)
+	if w := f.writesOf(); len(w) != 0 {
+		t.Errorf("%d writes came of a file that did not change", len(w))
+	}
+
+	// A mapping whose file went does not come back, on either side: the
+	// watcher drops it from the map and the index holds it no more.
+	if err := os.Remove(local); err != nil {
+		t.Fatal(err)
+	}
+	f.a.watchCache()
+	ix = map[string]cacheIndexEntry{}
+	if b, err := os.ReadFile(cacheIndexPath()); err != nil || json.Unmarshal(b, &ix) != nil || ix[local] != (cacheIndexEntry{}) {
+		t.Errorf("the index after the drop holds %v, %v", ix, err)
+	}
+	if a2 := newApp(); a2.cacheRecord(local) != nil {
+		t.Error("a dropped mapping came back with a restart")
+	}
+
+	// A corrupt index is nothing: the cache starts empty, the app stands.
+	if err := os.WriteFile(cacheIndexPath(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if a3 := newApp(); len(a3.cache.entries) != 0 {
+		t.Errorf("a corrupt index loaded %d entries", len(a3.cache.entries))
+	}
+}
+
 // A file pane a click on a remote file makes opens the cache's copy: the
 // pane's own host could not read a path of this machine.
 func TestFilesOpenRemotePane(t *testing.T) {
