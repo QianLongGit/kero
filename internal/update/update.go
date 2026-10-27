@@ -120,8 +120,30 @@ func get(ctx context.Context, url string, max int64) ([]byte, error) {
 // Download reads url into dir, as a file of name, and tells its path: the
 // file a machine that relays an install to a host keeps while it sends it,
 // bounded as the archives of the releases are. It is the caller's to
-// remove.
+// remove. The route to the release CDN comes and goes on some networks —
+// a cut read is that, not a broken release — so it tries three times
+// before telling the user.
 func Download(ctx context.Context, url, dir, name string) (string, error) {
+	var err error
+	for try := 0; try < 3; try++ {
+		if try > 0 {
+			select {
+			case <-time.After(time.Duration(try) * 500 * time.Millisecond):
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
+		var path string
+		path, err = downloadOnce(ctx, url, dir, name)
+		if err == nil {
+			return path, nil
+		}
+	}
+	return "", err
+}
+
+// downloadOnce is Download's one attempt.
+func downloadOnce(ctx context.Context, url, dir, name string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err

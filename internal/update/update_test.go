@@ -1,6 +1,7 @@
 package update
 
 import (
+	"context"
 	"archive/tar"
 	"archive/zip"
 	"bytes"
@@ -243,5 +244,32 @@ func TestReplace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), "escape")); err == nil {
 		t.Error("a file got out of the archive")
+	}
+}
+
+// A download whose route dies mid-body — as the release CDN's does on
+// flaky networks — comes back on a later try, not as an error the user
+// has to act on.
+func TestDownloadRetries(t *testing.T) {
+	cut := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cut++
+		if cut <= 2 {
+			w.Header().Set("Content-Length", "100")
+			panic(http.ErrAbortHandler)
+		}
+		w.Write([]byte("the whole file"))
+	}))
+	defer srv.Close()
+	path, err := Download(context.Background(), srv.URL, t.TempDir(), "f")
+	if err != nil {
+		t.Fatalf("Download after cuts: %v", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "the whole file" || cut != 3 {
+		t.Errorf("read %q after %d tries", b, cut)
 	}
 }
