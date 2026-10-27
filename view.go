@@ -692,8 +692,13 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 			name.TextColor(pal.textMuted)
 		}
 		// A branch of its own, as an agent's in a worktree, by the name.
-		if b := offBranch(g); b != "" {
-			ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+		// The git-state setting reads here, not from the data: a remote
+		// host's kerod keeps telling the branch whatever the app's
+		// setting says.
+		if a.set.GitStatus {
+			if b := offBranch(g); b != "" {
+				ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+			}
 		}
 		ui.Spacer(c)
 		// The arrows a hovered or chosen row shows stand in for a drag of

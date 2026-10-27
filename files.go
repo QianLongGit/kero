@@ -213,14 +213,15 @@ func (a *App) filesView(c *ui.Context, pal *palette, s *proto.Session) {
 }
 
 // filesPreview tells whether a click on a file of the Files view shows it
-// under the tree: on until the user turns it off.
-func (a *App) filesPreview() bool { return a.prefs.FilesPreview == nil || *a.prefs.FilesPreview }
+// under the tree: off until the user turns it on.
+func (a *App) filesPreview() bool { return a.prefs.FilesPreview != nil && *a.prefs.FilesPreview }
 
 // filesPreviewRow is the row above the tree that turns the inline preview
-// under it on and off: on, a click on a file shows the file there; off, a
-// click only chooses it. What a double click opens is the file-open
-// setting's to say, and Space always previews the choice.
-func (a *App) filesPreviewRow(c *ui.Context, pal *palette) {
+// under it on and off: on, a click on a file shows the file there, and
+// the choice of before shows at once; off, the click only chooses, and
+// whatever showed hides at once. What a double click opens is the
+// file-open setting's to say, and Space always previews the choice.
+func (a *App) filesPreviewRow(c *ui.Context, pal *palette, t *fileTree) {
 	row := ui.Row(c.Key("files-open")).Shrink(0).Padding(6, 8, 10, 8).Gap(4).AlignItems(ui.Center)
 	row.Children(func() {
 		ui.Spacer(c)
@@ -241,6 +242,18 @@ func (a *App) filesPreviewRow(c *ui.Context, pal *palette) {
 				v := !on
 				a.prefs.FilesPreview = &v
 				a.savePrefs()
+				// The tree follows at once: the file the keyboard chose
+				// shows when the preview turns on, and the one under the
+				// tree hides when it turns off.
+				if v {
+					if t.chosen >= 0 && t.chosen < t.outline.Rows() {
+						if p := t.outline.Item(t.chosen); !t.isDir[p] {
+							a.openFile(t, p)
+						}
+					}
+				} else {
+					t.shown, t.file = "", nil
+				}
 			})
 		}
 		b.Children(func() {
@@ -327,7 +340,7 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 	// The Preview toggle, above the tree: the tree's own column, which a
 	// file under it leaves.
 	if picker {
-		a.filesPreviewRow(c, pal)
+		a.filesPreviewRow(c, pal, t)
 	}
 	d := t.dirs[t.root]
 	switch {

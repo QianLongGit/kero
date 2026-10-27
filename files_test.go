@@ -109,8 +109,8 @@ func TestFileOpenChoice(t *testing.T) {
 		}
 	}
 
-	// A click chooses the file, the keyboard's choice too, and shows it
-	// under the tree.
+	// The preview starts off: a click only chooses, nothing shows under
+	// the tree.
 	if err := tt.Click("a.txt"); err != nil {
 		t.Fatal(err)
 	}
@@ -118,22 +118,47 @@ func TestFileOpenChoice(t *testing.T) {
 	if tree.chosen < 0 || tree.outline.Item(tree.chosen) != "/tmp/demo/a.txt" {
 		t.Errorf("a click chose row %d, want a.txt", tree.chosen)
 	}
-	if tree.shown != "/tmp/demo/a.txt" {
-		t.Errorf("a click showed %q, want the file under the tree", tree.shown)
+	if tree.shown != "" {
+		t.Errorf("with the preview off by default, a click showed %q", tree.shown)
 	}
 
-	// The preview off, a click only chooses: what showed keeps showing.
-	off := false
-	a.prefs.FilesPreview = &off
+	// On, a click chooses the file, the keyboard's choice too, and shows
+	// it under the tree — the choice of before at once, as it turns on.
+	if err := tt.Click("Preview"); err != nil {
+		t.Fatal(err)
+	}
 	tt.Frame()
+	if tree.shown != "/tmp/demo/a.txt" {
+		t.Errorf("turning the preview on showed %q, want the choice of before at once", tree.shown)
+	}
 	if err := tt.Click("main.go"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if tree.chosen < 0 || tree.outline.Item(tree.chosen) != "/tmp/demo/main.go" {
-		t.Errorf("a click chose row %d, want main.go", tree.chosen)
+	if tree.shown != "/tmp/demo/main.go" {
+		t.Errorf("a click showed %q, want the file under the tree", tree.shown)
 	}
-	if tree.shown != "/tmp/demo/a.txt" {
+
+	// The preview off — the toggle itself, not the pref under it — a
+	// click only chooses, and what showed hides at once.
+	if err := tt.Click("Preview"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.filesPreview() {
+		t.Error("the Preview toggle did not turn the preview off")
+	}
+	if tree.shown != "" {
+		t.Errorf("turning the preview off kept %q showing", tree.shown)
+	}
+	if err := tt.Click("a.txt"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tree.chosen < 0 || tree.outline.Item(tree.chosen) != "/tmp/demo/a.txt" {
+		t.Errorf("a click chose row %d, want a.txt", tree.chosen)
+	}
+	if tree.shown != "" {
 		t.Errorf("with the preview off, a click showed %q", tree.shown)
 	}
 
@@ -194,13 +219,17 @@ func TestFileOpenChoice(t *testing.T) {
 		t.Errorf("split %+v, want a file pane on a.txt, the default route", called)
 	}
 
-	// The Preview toggle turns the preview back on.
+	// The Preview toggle turns the preview back on, the choice of before
+	// with it.
 	if err := tt.Click("Preview"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
 	if !a.filesPreview() {
 		t.Error("the Preview toggle did not turn the preview on")
+	}
+	if tree.shown != "/tmp/demo/main.go" {
+		t.Errorf("turning the preview on showed %q, want the chosen file at once", tree.shown)
 	}
 }
 
