@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.5
+
+- Updating Kero on a host restarts its kerod when the update lands, so
+  the new version is the one that answers, not only the one on disk;
+  the install's confirmation says so now too.
+
 ## 2.3.4
 
 - Updating Kero on a host installs through the app's own download,
