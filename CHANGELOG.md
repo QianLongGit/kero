@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.3.0
+
+- The sidebar's sessions can be reordered: drag a session anywhere, or use
+  the arrows a selected or hovered row shows. A session you move stays
+  glued behind the one you dropped it on, following it while new sessions
+  still sort themselves in; dragging into another project's group moves
+  it there. "Reset to Auto Order" in a session's context menu puts it
+  back. The sidebar's sort button still picks Created or Updated for the
+  sessions you leave alone.
+- The sidebar has a compact tree look by default: tighter rows, and each
+  group's sessions drawn as a block with its project color on the left.
+  Settings' "Sidebar density" switches back to the standard size.
+- A Files view joins Changes in the side panel (⌘⇧F, Ctrl+Alt+F).
+  Double-click a file to open it the way the view's picker chooses —
+  Preview, a File Pane, or the Host's Editor — Space Quick Looks it, and
+  the context menu opens it with the system's default app, in VSCode,
+  or with any installed app you pick.
+- Files on a remote host's sessions download to a local cache when
+  opened, and edits from any editor sync back a second after they
+  settle, checked against what was read so nothing is overwritten
+  silently. Hosts pick this up with their next update.
+- The pane header's controls gain a side panel toggle, at the split
+  buttons' left.
+
 ## 2.2.0
 
 - Clicking a coding agent in Vibe Island's notch panel jumps to its
