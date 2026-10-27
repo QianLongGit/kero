@@ -404,7 +404,10 @@ func (a *App) offerHostUpdate(h *host) {
 		detail:  withRunning(detail, a.busyCount(h)),
 		action:  locales.CommonUpdate(),
 		destroy: true,
-		run:     func() { a.hostRequest(h, "update") },
+		// The relayed install, not the server's own update: a server
+		// another build installed reaches for its own release home,
+		// which has none of this fork's versions.
+		run: func() { a.install(h) },
 	}
 	if a.win != nil {
 		a.win.Focus()
