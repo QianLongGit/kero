@@ -11,6 +11,7 @@ package main
 // insides are its own, not apps of the menu.
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -36,7 +37,15 @@ func appsInDir(root string, depth int) []AppEntry {
 	}
 	var apps []AppEntry
 	for _, de := range des {
-		if !de.IsDir() {
+		// A symlink stands for its target — bundles and suite folders
+		// are symlinked into Applications folders — and one that points
+		// nowhere holds nothing.
+		isDir := de.IsDir()
+		if de.Type()&fs.ModeSymlink != 0 {
+			fi, err := os.Stat(filepath.Join(root, de.Name()))
+			isDir = err == nil && fi.IsDir()
+		}
+		if !isDir {
 			continue
 		}
 		name := de.Name()

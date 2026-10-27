@@ -275,7 +275,7 @@ func (a *App) migrateFileOpen() {
 	}
 	a.set.FileOpen = old.FileOpen
 	if err := settings.Save(a.set); err != nil {
-		a.toast(err.Error())
+		a.toast(locales.ToastSaveSettingsFailed(err.Error()))
 	}
 }
 

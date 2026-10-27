@@ -38,7 +38,9 @@ func TestOpenWithCommand(t *testing.T) {
 // appsFixture builds, under a fresh root, the shapes Applications
 // folders hold: bundles at the top, a suite folder with a bundle one
 // level down, a helper nested inside a bundle, a bundle three plain
-// levels down, and a plain file that ends in .app all the same.
+// levels down, and a plain file that ends in .app all the same. Users
+// symlink bundles and suite folders in, so the root holds a link to a
+// bundle, a link to a suite folder, and a link that points nowhere.
 func appsFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -57,13 +59,24 @@ func appsFixture(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(root, "readme.app"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	for _, sl := range []struct{ link, target string }{
+		{"Linked.app", "Alpha.app"},
+		{"LinkedSuite", "Suite"},
+		{"Broken.app", "not there"},
+	} {
+		if err := os.Symlink(filepath.Join(root, sl.target), filepath.Join(root, sl.link)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return root
 }
 
 // The walk takes the bundles of the top level and of a suite folder one
 // level in, and nothing else: not a bundle's own insides, not a stray
-// past the depth, not a file however it is named. A folder that is not
-// there holds no apps, quietly.
+// past the depth, not a file however it is named. A symlinked bundle and
+// a symlinked suite folder stand for their targets — the suite one only
+// within the depth — and a link that points nowhere is no app. A folder
+// that is not there holds no apps, quietly.
 func TestAppsInDir(t *testing.T) {
 	root := appsFixture(t)
 	for _, tc := range []struct {
@@ -76,6 +89,8 @@ func TestAppsInDir(t *testing.T) {
 			depth: 2,
 			want: []AppEntry{
 				{Name: "Alpha", Path: filepath.Join(root, "Alpha.app")},
+				{Name: "Linked", Path: filepath.Join(root, "Linked.app")},
+				{Name: "Photoshop", Path: filepath.Join(root, "LinkedSuite", "Photoshop.app")},
 				{Name: "Photoshop", Path: filepath.Join(root, "Suite", "Photoshop.app")},
 				{Name: "Zealand", Path: filepath.Join(root, "Zealand.app")},
 			},
@@ -85,6 +100,7 @@ func TestAppsInDir(t *testing.T) {
 			depth: 1,
 			want: []AppEntry{
 				{Name: "Alpha", Path: filepath.Join(root, "Alpha.app")},
+				{Name: "Linked", Path: filepath.Join(root, "Linked.app")},
 				{Name: "Zealand", Path: filepath.Join(root, "Zealand.app")},
 			},
 		},
