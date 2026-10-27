@@ -226,8 +226,6 @@ func (a *App) menu() *mygo.Menu {
 			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 			a.item("app.quitAll")}}
 	}
-	view := append(a.items("View", []string{"sidebar.toggle", "changes.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
-		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 	return mygo.NewMenu([]*mygo.MenuItem{
 		kero,
 		{Label: locales.MenuSession(), Submenu: a.items("Session",
@@ -244,9 +242,17 @@ func (a *App) menu() *mygo.Menu {
 			[]string{"pane.browser", "browser.address"},
 			[]string{"pane.zoom"},
 			[]string{"pane.next", "pane.previous", "pane.left", "pane.right", "pane.up", "pane.down"})},
-		{Label: locales.MenuView(), Submenu: view},
+		{Label: locales.MenuView(), Submenu: a.viewItems()},
 		{Role: mygo.RoleWindowMenu},
 	})
+}
+
+// viewItems are the View menu's items, kept apart from menu's own for
+// the tests: the panel toggles, the text sizes, the quick terminal, and
+// the window's own.
+func (a *App) viewItems() []*mygo.MenuItem {
+	return append(a.items("View", []string{"sidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
+		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 }
 
 // keys is an action's shortcut as the menus show it, "" when it has none.
