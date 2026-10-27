@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.4
+
+- Updating Kero on a host installs through the app's own download,
+  instead of asking the Kero there to update itself: one another build
+  installed reaches for that build's releases, where this fork's
+  versions never are.
+
 ## 2.3.3
 
 - Installing on a host keeps trying a download the route cuts, instead
