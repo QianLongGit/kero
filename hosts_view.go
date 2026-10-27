@@ -197,8 +197,15 @@ func (a *App) hostNote(c *ui.Context, pal *palette, h *host) {
 					a.installOnHost(h)
 				}
 			}
-			if h.conn == connFailed && smallButton(c, "retry", locales.CommonTryAgain(), !errors.Is(h.errKind, remote.ErrNotInstalled), pal) {
-				a.reconnectHost(h)
+			if h.conn == connFailed {
+				if smallButton(c, "retry", locales.CommonTryAgain(), !errors.Is(h.errKind, remote.ErrNotInstalled), pal) {
+					a.reconnectHost(h)
+				}
+				// The note carries its own way out of the host, beside the
+				// retry, as the header's menu is a reach away.
+				if smallButton(c, "remove", locales.HostRemove(), false, pal) {
+					a.confirm = a.removeHostConfirmation(h)
+				}
 			}
 		})
 	})
@@ -245,6 +252,12 @@ func (a *App) hostMenu(m *ui.Menu, h *host) {
 		if m.Item(locales.HostInstall()).Disabled(h.busy != "").Chosen() {
 			a.installOnHost(h)
 		}
+	}
+	// The relay install is idempotent, and asks nothing of the Kero it
+	// replaces: one the upstream app installed, whose updates can never
+	// cross to this fork's releases, moves only by a reinstall.
+	if m.Item(locales.HostReinstall()).Disabled(h.busy != "").Chosen() {
+		a.installOnHost(h)
 	}
 	a.colorMenu(m, h)
 	m.Separator()

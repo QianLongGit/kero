@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -206,6 +207,54 @@ func TestSidebarHostProblems(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("Kero on build is another version") {
 		t.Errorf("no word of the version: %q", tt.Texts())
+	}
+}
+
+// A host the app can't reach, whose Kero offers no way to update it, still
+// offers to reinstall it from its menu; and its note carries its own way
+// out, a remove beside the retry.
+func TestSidebarHostReinstallAndRemove(t *testing.T) {
+	a := testApp(t)
+	a.mergeState(a.local(), a.st)
+	h := withHost(t, a, "build")
+	h.conn, h.err = connFailed, "Connection refused"
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	if !tt.HasText(locales.CommonTryAgain()) {
+		t.Fatalf("the note offers no retry: %q", tt.Texts())
+	}
+	if err := tt.Click(locales.HostRemove()); err != nil {
+		t.Fatalf("the note offers no remove: %v; texts %q", err, tt.Texts())
+	}
+	tt.Frame()
+	if a.confirm == nil || a.confirm.title != locales.HostRemoveTitle("build") {
+		t.Fatalf("no question to remove: %+v", a.confirm)
+	}
+	a.confirm = nil
+	tt.Frame() // the question's veil goes, before the header takes a click
+	// Whatever the host says, the menu offers the reinstall, and asks
+	// before it takes the host.
+	if err := tt.RightClick("build"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(tt.Menu(), locales.HostReinstall()) {
+		t.Fatalf("no %q in the menu: %q", locales.HostReinstall(), tt.Menu())
+	}
+	if err := tt.ChooseMenuItem(locales.HostReinstall()); err != nil {
+		t.Fatal(err)
+	}
+	if a.confirm == nil || a.confirm.title != locales.HostInstallTitle("build") {
+		t.Fatalf("no question to install: %+v", a.confirm)
+	}
+	// Busy with what the user asked, the menu holds the reinstall.
+	a.confirm = nil
+	h.busy = "install"
+	tt.Frame()
+	if err := tt.RightClick("build"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem(locales.HostReinstall()); err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Errorf("chose Reinstall while busy: %v", err)
 	}
 }
 

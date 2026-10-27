@@ -499,6 +499,7 @@
   "hostInstalling": "正在 {host} 上安装 Kero…",
   "hostInstalled": "已在 {host} 上安装 Kero",
   "hostInstallFailed": "无法在 {host} 上安装 Kero：{error}",
+  "hostReinstall": "重新安装 Kero…",
   "hostUpdateAction": "更新 {host} 上的 Kero…",
   "hostUpdateTitle": "将 {host} 上的 Kero 更新到 {version}？",
   "hostUpdateDetail": "随后 Kero 会重启 {host} 上的服务。那里的会话会在原处重新开始，保留历史，其中运行的程序会结束。",

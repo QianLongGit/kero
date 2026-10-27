@@ -653,14 +653,16 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	}
 	// Compact, the children stand as one block, told from their neighbors
 	// by a bar of the project's color down the block's left edge: the
-	// block's own inset in the badge's place, which no child carries.
-	block := ui.Column(c.Key("block-"+key)).Shrink(0).Padding(0, 0, 0, blockEdge+blockBar+blockGap)
+	// block's own inset in the badge's place, which no child carries. The
+	// bar's gap is each child's own padding, so a chosen child's highlight
+	// begins at the bar and still holds its text clear of its left edge.
+	block := ui.Column(c.Key("block-"+key)).Shrink(0).Padding(0, 0, 0, blockEdge+blockBar)
 	block.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Fill(ui.Rect{X: r.X + blockEdge, Y: r.Y, W: blockBar, H: r.H}, a.projectBadgeColor(g.project), 0)
 	})
 	block.Children(func() {
 		for i, s := range g.sessions {
-			a.sessionRow(c, pal, s, g.sessions, i, n, 0)
+			a.sessionRow(c, pal, s, g.sessions, i, n, blockGap)
 		}
 	})
 }

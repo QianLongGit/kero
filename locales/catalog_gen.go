@@ -5064,6 +5064,16 @@ func (msgs Messages) HostInstallFailed(host string, error string) string {
 	return Catalog.Format(msgs.locale, "hostInstallFailed", map[string]any{"host": host, "error": error})
 }
 
+// HostReinstall says "Reinstall Kero…"
+// in the language the app shows.
+func HostReinstall() string { return In(i18n.Locale()).HostReinstall() }
+
+// HostReinstall says "Reinstall Kero…"
+// in the language of msgs.
+func (msgs Messages) HostReinstall() string {
+	return Catalog.Format(msgs.locale, "hostReinstall", nil)
+}
+
 // HostUpdateAction says "Update Kero on {host}…"
 // in the language the app shows.
 func HostUpdateAction(host string) string { return In(i18n.Locale()).HostUpdateAction(host) }

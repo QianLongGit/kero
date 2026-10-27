@@ -1043,15 +1043,59 @@ func TestCompactBlockIndent(t *testing.T) {
 	}
 	barX = sess.X - blockGap - blockBar/2
 	at := func(y float32) color.RGBA { return tt.Image().RGBAAt(int(barX), int(y)) }
+	// The chosen row's highlight begins at the bar, and its shadow grounds
+	// on it: the bar shows the project's color, a shade off at most.
+	near := func(y float32) bool {
+		got := at(y)
+		return abs32(float32(got.R)-float32(col.R)) <= 4 &&
+			abs32(float32(got.G)-float32(col.G)) <= 4 &&
+			abs32(float32(got.B)-float32(col.B)) <= 4
+	}
 	for _, y := range []float32{sess.Y + sess.H/2, beta.Y + beta.H/2, (sess.Y + sess.H + beta.Y) / 2} {
-		if got := at(y); got != col {
-			t.Errorf("no bar of the project's color at (%.0f, %.0f): %v", barX, y, got)
+		if !near(y) {
+			t.Errorf("no bar of the project's color at (%.0f, %.0f): %v", barX, y, at(y))
 		}
 	}
 	// The bar spans the block's rows, and no more.
 	past := beta.Y + beta.H/2 + a.sidebarDensity().rowH/2 + 2
 	if got := at(past); got == col {
 		t.Errorf("the bar runs past the block, to %g", past)
+	}
+}
+
+// The chosen row's highlight holds the block's gap at its left edge, so
+// its text stands clear of it in either theme: the bar tells the block,
+// the highlight the row, and neither hugs the text.
+func TestCompactBlockChosenHighlight(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	tt := ui.NewTester(a.view, 1100, 640)
+	room := func() float32 { // the highlight's left edge, from the text, in its row
+		sess, ok := tt.Find("sess")
+		if !ok {
+			t.Fatalf("no session name; texts %q", tt.Texts())
+		}
+		img := tt.Image()
+		y := int(sess.Y + sess.H/2)
+		ref := img.RGBAAt(int(sess.X)-1, y) // inside the highlight, beside the text
+		x := int(sess.X) - 2
+		for x > 0 && img.RGBAAt(x, y) == ref {
+			x--
+		}
+		return sess.X - float32(x+1)
+	}
+	tt.Frame()
+	tt.Advance(time.Second) // the highlight's color eases in
+	tt.Frame()
+	if d := room(); d < blockGap-2 {
+		t.Errorf("light: the chosen row's highlight begins %g from its text, want %g", d, float32(blockGap))
+	}
+	tt.SetDark(true)
+	tt.Advance(time.Second) // colors ease from the light frame's
+	tt.Frame()
+	if d := room(); d < blockGap-2 {
+		t.Errorf("dark: the chosen row's highlight begins %g from its text, want %g", d, float32(blockGap))
 	}
 }
 

@@ -788,6 +788,7 @@
       }
     }
   },
+  "hostReinstall": "Reinstall Kero…",
   "hostUpdateAction": "Update Kero on {host}…",
   "@hostUpdateAction": {
     "placeholders": {
