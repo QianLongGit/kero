@@ -35,37 +35,129 @@ func TestOpenWithCommand(t *testing.T) {
 	}
 }
 
-// LaunchServices names the apps that open a file, the one it would
-// choose itself first: TextEdit for a note, on any Mac.
-func TestApplicationsForPath(t *testing.T) {
-	f := filepath.Join(t.TempDir(), "note.txt")
-	if err := os.WriteFile(f, []byte("hello\n"), 0o644); err != nil {
+// appsFixture builds, under a fresh root, the shapes Applications
+// folders hold: bundles at the top, a suite folder with a bundle one
+// level down, a helper nested inside a bundle, a bundle three plain
+// levels down, and a plain file that ends in .app all the same.
+func appsFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, parts := range [][]string{
+		{"Alpha.app"},
+		{"Alpha.app", "Helper.app"},
+		{"Zealand.app"},
+		{"Suite", "Photoshop.app"},
+		{"Suite", "Presets"},
+		{"deep", "deeper", "Stray.app"},
+	} {
+		if err := os.MkdirAll(filepath.Join(append([]string{root}, parts...)...), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "readme.app"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	apps, err := applicationsForPath(f)
-	if err != nil {
-		t.Fatalf("applicationsForPath: %v", err)
+	return root
+}
+
+// The walk takes the bundles of the top level and of a suite folder one
+// level in, and nothing else: not a bundle's own insides, not a stray
+// past the depth, not a file however it is named. A folder that is not
+// there holds no apps, quietly.
+func TestAppsInDir(t *testing.T) {
+	root := appsFixture(t)
+	for _, tc := range []struct {
+		name  string
+		depth int
+		want  []AppEntry
+	}{
+		{
+			name:  "two levels",
+			depth: 2,
+			want: []AppEntry{
+				{Name: "Alpha", Path: filepath.Join(root, "Alpha.app")},
+				{Name: "Photoshop", Path: filepath.Join(root, "Suite", "Photoshop.app")},
+				{Name: "Zealand", Path: filepath.Join(root, "Zealand.app")},
+			},
+		},
+		{
+			name:  "one level",
+			depth: 1,
+			want: []AppEntry{
+				{Name: "Alpha", Path: filepath.Join(root, "Alpha.app")},
+				{Name: "Zealand", Path: filepath.Join(root, "Zealand.app")},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := appsInDir(root, tc.depth)
+			slices.SortFunc(got, func(a, b AppEntry) int { return strings.Compare(a.Path, b.Path) })
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("appsInDir = %v, want %v", got, tc.want)
+			}
+		})
 	}
-	// An empty list is a quiet miss of LaunchServices' index, not a
-	// failure: on a machine whose index is still cold there is nothing
-	// to hold the test to.
-	if len(apps) == 0 {
-		t.Skip("LaunchServices named no app")
+	if got := appsInDir(filepath.Join(root, "not there"), 2); got != nil {
+		t.Errorf("appsInDir of a missing folder = %v, want none", got)
 	}
-	for _, app := range apps {
-		if !strings.Contains(app.Name, "TextEdit") {
+}
+
+// Merged, the apps of several folders come by name with the case
+// folded away and by path where names agree: the same bundle twice is
+// one entry, the same name at two paths two, as the system holds it.
+func TestAppsInDirs(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"1/ALPHA.app", "1/beta.app", "1/Same.app", "2/Same.app"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ent := func(p string) AppEntry {
+		return AppEntry{Name: strings.TrimSuffix(filepath.Base(p), ".app"), Path: p}
+	}
+	alpha := ent(filepath.Join(root, "1", "ALPHA.app"))
+	beta := ent(filepath.Join(root, "1", "beta.app"))
+	same1 := ent(filepath.Join(root, "1", "Same.app"))
+	same2 := ent(filepath.Join(root, "2", "Same.app"))
+	for _, tc := range []struct {
+		name string
+		dirs []string
+		want []AppEntry
+	}{
+		{"sorted across folders, ties by path", []string{filepath.Join(root, "2"), filepath.Join(root, "1")}, []AppEntry{alpha, beta, same1, same2}},
+		{"the same folder twice is one list", []string{filepath.Join(root, "1"), filepath.Join(root, "1")}, []AppEntry{alpha, beta, same1}},
+		{"a missing folder adds nothing", []string{filepath.Join(root, "none"), filepath.Join(root, "2")}, []AppEntry{same2}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := appsInDirs(tc.dirs...); !slices.Equal(got, tc.want) {
+				t.Errorf("appsInDirs = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// The system's own Applications folder holds the Calculator on any
+// Mac (the Finder itself it does not: the sealed system keeps it in
+// CoreServices): the one live read the menu makes, skipped where the
+// folder is not.
+func TestInstalledApps(t *testing.T) {
+	if fi, err := os.Stat("/System/Applications"); err != nil || !fi.IsDir() {
+		t.Skip("no /System/Applications on this machine")
+	}
+	for _, app := range installedApps() {
+		if app.Name != "Calculator" {
 			continue
 		}
-		if !strings.HasSuffix(app.Path, ".app") {
-			t.Errorf("TextEdit's entry is at %q, want a bundle", app.Path)
+		if !strings.HasSuffix(app.Path, "Calculator.app") {
+			t.Errorf("Calculator is at %q, want a bundle's path", app.Path)
 		}
 		return
 	}
-	t.Errorf("no TextEdit among the %d apps named for a note: %v", len(apps), apps)
+	t.Error("Calculator is not among the installed apps")
 }
 
 // A right click on a file of the tree opens it in an app: the system's
-// own, VS Code, or one of the apps the system names.
+// own, VS Code, or any app installed on the system.
 func TestFilesOpenWithMenu(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -83,8 +175,8 @@ func TestFilesOpenWithMenu(t *testing.T) {
 	if got := tt.Menu(); !slices.Equal(got, want) {
 		t.Fatalf("the file's menu is %q, want %q", got, want)
 	}
-	// Choose App holds the apps the system names, not a command of its
-	// own.
+	// Choose App holds the apps installed on the system, not a command
+	// of its own.
 	if err := tt.ChooseMenuItem(locales.FilesChooseApp()); err == nil || !strings.Contains(err.Error(), "submenu") {
 		t.Errorf("Choose App is not a submenu: %v", err)
 	}

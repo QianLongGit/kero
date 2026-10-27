@@ -1,7 +1,7 @@
 package main
 
 // The Open With menu of a file of the Files view: the system's own app
-// for it, VS Code, and on macOS the apps the system says open it — the
+// for it, VS Code, and on macOS the apps installed on the system — the
 // Finder's Open With, for the tree. The commands that run the apps come
 // back as plain values, so what the menu does tests without running it.
 // A remote host's file opens through the cache, as any open of it does.
