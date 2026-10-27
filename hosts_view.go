@@ -357,7 +357,15 @@ func (a *App) install(h *host) {
 				return
 			}
 			a.toast(locales.HostInstalled(h.name))
-			a.reconnectHost(h)
+			// The files are new, but a kerod that runs keeps the version
+			// of before until it restarts — an update asked for that, its
+			// sessions' programs with it, as the confirmation said. First
+			// installing has no kerod to restart, only to connect.
+			if h.rc != nil {
+				a.hostRequest(h, "restart")
+			} else {
+				a.reconnectHost(h)
+			}
 		})
 	}()
 }

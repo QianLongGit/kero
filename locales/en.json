@@ -570,7 +570,13 @@
   "filesCloseFile": "Close File",
   "filesConflictTitle": "The file changed on the host",
   "filesConflictDetail": "{path} changed on the host since it was read. Overwrite it with the edit here, or take the host's file again?",
-  "@filesConflictDetail": {"placeholders": {"path": {"type": "String"}}},
+  "@filesConflictDetail": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "filesConflictOverwrite": "Overwrite",
   "filesConflictRedownload": "Re-download",
   "filesOpenInPane": "Open in a File Pane",
@@ -1027,7 +1033,7 @@
       }
     }
   },
-  "hostInstallDetail": "Kero runs its install script on {host}: the server build of Kero goes in your home folder there (~/.local, or %LOCALAPPDATA% on Windows), and kerod runs as a service of yours.",
+  "hostInstallDetail": "Kero runs its install script on {host}: the server build of Kero goes in your home folder there (~/.local, or %LOCALAPPDATA% on Windows), and kerod runs as a service of yours.  Updating restarts kerod, which ends the programs running in its sessions.",
   "@hostInstallDetail": {
     "placeholders": {
       "host": {

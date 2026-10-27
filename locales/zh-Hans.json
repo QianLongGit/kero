@@ -543,7 +543,7 @@
   "setShellThisComputer": "这些设置作用于这台电脑的会话。每台主机的设置来自它自己的配置（设置 › 主机）。",
   "confirmQuitAllHosts": "其他机器上的会话会继续运行。",
   "hostInstallTitle": "在 {host} 上安装 Kero？",
-  "hostInstallDetail": "Kero 会在 {host} 上运行它的安装脚本：Kero 的服务器版本装在你在那里的主文件夹中（~/.local，Windows 上为 %LOCALAPPDATA%），kerod 作为你的服务运行。",
+  "hostInstallDetail": "Kero 会在 {host} 上运行它的安装脚本：Kero 的服务器版本装在你在那里的主文件夹中（~/.local，Windows 上为 %LOCALAPPDATA%），kerod 作为你的服务运行。更新会重启 kerod，这会结束其会话中正在运行的程序。",
   "hostLinkRefused": "Kero 只打开 {host} 的网页链接，不打开 {scheme} 链接",
   "hostManualDetail": "{host} 运行的是 Kero {version}，而这个应用是 Kero {app}。请按你安装时的方式更新 {host} 上的 Kero，然后重启它的服务。",
   "hostNewerDetail": "{host} 运行的是 Kero {version}，比这个应用的 {app} 新。更新这个应用后，即可查看和启动该主机的会话。",
