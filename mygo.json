@@ -2,15 +2,15 @@
   "name": "Kero",
   "identifier": "sh.kero",
   "urlSchemes": ["kero"],
-  "version": "2.3.0",
+  "version": "2.3.1",
   "out": "build",
   "i18n": {
     "dir": "locales",
     "source": "en"
   },
   "updates": {
-    "publicKey": "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
-    "github": "egoist/kero"
+    "publicKey": "X1x3clz2tGWIFvX5YdEUL1DsOeKbyC/pvK10On01RB8=",
+    "github": "QianLongGit/kero"
   },
   "macos": {
     "signingIdentity": "Developer ID Application: xinyu zeng (GJE9R5VE87)",

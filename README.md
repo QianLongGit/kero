@@ -12,7 +12,7 @@ Run Claude Code, Codex, a dev server or a test watcher each in its own session. 
 
 ## Install
 
-Download Kero from the [releases page](https://github.com/egoist/kero/releases), then choose **Kero › Install Command Line Tool…** to put `kero` on your `PATH`.
+Download Kero from the [releases page](https://github.com/QianLongGit/kero/releases), then choose **Kero › Install Command Line Tool…** to put `kero` on your `PATH`.
 
 ```sh
 kero new -n fix-login -- claude
@@ -21,13 +21,13 @@ kero new -n fix-login -- claude
 To run sessions on a Linux server, a Mac or a Windows PC, install the server build there, then add the machine in **Settings › Hosts**:
 
 ```sh
-curl -fsSL https://github.com/egoist/kero/releases/latest/download/install-server.sh | sh
+curl -fsSL https://github.com/QianLongGit/kero/releases/latest/download/install-server.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://github.com/egoist/kero/releases/latest/download/install-server.ps1 | iex
+irm https://github.com/QianLongGit/kero/releases/latest/download/install-server.ps1 | iex
 ```
 
 See the [docs](docs/index.md) for more.

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.3.1
+
+- The Files view's open chips are one Preview toggle now. A click on a
+  file selects it — one selection for the tree and Space's Quick Look,
+  always — and shows its preview under the tree only while the toggle is
+  on. Double-click opens a file the way Settings' "Open files" picks:
+  the system's default app, a file pane, or the host's editor.
+- Open With's Choose App lists every installed app, not only those that
+  claim the file's type.
+- Opening a file in the editor no longer leaves a pane showing exec's
+  error when the editor names a missing CLI: VSCode opens it instead.
+- Installing Kero on a host goes through the machine you sit at: it
+  downloads what the host needs, carries it over the connection, and
+  installs offline — for hosts that cannot reach GitHub. Installs and
+  updates now come from this fork's releases.
+
 ## 2.3.0
 
 - The sidebar's sessions can be reordered: drag a session anywhere, or use
