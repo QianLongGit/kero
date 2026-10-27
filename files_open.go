@@ -17,7 +17,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
+	"kero/internal/client"
 	"kero/internal/git"
 	"kero/internal/proto"
 
@@ -77,11 +79,15 @@ func cachePath(hostName, remotePath string) string {
 
 // cacheName is a remote path's own name, as either kind of host spells
 // it, cut from its front when a host allows a longer one than this
-// machine's, its extension kept.
+// machine's, its extension kept and no rune left half.
 func cacheName(remotePath string) string {
 	name := proto.DirName(remotePath)
 	if ext := filepath.Ext(name); len(name) > 80 {
-		name = name[:max(80-len(ext), 1)] + ext
+		cut := max(80-len(ext), 1)
+		for cut > 1 && !utf8.RuneStart(name[cut]) {
+			cut--
+		}
+		name = name[:cut] + ext
 	}
 	if name == "" {
 		name = "file"
@@ -117,15 +123,14 @@ func writeCache(local string, data []byte) error {
 	return err
 }
 
-// cacheCall calls a method of the host a cached file came from, with
-// the connection as it is now: a host not connected answers offline,
-// to be tried again once it is.
-func (a *App) cacheCall(hostName, method string, params, out any) error {
-	h := a.hostNamed(hostName)
-	if h == nil || h.cl == nil {
-		return errCacheOffline
+// cacheHost is a host's connection as the cache writes by it, read on
+// the UI thread that owns the hosts, never from a goroutine: nil when
+// the host is none of the app's or not connected.
+func (a *App) cacheHost(hostName string) *client.Client {
+	if h := a.hostNamed(hostName); h != nil {
+		return h.cl
 	}
-	return h.cl.Call(method, params, out)
+	return nil
 }
 
 // cacheLocal tells whether a path is one of the cache's own files.
@@ -139,11 +144,15 @@ func (a *App) cacheLocal(path string) bool {
 // materialize brings a file of a host to this machine, as the file the
 // user opens: a remote host's downloads once into the cache, from where
 // its edits write back; a local host's file is its own path already.
-// It blocks on the host's answer, so it runs on a goroutine of its
-// caller's, never the UI thread.
-func (a *App) materialize(hostName, remotePath string) (string, error) {
+// cl is the host's connection as the caller's thread, the UI's, read
+// it; this runs on a goroutine of its caller's, never the UI thread,
+// and reads nothing of the app's own but the cache.
+func (a *App) materialize(cl *client.Client, hostName, remotePath string) (string, error) {
 	if hostName == "" {
 		return remotePath, nil
+	}
+	if cl == nil {
+		return "", errCacheOffline
 	}
 	local := cachePath(hostName, remotePath)
 	a.cache.mu.Lock()
@@ -157,7 +166,7 @@ func (a *App) materialize(hostName, remotePath string) (string, error) {
 		// The copy went — the cache emptied, cleaned: read it down again.
 	}
 	var st proto.FSStat
-	if err := a.cacheCall(hostName, "fs.stat", proto.FSStatParams{Path: remotePath}, &st); err != nil {
+	if err := cl.Call("fs.stat", proto.FSStatParams{Path: remotePath}, &st); err != nil {
 		return "", err
 	}
 	if !st.Exists || st.Dir {
@@ -169,7 +178,7 @@ func (a *App) materialize(hostName, remotePath string) (string, error) {
 		return "", fmt.Errorf("%s is larger than %d MB", remotePath, cacheMax>>20)
 	}
 	var r proto.FSRead
-	if err := a.cacheCall(hostName, "fs.read", proto.FSReadParams{Path: remotePath, Max: cacheMax}, &r); err != nil {
+	if err := cl.Call("fs.read", proto.FSReadParams{Path: remotePath, Max: cacheMax}, &r); err != nil {
 		return "", err
 	}
 	if err := writeCache(local, r.Data); err != nil {
@@ -194,15 +203,17 @@ func (a *App) materialize(hostName, remotePath string) (string, error) {
 
 // withLocalFile opens a file of a host as this machine's own: a local
 // host's at once on its path, a remote host's brought to the cache
-// first, its edits from there written back. open runs on the UI thread;
-// a file that will not come down is told of, not opened.
+// first, its edits from there written back. The connection it comes by
+// is read here, on the caller's UI thread; open runs there too, and a
+// file that will not come down is told of, not opened.
 func (a *App) withLocalFile(h *host, path string, open func(local string)) {
 	if !h.remote() {
 		open(path)
 		return
 	}
+	cl, name := h.cl, h.name
 	go func() {
-		local, err := a.materialize(h.name, path)
+		local, err := a.materialize(cl, name, path)
 		a.update(func() {
 			if err != nil {
 				a.toast(locales.FilesCantRead() + ": " + remoteError(err))
@@ -225,13 +236,26 @@ func (a *App) startUploadWatcher() {
 	})
 }
 
+// cacheUpload is a cached file's edit leaving, as the watcher queued it:
+// what the write needs, snapshotted under the cache's lock, for the
+// record it came from may answer another upload while this one flies.
+type cacheUpload struct {
+	local  string
+	host   string
+	remote string
+	hash   string
+}
+
 // watchCache is one poll of the watcher: it asks the disk what became
 // of each file the cache maps — by path, that an atomic save leaves the
-// watcher following — drops the mappings whose file went, and uploads
+// watcher following — drops the mappings whose file went, and queues
 // the edits that have kept still cacheQuiet since they last changed.
+// The queue hops to the UI thread, where a host's connection is read
+// and the upload started; the watcher itself touches nothing of the
+// app's but the cache.
 func (a *App) watchCache() {
+	var queue []cacheUpload
 	a.cache.mu.Lock()
-	defer a.cache.mu.Unlock()
 	now := time.Now()
 	for local, e := range a.cache.entries {
 		if e.uploading {
@@ -249,48 +273,77 @@ func (a *App) watchCache() {
 			// Still changing, or as it was written: nothing to do.
 		default:
 			e.uploading = true
-			go a.uploadCache(local, e)
+			queue = append(queue, cacheUpload{local: local, host: e.host, remote: e.remote, hash: e.hash})
 		}
+	}
+	a.cache.mu.Unlock()
+	if len(queue) > 0 {
+		a.update(func() {
+			for _, u := range queue {
+				a.sendUpload(u)
+			}
+		})
 	}
 }
 
-// uploadCache writes a cached file's edit back to its host, under the
-// hash of the content last read or written: a file the host changed
-// meanwhile is a conflict for the user to settle, not an overwrite.
-func (a *App) uploadCache(local string, e *cacheEntry) {
-	content, err := os.ReadFile(local)
+// sendUpload starts a queued edit's write back, on the UI thread where
+// the hosts live. A host not connected keeps its edit waiting, told of
+// no one: it writes once the host is back.
+func (a *App) sendUpload(u cacheUpload) {
+	cl := a.cacheHost(u.host)
+	if cl == nil {
+		a.cacheUploaded(u, "", errCacheOffline)
+		return
+	}
+	go a.uploadCache(cl, u)
+}
+
+// uploadCache writes a queued edit back to its host, under the hash of
+// the content last read or written: a file the host changed meanwhile
+// is a conflict for the user to settle, not an overwrite. A connection
+// that ended under it is the host's own going, not a write refused:
+// the edit waits for the host as one never sent does.
+func (a *App) uploadCache(cl *client.Client, u cacheUpload) {
+	content, err := os.ReadFile(u.local)
 	var sum string
 	if err == nil {
-		err = a.cacheCall(e.host, "fs.write", proto.FSWriteParams{Path: e.remote, Content: content, Hash: e.hash}, &sum)
+		if err = cl.Call("fs.write", proto.FSWriteParams{Path: u.remote, Content: content, Hash: u.hash}, &sum); err != nil {
+			select {
+			case <-cl.Done():
+				err = errCacheOffline
+			default:
+			}
+		}
 	}
-	a.cacheUploaded(local, e, sum, err)
+	a.cacheUploaded(u, sum, err)
 }
 
 // cacheUploaded takes what an upload of a cached file came to: the
 // record's own state, under the lock, and what the user is told of a
 // write that would not go, on the UI thread. A conflict writes nothing
 // more until the user answers it.
-func (a *App) cacheUploaded(local string, e *cacheEntry, sum string, err error) {
+func (a *App) cacheUploaded(u cacheUpload, sum string, err error) {
 	var tell func()
 	a.cache.mu.Lock()
-	e.uploading = false
-	_, live := a.cache.entries[local]
+	e := a.cache.entries[u.local]
 	switch {
+	case e == nil:
+		// The record is gone; the answer has no one left to tell.
 	case errors.Is(err, errCacheOffline):
+		e.uploading = false
 		e.changed = time.Now() // a second of quiet after the host is back
 	case err == nil:
+		e.uploading = false
 		e.hash, e.changed = sum, time.Time{}
 	case errors.Is(err, fs.ErrNotExist):
 		// The file went as it uploaded: its record goes with it.
-		if a.cache.entries[local] == e {
-			delete(a.cache.entries, local)
-		}
-	case !live:
-		// The record is gone; the answer has no one left to tell.
+		delete(a.cache.entries, u.local)
 	case strings.HasPrefix(err.Error(), "conflict:"):
+		e.uploading = false
 		e.changed = time.Time{}
-		tell = func() { a.conflictAsk(local, e) }
+		tell = func() { a.conflictAsk(u.local, e) }
 	default:
+		e.uploading = false
 		e.changed = time.Time{}
 		msg := err.Error()
 		if strings.Contains(msg, "unknown method") {
@@ -323,43 +376,60 @@ func (a *App) conflictAsk(local string, e *cacheEntry) {
 }
 
 // cacheOverwrite writes the cache's file over the host's, whatever the
-// host holds: the user chose the edit here over the host's change.
+// host holds: the user chose the edit here over the host's change. The
+// dialog's answer runs it on the UI thread, where the host's connection
+// is read; the write itself flies on a goroutine of its own.
 func (a *App) cacheOverwrite(local string) {
 	e := a.cacheRecord(local)
 	if e == nil {
 		return
 	}
-	content, err := os.ReadFile(local)
-	var sum string
-	if err == nil {
-		err = a.cacheCall(e.host, "fs.write", proto.FSWriteParams{Path: e.remote, Content: content}, &sum)
-	}
-	if err != nil {
-		a.update(func() { a.toast(locales.FilesCantWrite() + ": " + err.Error()) })
+	cl, remote := a.cacheHost(e.host), e.remote
+	if cl == nil {
+		a.toast(locales.HostNotConnected(e.host))
 		return
 	}
-	a.cacheSet(local, sum, nil)
+	go func() {
+		content, err := os.ReadFile(local)
+		var sum string
+		if err == nil {
+			err = cl.Call("fs.write", proto.FSWriteParams{Path: remote, Content: content}, &sum)
+		}
+		if err != nil {
+			a.update(func() { a.toast(locales.FilesCantWrite() + ": " + err.Error()) })
+			return
+		}
+		a.cacheSet(local, sum, nil)
+	}()
 }
 
 // cacheRefetch takes the host's file again over the cache's copy, the
 // user having chosen it over the edit here, and resets the record to
-// it, so the watcher does not take the fetch for an edit.
+// it, so the watcher does not take the fetch for an edit. As the
+// overwrite answer, it runs on the UI thread and writes on a goroutine.
 func (a *App) cacheRefetch(local string) {
 	e := a.cacheRecord(local)
 	if e == nil {
 		return
 	}
-	var r proto.FSRead
-	if err := a.cacheCall(e.host, "fs.read", proto.FSReadParams{Path: e.remote, Max: cacheMax}, &r); err != nil {
-		a.update(func() { a.toast(locales.FilesCantRead() + ": " + err.Error()) })
+	cl, remote := a.cacheHost(e.host), e.remote
+	if cl == nil {
+		a.toast(locales.HostNotConnected(e.host))
 		return
 	}
-	if err := writeCache(local, r.Data); err != nil {
-		a.update(func() { a.toast(locales.FilesCantWrite() + ": " + err.Error()) })
-		return
-	}
-	fi, _ := os.Stat(local)
-	a.cacheSet(local, git.Hash(r.Data), fi)
+	go func() {
+		var r proto.FSRead
+		if err := cl.Call("fs.read", proto.FSReadParams{Path: remote, Max: cacheMax}, &r); err != nil {
+			a.update(func() { a.toast(locales.FilesCantRead() + ": " + err.Error()) })
+			return
+		}
+		if err := writeCache(local, r.Data); err != nil {
+			a.update(func() { a.toast(locales.FilesCantWrite() + ": " + err.Error()) })
+			return
+		}
+		fi, _ := os.Stat(local)
+		a.cacheSet(local, git.Hash(r.Data), fi)
+	}()
 }
 
 // cacheRecord is the cache's record of a local file, taken under its

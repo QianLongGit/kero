@@ -450,7 +450,7 @@ func (a *App) openFile(t *fileTree, path string) {
 		return
 	}
 	go func() {
-		local, err := a.materialize(h.name, path)
+		local, err := a.materialize(h.cl, h.name, path)
 		a.update(func() {
 			if err == nil {
 				f.path = local
@@ -490,7 +490,9 @@ func (a *App) openInEditor(t *fileTree, path string) {
 		// Quick Look, Open With — though the host's editor opens the
 		// host's own path, in the host's own shell, where the edit
 		// lands on the host already.
-		go a.materialize(h.name, path)
+		if cl := h.cl; cl != nil {
+			go a.materialize(cl, h.name, path)
+		}
 	}
 	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", Command: editorCommand(h, path)})
 }
@@ -503,6 +505,9 @@ func (a *App) readFile(t *fileTree, f *openFile) {
 	cl := a.hostOf(t.pane).cl
 	cached := a.cacheLocal(f.path)
 	if cl == nil && !cached {
+		// Nothing to read by and nowhere open tells why, that the file
+		// not sit busy under the tree forever.
+		f.busy, f.err = false, remoteError(errCacheOffline)
 		return
 	}
 	f.busy, f.err = true, ""

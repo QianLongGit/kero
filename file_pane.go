@@ -90,6 +90,9 @@ func (a *App) readFilePane(p *proto.Pane, f *filePane) {
 	h := a.hostOf(p.ID)
 	cached := a.cacheLocal(f.path)
 	if h.cl == nil && !cached {
+		// Nothing to read by and nowhere open tells why, that the pane
+		// not sit busy forever.
+		f.busy, f.err = false, remoteError(errCacheOffline)
 		return
 	}
 	if f.read {

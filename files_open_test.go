@@ -131,6 +131,25 @@ func (f *filesHost) writesOf() []proto.FSWriteParams {
 	return append([]proto.FSWriteParams(nil), f.writes...)
 }
 
+// uploadOf is the upload the record's file would fly now, as the
+// watcher queues one.
+func (f *filesHost) uploadOf(local string) cacheUpload {
+	u := cacheUpload{local: local}
+	if e := f.entry(local); e != nil {
+		u.host, u.remote, u.hash = e.host, e.remote, e.hash
+	}
+	return u
+}
+
+// underCache asks of a record under the cache's own lock, which the
+// record's fields are of: the writes that answer an upload hold it, on
+// whatever goroutine they run.
+func (f *filesHost) underCache(local string, ask func(e *cacheEntry) error) error {
+	f.a.cache.mu.Lock()
+	defer f.a.cache.mu.Unlock()
+	return ask(f.a.cache.entries[local])
+}
+
 // waitsFor holds the test until what asks of the app's state holds, a
 // second past due saying why it never did: the watcher's own timers run
 // real time, half a second of poll and one of quiet. What it asks runs
@@ -158,7 +177,7 @@ func TestFilesOpenMaterialize(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("package main\n")
 
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatalf("materialize: %v", err)
 	}
@@ -174,7 +193,7 @@ func TestFilesOpenMaterialize(t *testing.T) {
 
 	// The second materialize of the file reads none: the first's copy
 	// answers.
-	again, err := f.a.materialize("remote", "/srv/demo/main.go")
+	again, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatalf("materialize again: %v", err)
 	}
@@ -190,7 +209,7 @@ func TestFilesOpenMaterialize(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.files["/srv/demo/main.go"] = []byte("package main\n// changed\n")
-	if _, err := f.a.materialize("remote", "/srv/demo/main.go"); err != nil {
+	if _, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go"); err != nil {
 		t.Fatalf("materialize after a removal: %v", err)
 	}
 	if n := func() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads["/srv/demo/main.go"] }(); n != 2 {
@@ -198,7 +217,7 @@ func TestFilesOpenMaterialize(t *testing.T) {
 	}
 
 	// A local host's file opens as it is: no cache, no calls.
-	p, err := f.a.materialize("", "/tmp/here.txt")
+	p, err := f.a.materialize(nil, "", "/tmp/here.txt")
 	if err != nil || p != "/tmp/here.txt" {
 		t.Errorf("a local file materialized to %q, %v", p, err)
 	}
@@ -221,8 +240,13 @@ func TestFilesOpenMaterialize(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a remote file never opened")
 	}
-	if e := f.entry(local); e == nil || e.hash != fileSHA([]byte("package main\n// changed\n")) {
-		t.Errorf("the cache's record is %+v", e)
+	if err := f.underCache(local, func(e *cacheEntry) error {
+		if e == nil || e.hash != fileSHA([]byte("package main\n// changed\n")) {
+			return fmt.Errorf("the record is %+v", e)
+		}
+		return nil
+	}); err != nil {
+		t.Error(err)
 	}
 }
 
@@ -231,7 +255,7 @@ func TestFilesOpenMaterialize(t *testing.T) {
 func TestFilesOpenMaterializeLarge(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/blob.bin"] = make([]byte, cacheMax+1)
-	if _, err := f.a.materialize("remote", "/srv/demo/blob.bin"); err == nil || !strings.Contains(err.Error(), "larger") {
+	if _, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/blob.bin"); err == nil || !strings.Contains(err.Error(), "larger") {
 		t.Errorf("a 32 MB file materialized: %v", err)
 	}
 	if n := func() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads["/srv/demo/blob.bin"] }(); n != 0 {
@@ -245,7 +269,7 @@ func TestFilesOpenMaterializeLarge(t *testing.T) {
 func TestFilesOpenWatcherUpload(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,10 +292,12 @@ func TestFilesOpenWatcherUpload(t *testing.T) {
 	// The record moved to what the write returned, so the next edit
 	// carries it.
 	f.waitsFor(t, func() error {
-		if e := f.entry(local); e != nil && e.hash == fileSHA([]byte("two")) {
-			return nil
-		}
-		return errors.New("the record kept the old hash")
+		return f.underCache(local, func(e *cacheEntry) error {
+			if e != nil && e.hash == fileSHA([]byte("two")) {
+				return nil
+			}
+			return errors.New("the record kept the old hash")
+		})
 	})
 	// The second edit writes back under the hash of what the first
 	// wrote.
@@ -301,7 +327,7 @@ func TestFilesOpenWatcherUpload(t *testing.T) {
 func TestFilesOpenWatcherAtomicSave(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +355,7 @@ func TestFilesOpenWatcherAtomicSave(t *testing.T) {
 func TestFilesOpenWatcherDrop(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,21 +368,74 @@ func TestFilesOpenWatcherDrop(t *testing.T) {
 	}
 }
 
+// A host gone before its file's edit writes keeps the edit waiting,
+// told of no one: it writes once the host is back.
+func TestFilesOpenOfflineQuiet(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("one")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The host's connection drops, as the app's own UI thread sees it.
+	f.ui.Lock()
+	old := f.h.cl
+	f.h.cl = nil
+	f.ui.Unlock()
+	defer func() { f.ui.Lock(); f.h.cl = old; f.ui.Unlock() }()
+	if err := os.WriteFile(local, []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The watcher queues the edit; with no connection to write by it
+	// settles to wait, without a toast or a write. What it asks of the
+	// record runs under the cache's own lock.
+	waitsQuiet := func() (changed bool) {
+		f.a.cache.mu.Lock()
+		defer f.a.cache.mu.Unlock()
+		e := f.a.cache.entries[local]
+		return e != nil && !e.changed.IsZero() && !e.uploading
+	}
+	for start := time.Now(); time.Since(start) < 8*time.Second && !waitsQuiet(); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !waitsQuiet() {
+		t.Fatal("the edit never settled to wait")
+	}
+	f.ui.Lock()
+	toast := f.a.pendingToast
+	f.ui.Unlock()
+	if toast != "" {
+		t.Errorf("a host not connected was told of: %q", toast)
+	}
+	if w := f.writesOf(); len(w) != 0 {
+		t.Errorf("%d writes came with no host", len(w))
+	}
+	// Back, the edit writes at last.
+	f.ui.Lock()
+	f.h.cl = old
+	f.ui.Unlock()
+	f.waitsFor(t, func() error {
+		if w := f.writesOf(); len(w) == 1 && string(w[0].Content) == "two" && w[0].Hash == fileSHA([]byte("one")) {
+			return nil
+		}
+		return errors.New("the waiting edit never wrote")
+	})
+}
+
 // A write the host answers with a conflict asks before it overwrites:
 // the dialog offers to overwrite or take the host's file again, and
 // nothing was written until one is chosen.
 func TestFilesOpenConflict(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := f.entry(local)
 	if err := os.WriteFile(local, []byte("mine"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	f.a.cacheUploaded(local, e, "", errors.New("conflict: /srv/demo/main.go changed since it was read"))
+	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("conflict: /srv/demo/main.go changed since it was read"))
 	cf := f.a.confirm
 	if cf == nil || cf.title != locales.FilesConflictTitle() {
 		t.Fatalf("no dialog of the conflict: %+v", f.a.confirm)
@@ -370,7 +449,9 @@ func TestFilesOpenConflict(t *testing.T) {
 
 	// Overwrite writes the edit with no hash: whatever is on the host
 	// gives way.
+	f.ui.Lock()
 	cf.run()
+	f.ui.Unlock()
 	f.waitsFor(t, func() error {
 		w := f.writesOf()
 		if len(w) != 1 {
@@ -382,10 +463,12 @@ func TestFilesOpenConflict(t *testing.T) {
 		return nil
 	})
 	f.waitsFor(t, func() error {
-		if e := f.entry(local); e != nil && e.hash == fileSHA([]byte("mine")) {
-			return nil
-		}
-		return errors.New("the record kept the old hash")
+		return f.underCache(local, func(e *cacheEntry) error {
+			if e != nil && e.hash == fileSHA([]byte("mine")) {
+				return nil
+			}
+			return errors.New("the record kept the old hash")
+		})
 	})
 }
 
@@ -395,17 +478,18 @@ func TestFilesOpenConflict(t *testing.T) {
 func TestFilesOpenConflictRedownload(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := f.entry(local)
-	f.a.cacheUploaded(local, e, "", errors.New("conflict: /srv/demo/main.go changed since it was read"))
+	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("conflict: /srv/demo/main.go changed since it was read"))
 	f.files["/srv/demo/main.go"] = []byte("the host's own")
 	if cf := f.a.confirm; cf == nil || cf.altRun == nil {
 		t.Fatalf("no dialog with another answer: %+v", f.a.confirm)
 	} else {
+		f.ui.Lock()
 		cf.altRun()
+		f.ui.Unlock()
 	}
 	f.waitsFor(t, func() error {
 		b, err := os.ReadFile(local)
@@ -415,8 +499,13 @@ func TestFilesOpenConflictRedownload(t *testing.T) {
 		if string(b) != "the host's own" {
 			return fmt.Errorf("the cache holds %q", b)
 		}
-		if e := f.entry(local); e == nil || e.hash != fileSHA([]byte("the host's own")) {
-			return errors.New("the record kept the old hash")
+		if err := f.underCache(local, func(e *cacheEntry) error {
+			if e == nil || e.hash != fileSHA([]byte("the host's own")) {
+				return errors.New("the record kept the old hash")
+			}
+			return nil
+		}); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -427,17 +516,67 @@ func TestFilesOpenConflictRedownload(t *testing.T) {
 	}
 }
 
+// An edit made while a conflict's dialog stands is told of in its turn:
+// the write flies on the hash the record had, meets the same conflict,
+// and asks again — the edit is never carried in behind the dialog's
+// answer.
+func TestFilesOpenConflictPendingEdit(t *testing.T) {
+	f := newFilesHost(t)
+	f.mu.Lock()
+	f.writeErr = errors.New("conflict: /srv/demo/main.go changed since it was read")
+	f.mu.Unlock()
+	f.files["/srv/demo/main.go"] = []byte("one")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(local, []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The first edit meets its conflict and asks. (waitsFor holds the
+	// UI's lock for its ask.)
+	f.waitsFor(t, func() error {
+		if f.a.confirm != nil {
+			return nil
+		}
+		return errors.New("no dialog of the first conflict")
+	})
+	// With the dialog standing, another edit: it flies too, meets the
+	// same conflict, and the asking stays.
+	if err := os.WriteFile(local, []byte("more"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.waitsFor(t, func() error {
+		w := f.writesOf()
+		if len(w) != 2 {
+			return fmt.Errorf("%d writes came", len(w))
+		}
+		if u := w[1]; string(u.Content) != "more" || u.Hash != fileSHA([]byte("one")) {
+			return fmt.Errorf("the second write was %q under %s", u.Content, u.Hash)
+		}
+		return nil
+	})
+	f.ui.Lock()
+	asked, toast := f.a.confirm != nil, f.a.pendingToast
+	f.ui.Unlock()
+	if !asked {
+		t.Error("the second conflict did not ask")
+	}
+	if toast != "" {
+		t.Errorf("a conflict was toasted: %q", toast)
+	}
+}
+
 // A host's kerod too old for fs.write is told as the files' own hint to
 // update it, and the file keeps its record: nothing is lost.
 func TestFilesOpenUnknownMethod(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/main.go")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := f.entry(local)
-	f.a.cacheUploaded(local, e, "", errors.New("unknown method fs.write"))
+	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("unknown method fs.write"))
 	if f.a.pendingToast != locales.FilesUpdateHost() {
 		t.Errorf("the toast is %q, want the update hint", f.a.pendingToast)
 	}
@@ -451,12 +590,11 @@ func TestFilesOpenUnknownMethod(t *testing.T) {
 func TestFilesOpenCantWrite(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/link"] = []byte("one")
-	local, err := f.a.materialize("remote", "/srv/demo/link")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/link")
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := f.entry(local)
-	f.a.cacheUploaded(local, e, "", errors.New("/srv/demo/link is no file"))
+	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("/srv/demo/link is no file"))
 	if toast := f.a.pendingToast; !strings.Contains(toast, locales.FilesCantWrite()) || !strings.Contains(toast, "/srv/demo/link") {
 		t.Errorf("the toast is %q, want the host's own refusal by the file's path", toast)
 	}
