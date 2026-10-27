@@ -60,10 +60,11 @@ type prefs struct {
 	// SideWidth its width.
 	Side      string  `json:"side,omitempty"`
 	SideWidth float32 `json:"sideWidth,omitempty"`
-	// FileOpen is what a click on a file of the side panel's Files view
-	// does: "" or "pane" opens it in a file pane, "editor" in the host's
-	// editor and "preview" under the tree.
-	FileOpen string `json:"fileOpen,omitempty"`
+	// FilesPreview turns the Files view's inline preview off when false:
+	// nil, the file shows under the tree as it always did, and a click
+	// only chooses it. What a double click opens is the file-open
+	// setting's to say.
+	FilesPreview *bool `json:"filesPreview,omitempty"`
 	// EndedOpen and ArchivedOpen tell the sidebar's sections of the
 	// agents' ended conversations unfolded (session-history).
 	EndedOpen    bool `json:"endedOpen,omitempty"`
@@ -207,10 +208,11 @@ func newApp() *App {
 	a := &App{terms: map[string]*termEntry{}, webs: map[string]*webEntry{}, statuses: map[string]proto.Status{}, active: true, focused: true,
 		refs: map[string]*ui.Handle{}, focus: map[string]string{}, arrived: map[string]bool{}}
 	a.loadPrefs()
+	a.selected = a.prefs.Selected
 	a.set = settings.Load()
+	a.migrateFileOpen()
 	a.ss.problems = settings.Problems()
 	a.applied = a.set.Clone()
-	a.selected = a.prefs.Selected
 	a.hosts = []*host{{conn: connConnecting}}
 	// The cache's mappings of the last run read back: a pane of a cached
 	// file opens where it left.
@@ -246,6 +248,34 @@ func (a *App) savePrefs() {
 	tmp := prefsPath() + ".tmp"
 	if os.WriteFile(tmp, b, 0o600) == nil {
 		os.Rename(tmp, prefsPath())
+	}
+}
+
+// migrateFileOpen carries the Files view's old "what a click on a file
+// does" preference into the file-open setting, and out of the app's own
+// preferences, where the field it lived in is gone: "preview" and
+// nothing become the default, a file pane with the preview on, "pane"
+// and "editor" themselves.
+func (a *App) migrateFileOpen() {
+	b, err := os.ReadFile(prefsPath())
+	if err != nil {
+		return
+	}
+	var old struct {
+		FileOpen string `json:"fileOpen"`
+	}
+	if json.Unmarshal(b, &old) != nil || old.FileOpen == "" {
+		return
+	}
+	// The preference's job is done: write it out of the app's
+	// preferences, whatever the setting does with it.
+	a.savePrefs()
+	if old.FileOpen != "pane" && old.FileOpen != "editor" {
+		return
+	}
+	a.set.FileOpen = old.FileOpen
+	if err := settings.Save(a.set); err != nil {
+		a.toast(err.Error())
 	}
 }
 

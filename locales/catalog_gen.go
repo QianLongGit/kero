@@ -2592,6 +2592,56 @@ func (msgs Messages) SetDensityStandard() string {
 	return Catalog.Format(msgs.locale, "setDensityStandard", nil)
 }
 
+// SetFileOpen says "Open files with"
+// in the language the app shows.
+func SetFileOpen() string { return In(i18n.Locale()).SetFileOpen() }
+
+// SetFileOpen says "Open files with"
+// in the language of msgs.
+func (msgs Messages) SetFileOpen() string {
+	return Catalog.Format(msgs.locale, "setFileOpen", nil)
+}
+
+// SetFileOpenDetail says "What a double click on a file of the Files view opens it in. Space always previews the chosen file."
+// in the language the app shows.
+func SetFileOpenDetail() string { return In(i18n.Locale()).SetFileOpenDetail() }
+
+// SetFileOpenDetail says "What a double click on a file of the Files view opens it in. Space always previews the chosen file."
+// in the language of msgs.
+func (msgs Messages) SetFileOpenDetail() string {
+	return Catalog.Format(msgs.locale, "setFileOpenDetail", nil)
+}
+
+// SetFileOpenSystem says "System default"
+// in the language the app shows.
+func SetFileOpenSystem() string { return In(i18n.Locale()).SetFileOpenSystem() }
+
+// SetFileOpenSystem says "System default"
+// in the language of msgs.
+func (msgs Messages) SetFileOpenSystem() string {
+	return Catalog.Format(msgs.locale, "setFileOpenSystem", nil)
+}
+
+// SetFileOpenPane says "File pane"
+// in the language the app shows.
+func SetFileOpenPane() string { return In(i18n.Locale()).SetFileOpenPane() }
+
+// SetFileOpenPane says "File pane"
+// in the language of msgs.
+func (msgs Messages) SetFileOpenPane() string {
+	return Catalog.Format(msgs.locale, "setFileOpenPane", nil)
+}
+
+// SetFileOpenEditor says "Editor"
+// in the language the app shows.
+func SetFileOpenEditor() string { return In(i18n.Locale()).SetFileOpenEditor() }
+
+// SetFileOpenEditor says "Editor"
+// in the language of msgs.
+func (msgs Messages) SetFileOpenEditor() string {
+	return Catalog.Format(msgs.locale, "setFileOpenEditor", nil)
+}
+
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }
@@ -4278,16 +4328,6 @@ func (msgs Messages) FilesOpenInEditor() string {
 	return Catalog.Format(msgs.locale, "filesOpenInEditor", nil)
 }
 
-// FilesOpenWith says "Open with"
-// in the language the app shows.
-func FilesOpenWith() string { return In(i18n.Locale()).FilesOpenWith() }
-
-// FilesOpenWith says "Open with"
-// in the language of msgs.
-func (msgs Messages) FilesOpenWith() string {
-	return Catalog.Format(msgs.locale, "filesOpenWith", nil)
-}
-
 // FilesOpenPreview says "Preview"
 // in the language the app shows.
 func FilesOpenPreview() string { return In(i18n.Locale()).FilesOpenPreview() }
@@ -4296,26 +4336,6 @@ func FilesOpenPreview() string { return In(i18n.Locale()).FilesOpenPreview() }
 // in the language of msgs.
 func (msgs Messages) FilesOpenPreview() string {
 	return Catalog.Format(msgs.locale, "filesOpenPreview", nil)
-}
-
-// FilesOpenPane says "File Pane"
-// in the language the app shows.
-func FilesOpenPane() string { return In(i18n.Locale()).FilesOpenPane() }
-
-// FilesOpenPane says "File Pane"
-// in the language of msgs.
-func (msgs Messages) FilesOpenPane() string {
-	return Catalog.Format(msgs.locale, "filesOpenPane", nil)
-}
-
-// FilesOpenEditor says "Editor"
-// in the language the app shows.
-func FilesOpenEditor() string { return In(i18n.Locale()).FilesOpenEditor() }
-
-// FilesOpenEditor says "Editor"
-// in the language of msgs.
-func (msgs Messages) FilesOpenEditor() string {
-	return Catalog.Format(msgs.locale, "filesOpenEditor", nil)
 }
 
 // FilesOpenVSCode says "Open in VSCode"

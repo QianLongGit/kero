@@ -184,6 +184,30 @@ func TestSidebarDensity(t *testing.T) {
 	}
 }
 
+// What opens a file of the Files view is a file pane unless the user
+// takes the system's app or the host's editor, and a value the file got
+// wrong keeps the default.
+func TestFileOpen(t *testing.T) {
+	if d := Default().FileOpen; d != "pane" {
+		t.Errorf("default file open %q, want pane", d)
+	}
+	s, probs := parse("file-open = system\n")
+	if s.FileOpen != "system" || len(probs) != 0 {
+		t.Errorf("system read as %q, problems %q", s.FileOpen, probs)
+	}
+	// What is saved reads back the same, and the default writes nothing.
+	if back, _ := parse(format(s, "")); back.FileOpen != "system" {
+		t.Errorf("saved and read back %q", back.FileOpen)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "file-open") {
+		t.Errorf("the default was written:\n%s", out)
+	}
+	bad, probs := parse("file-open = preview\n")
+	if bad.FileOpen != "pane" || len(probs) != 1 {
+		t.Errorf("unknown value %q, problems %q", bad.FileOpen, probs)
+	}
+}
+
 func TestAdLists(t *testing.T) {
 	tests := []struct {
 		file     string

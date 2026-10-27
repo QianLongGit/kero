@@ -106,6 +106,26 @@ func TestSegmentedChoiceSticks(t *testing.T) {
 	}
 }
 
+// The file-open choice, made on the General page, is what a double click
+// on a file of the Files view opens it in.
+func TestFileOpenSetting(t *testing.T) {
+	a := testApp(t)
+	a.ss.page = "general"
+	// The page's rows run past a window's height; a tall one reaches the
+	// file-open row without scrolling.
+	tt := ui.NewTester(a.settingsView, 820, 1100)
+	tt.Frame()
+	if err := tt.Click("System default"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tt.Frame()
+	}
+	if a.set.FileOpen != "system" || settings.Load().FileOpen != "system" {
+		t.Fatalf("file open %q, saved %q, after choosing System default", a.set.FileOpen, settings.Load().FileOpen)
+	}
+}
+
 // Dark pages, and the plain background, for a look ($KERO_SHOTS).
 func TestDarkShots(t *testing.T) {
 	a := testApp(t)

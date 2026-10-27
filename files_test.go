@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 
 	"kero/internal/client"
 	"kero/internal/proto"
+	"kero/internal/settings"
 )
 
 // The Files view shows a session's folder as a tree, its folders opening
@@ -79,8 +82,9 @@ func TestFilesView(t *testing.T) {
 	}
 }
 
-// What a click on a file does follows the row under the tree: it shows
-// the file there, opens it in a file pane, or in the host's editor.
+// What a click on a file of the tree does: it chooses the file — the
+// keyboard's choice too — and with the preview on shows it under the
+// tree, while a double click opens it the way Settings say.
 func TestFileOpenChoice(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -91,26 +95,53 @@ func TestFileOpenChoice(t *testing.T) {
 	s.Panes[0].ProcessDir = "/tmp/demo"
 	pane, root := a.filesRoot(s)
 	tree := a.tree(pane, root)
-	tree.dirs[root] = &fileDir{paths: []string{"/tmp/demo/main.go"}}
+	tree.dirs[root] = &fileDir{paths: []string{"/tmp/demo/a.txt", "/tmp/demo/main.go"}}
 	tt := ui.NewTester(a.view, 1280, 720)
 	tt.Frame()
-	// The row names every choice, the first by default.
-	for _, want := range []string{"Open with", "Preview", "File Pane", "Editor"} {
-		if !tt.HasText(want) {
-			t.Fatalf("no %q; texts %q", want, tt.Texts())
+	// The row above the tree has the Preview toggle alone: what a double
+	// click opens is Settings' to say, not the tree's.
+	if !tt.HasText("Preview") {
+		t.Fatalf("no Preview toggle; texts %q", tt.Texts())
+	}
+	for _, gone := range []string{"Open with", "File Pane", "Editor"} {
+		if tt.HasText(gone) {
+			t.Errorf("the row above the tree still offers %q", gone)
 		}
 	}
 
-	// The default shows the file under the tree.
-	a.chooseFile(tree, "/tmp/demo/main.go")
-	if tree.shown != "/tmp/demo/main.go" {
+	// A click chooses the file, the keyboard's choice too, and shows it
+	// under the tree.
+	if err := tt.Click("a.txt"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tree.chosen < 0 || tree.outline.Item(tree.chosen) != "/tmp/demo/a.txt" {
+		t.Errorf("a click chose row %d, want a.txt", tree.chosen)
+	}
+	if tree.shown != "/tmp/demo/a.txt" {
 		t.Errorf("a click showed %q, want the file under the tree", tree.shown)
 	}
 
-	// A file pane, once chosen, splits the tree's pane on the file. The
-	// handler runs on the client's goroutine, so the raw call travels a
-	// channel and unmarshals on this one, read once here.
-	calls := make(chan json.RawMessage, 1)
+	// The preview off, a click only chooses: what showed keeps showing.
+	off := false
+	a.prefs.FilesPreview = &off
+	tt.Frame()
+	if err := tt.Click("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tree.chosen < 0 || tree.outline.Item(tree.chosen) != "/tmp/demo/main.go" {
+		t.Errorf("a click chose row %d, want main.go", tree.chosen)
+	}
+	if tree.shown != "/tmp/demo/a.txt" {
+		t.Errorf("with the preview off, a click showed %q", tree.shown)
+	}
+
+	// A double click opens the file the way Settings say: a file pane by
+	// default, beside the tree's pane. The handler runs on the client's
+	// goroutine, so the raw call travels a channel and unmarshals on this
+	// one, read once here.
+	calls := make(chan json.RawMessage, 2)
 	a.local().cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
 		if method != "split" {
 			return nil, errors.New("not in a test")
@@ -121,18 +152,14 @@ func TestFileOpenChoice(t *testing.T) {
 		}
 		return s, nil
 	})
-	// The row still shows with the file under the tree: the file pane
-	// leaves it be.
-	tt.Frame()
-	if err := tt.Click("File Pane"); err != nil {
-		t.Fatalf("click File Pane: %v", err)
+	if err := tt.Click("main.go"); err != nil {
+		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.prefs.FileOpen != "pane" {
-		t.Fatalf("the choice is %q, want pane", a.prefs.FileOpen)
+	if err := tt.Click("main.go"); err != nil {
+		t.Fatal(err)
 	}
-	a.chooseFile(tree, "/tmp/demo/main.go")
-	// The call runs on the app's own goroutine; a frame lands it.
+	tt.Frame()
 	var called proto.CreateParams
 	for i := 0; i < 100 && called.File == ""; i++ {
 		tt.Frame()
@@ -146,6 +173,91 @@ func TestFileOpenChoice(t *testing.T) {
 	}
 	if called.File != "/tmp/demo/main.go" || called.Split != tree.pane {
 		t.Errorf("split %+v, want a file pane on main.go beside %s", called, tree.pane)
+	}
+
+	// The editor setting takes the same open to the host's editor.
+	a.set.FileOpen = "editor"
+	a.openBySetting(tree, "/tmp/demo/a.txt")
+	called = proto.CreateParams{}
+	for i := 0; i < 100 && len(called.Command) == 0; i++ {
+		tt.Frame()
+		select {
+		case raw := <-calls:
+			if err := json.Unmarshal(raw, &called); err != nil {
+				t.Fatal(err)
+			}
+		default:
+		}
+	}
+	if len(called.Command) == 0 || called.File != "" || called.Split != tree.pane {
+		t.Errorf("split %+v, want the host's editor on a.txt", called)
+	}
+
+	// The Preview toggle turns the preview back on.
+	if err := tt.Click("Preview"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.filesPreview() {
+		t.Error("the Preview toggle did not turn the preview on")
+	}
+}
+
+// The Files view's old "what a click on a file does" preference becomes
+// the file-open setting and leaves the app's own preferences: "preview"
+// and nothing become the default, a file pane, "pane" and "editor"
+// themselves.
+func TestMigrateFileOpenPref(t *testing.T) {
+	for _, c := range []struct {
+		pref, want string
+	}{
+		{"", "pane"},
+		{"preview", "pane"},
+		{"pane", "pane"},
+		{"editor", "editor"},
+	} {
+		home := t.TempDir()
+		t.Setenv("KERO_HOME", home)
+		t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+		if c.pref != "" {
+			prefs := `{"fileOpen": "` + c.pref + `", "selected": "s1"}`
+			if err := os.WriteFile(prefsPath(), []byte(prefs), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		a := newApp()
+		if a.set.FileOpen != c.want {
+			t.Errorf("pref %q opened as %q, want %q", c.pref, a.set.FileOpen, c.want)
+		}
+		// The preference's job is done: app.json keeps the rest, as the
+		// choice the setting holds now.
+		if c.pref == "" {
+			continue
+		}
+		b, err := os.ReadFile(prefsPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var kept map[string]any
+		if err := json.Unmarshal(b, &kept); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := kept["fileOpen"]; ok {
+			t.Errorf("pref %q stayed in app.json: %s", c.pref, b)
+		}
+		if kept["selected"] != "s1" {
+			t.Errorf("pref %q lost the rest of app.json: %s", c.pref, b)
+		}
+		if c.want == "pane" {
+			continue // the default lives in the app, unwritten
+		}
+		cfg, err := os.ReadFile(settings.Path())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(cfg), "file-open = "+c.want) {
+			t.Errorf("pref %q did not reach the config: %s", c.pref, cfg)
+		}
 	}
 }
 

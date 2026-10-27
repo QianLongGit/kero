@@ -518,6 +518,12 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				[]string{locales.SetDiffAuto(), locales.ChangesUnified(), locales.ChangesSplit()})
 		})
 	})
+	settingsGroup(c, pal, locales.SideFiles(), "", func() {
+		settingRow(c, pal, locales.SetFileOpen(), locales.SetFileOpenDetail(), func() {
+			segmented(c, "file-open", &s.FileOpen, []string{"system", "pane", "editor"},
+				[]string{locales.SetFileOpenSystem(), locales.SetFileOpenPane(), locales.SetFileOpenEditor()})
+		})
+	})
 	// Windows and Linux always show the icon, in the notification area.
 	if runtime.GOOS == "darwin" {
 		detail := ""

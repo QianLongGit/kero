@@ -22,15 +22,16 @@ import (
 // choice of its own: Load fills defaults in.
 type Settings struct {
 	// General
-	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
-	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
-	FocusFollowsMouse bool   `json:"focusFollowsMouse"` // a pane the pointer enters takes the focus
-	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
-	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
-	ResumeAgents      bool   `json:"resumeAgents"`      // as it restores sessions: the agents' own
-	SessionHistory    bool   `json:"sessionHistory"`    // the sidebar lists the agents' ended conversations
-	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
-	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
+	NewSessionDir     string `json:"newSessionDir"`      // "current", "project" or "home"
+	SessionName       string `json:"sessionName"`        // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
+	FocusFollowsMouse bool   `json:"focusFollowsMouse"`  // a pane the pointer enters takes the focus
+	ConfirmClose      bool   `json:"confirmClose"`       // before closing a pane a program runs in
+	RestoreSessions   bool   `json:"restoreSessions"`    // after kerod restarts, as after a reboot
+	ResumeAgents      bool   `json:"resumeAgents"`       // as it restores sessions: the agents' own
+	SessionHistory    bool   `json:"sessionHistory"`     // the sidebar lists the agents' ended conversations
+	QuitConfirm       bool   `json:"quitConfirm"`        // tell, the first time, that quitting keeps sessions
+	AppIcon           string `json:"appIcon"`            // macOS: AppIcons; elsewhere the icon is always in the notification area
+	FileOpen          string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system", "pane" or "editor"
 
 	// Appearance
 	Appearance     string `json:"appearance"`     // "system", "light" or "dark"
@@ -141,6 +142,7 @@ func Default() Settings {
 		ResumeAgents:    true,
 		QuitConfirm:     true,
 		AppIcon:         "dock-and-menubar",
+		FileOpen:        "pane",
 		Appearance:      "system",
 		Language:        "system",
 		Background:      "rex",
@@ -327,6 +329,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
 	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
+	oneOf(&s.FileOpen, d.FileOpen, "system", "pane", "editor")
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

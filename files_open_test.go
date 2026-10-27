@@ -673,7 +673,7 @@ func TestFilesOpenRemotePreview(t *testing.T) {
 	pane, root := f.a.filesRoot(s)
 	tree := f.a.tree(pane, root)
 	a := f.a
-	a.chooseFile(tree, "/srv/demo/main.go")
+	a.openFile(tree, "/srv/demo/main.go")
 	if tree.shown != "/srv/demo/main.go" {
 		t.Fatalf("the tree shows %q open", tree.shown)
 	}
@@ -806,8 +806,7 @@ func TestFilesOpenRemotePane(t *testing.T) {
 	a, s := f.a, &f.a.st.Sessions[0]
 	pane, root := a.filesRoot(s)
 	tree := a.tree(pane, root)
-	a.prefs.FileOpen = "pane"
-	a.chooseFile(tree, "/srv/demo/main.go")
+	a.openBySetting(tree, "/srv/demo/main.go")
 	f.waitsFor(t, func() error {
 		f.mu.Lock()
 		p := f.split
