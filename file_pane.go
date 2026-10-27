@@ -17,6 +17,22 @@ import (
 // language, as a terminal shows a program's cells: the daemon keeps the
 // path, and the app reads the file through fs.read as the Files view does.
 
+// cacheTitle is a cached file's own name, as a pane of it is titled: the
+// cache writes its files as "<hash>-<name>", and the hash is where they
+// live, not what they are. A path not of the cache keeps its base name.
+func cacheTitle(path string) string {
+	name := proto.DirName(path)
+	if len(name) <= 17 || !strings.HasPrefix(path, cacheRoot()+string(os.PathSeparator)) || name[16] != '-' {
+		return name
+	}
+	for i := 0; i < 16; i++ {
+		if c := name[i]; c < '0' || c > '9' && c < 'a' || c > 'f' {
+			return name
+		}
+	}
+	return name[17:]
+}
+
 // filePaneStates are the files shown in file panes, by pane.
 type filePaneStates map[string]*filePane
 

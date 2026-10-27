@@ -450,6 +450,12 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 				}
 			}
 			title, size := p.PaneName(), float32(13.5)
+			if p.FilePane() {
+				// A file pane's title is the file's own name: a cached
+				// remote file's hashed spelling is where it lives, not
+				// what it is.
+				title = cacheTitle(p.File)
+			}
 			if !multi {
 				title, size = s.DisplayName(a.set.SessionName), 14
 			}
