@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.7
+
+- The standard sidebar density stands a project's sessions in the
+  colored block with its bar at the edge, as the compact one does; the
+  densities differ in their spacing alone now.
+
 ## 2.3.6
 
 - The Files view's Preview starts off, and turning it shows the chosen
