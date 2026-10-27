@@ -520,8 +520,8 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 	})
 	settingsGroup(c, pal, locales.SideFiles(), "", func() {
 		settingRow(c, pal, locales.SetFileOpen(), locales.SetFileOpenDetail(), func() {
-			segmented(c, "file-open", &s.FileOpen, []string{"system", "pane", "editor"},
-				[]string{locales.SetFileOpenSystem(), locales.SetFileOpenPane(), locales.SetFileOpenEditor()})
+			segmented(c, "file-open", &s.FileOpen, []string{"system", "pane"},
+				[]string{locales.SetFileOpenSystem(), locales.SetFileOpenPane()})
 		})
 	})
 	// Windows and Linux always show the icon, in the notification area.

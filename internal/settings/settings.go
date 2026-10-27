@@ -31,7 +31,7 @@ type Settings struct {
 	SessionHistory    bool   `json:"sessionHistory"`     // the sidebar lists the agents' ended conversations
 	QuitConfirm       bool   `json:"quitConfirm"`        // tell, the first time, that quitting keeps sessions
 	AppIcon           string `json:"appIcon"`            // macOS: AppIcons; elsewhere the icon is always in the notification area
-	FileOpen          string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system", "pane" or "editor"
+	FileOpen          string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system" or "pane"
 
 	// Appearance
 	Appearance     string `json:"appearance"`     // "system", "light" or "dark"
@@ -329,7 +329,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
 	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
-	oneOf(&s.FileOpen, d.FileOpen, "system", "pane", "editor")
+	oneOf(&s.FileOpen, d.FileOpen, "system", "pane")
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

@@ -175,11 +175,12 @@ func TestFileOpenChoice(t *testing.T) {
 		t.Errorf("split %+v, want a file pane on main.go beside %s", called, tree.pane)
 	}
 
-	// The editor setting takes the same open to the host's editor.
+	// The editor choice is gone from Settings; a value of it that a
+	// config still carries takes the default pane route.
 	a.set.FileOpen = "editor"
 	a.openBySetting(tree, "/tmp/demo/a.txt")
 	called = proto.CreateParams{}
-	for i := 0; i < 100 && len(called.Command) == 0; i++ {
+	for i := 0; i < 100 && called.File == ""; i++ {
 		tt.Frame()
 		select {
 		case raw := <-calls:
@@ -189,8 +190,8 @@ func TestFileOpenChoice(t *testing.T) {
 		default:
 		}
 	}
-	if len(called.Command) == 0 || called.File != "" || called.Split != tree.pane {
-		t.Errorf("split %+v, want the host's editor on a.txt", called)
+	if called.File != "/tmp/demo/a.txt" || called.Split != tree.pane {
+		t.Errorf("split %+v, want a file pane on a.txt, the default route", called)
 	}
 
 	// The Preview toggle turns the preview back on.
@@ -214,7 +215,7 @@ func TestMigrateFileOpenPref(t *testing.T) {
 		{"", "pane"},
 		{"preview", "pane"},
 		{"pane", "pane"},
-		{"editor", "editor"},
+		{"editor", "pane"},
 	} {
 		home := t.TempDir()
 		t.Setenv("KERO_HOME", home)

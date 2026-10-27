@@ -441,15 +441,13 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 }
 
 // openBySetting opens a file of the tree the way a double click does, as
-// Settings say: in a file pane beside the tree's, in the system's app for
-// the file, or in the host's editor. A remote host's file opens through
-// the cache, as any open of it does.
+// Settings say: in a file pane beside the tree's, or in the system's app
+// for the file. A remote host's file opens through the cache, as any
+// open of it does.
 func (a *App) openBySetting(t *fileTree, path string) {
 	switch a.set.FileOpen {
 	case "system":
 		a.withLocalFile(a.hostOf(t.pane), path, openPath)
-	case "editor":
-		a.openInEditor(t, path)
 	default:
 		a.openInPane(t, path)
 	}

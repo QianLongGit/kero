@@ -2572,16 +2572,6 @@ func (msgs Messages) SetFileOpenPane() string {
 	return Catalog.Format(msgs.locale, "setFileOpenPane", nil)
 }
 
-// SetFileOpenEditor says "Editor"
-// in the language the app shows.
-func SetFileOpenEditor() string { return In(i18n.Locale()).SetFileOpenEditor() }
-
-// SetFileOpenEditor says "Editor"
-// in the language of msgs.
-func (msgs Messages) SetFileOpenEditor() string {
-	return Catalog.Format(msgs.locale, "setFileOpenEditor", nil)
-}
-
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }

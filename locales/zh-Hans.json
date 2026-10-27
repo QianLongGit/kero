@@ -251,7 +251,6 @@
   "setFileOpenDetail": "在“文件”视图中双击文件时的打开方式。按空格始终快速预览所选文件。",
   "setFileOpenSystem": "系统默认",
   "setFileOpenPane": "文件窗格",
-  "setFileOpenEditor": "编辑器",
   "setDimUnfocused": "淡化未聚焦的终端",
   "setDimUnfocusedDetail": "会话有多个窗格时，你不在的终端会变淡。",
   "setBackground": "背景",

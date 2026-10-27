@@ -185,8 +185,8 @@ func TestSidebarDensity(t *testing.T) {
 }
 
 // What opens a file of the Files view is a file pane unless the user
-// takes the system's app or the host's editor, and a value the file got
-// wrong keeps the default.
+// takes the system's app, and a value the file got wrong — the editor
+// choice an older Kero wrote among them — keeps the default.
 func TestFileOpen(t *testing.T) {
 	if d := Default().FileOpen; d != "pane" {
 		t.Errorf("default file open %q, want pane", d)
@@ -205,6 +205,9 @@ func TestFileOpen(t *testing.T) {
 	bad, probs := parse("file-open = preview\n")
 	if bad.FileOpen != "pane" || len(probs) != 1 {
 		t.Errorf("unknown value %q, problems %q", bad.FileOpen, probs)
+	}
+	if bad, probs := parse("file-open = editor\n"); bad.FileOpen != "pane" || len(probs) != 1 {
+		t.Errorf("the removed editor choice read as %q, problems %q", bad.FileOpen, probs)
 	}
 }
 

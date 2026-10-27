@@ -252,8 +252,8 @@ func (a *App) savePrefs() {
 // migrateFileOpen carries the Files view's old "what a click on a file
 // does" preference into the file-open setting, and out of the app's own
 // preferences, where the field it lived in is gone: "preview" and
-// nothing become the default, a file pane with the preview on, "pane"
-// and "editor" themselves.
+// nothing become the default, a file pane; "pane" keeps itself; the
+// editor choice is gone, so its value lands on the default too.
 func (a *App) migrateFileOpen() {
 	b, err := os.ReadFile(prefsPath())
 	if err != nil {
@@ -268,7 +268,7 @@ func (a *App) migrateFileOpen() {
 	// The preference's job is done: write it out of the app's
 	// preferences, whatever the setting does with it.
 	a.savePrefs()
-	if old.FileOpen != "pane" && old.FileOpen != "editor" {
+	if old.FileOpen != "pane" {
 		return
 	}
 	a.set.FileOpen = old.FileOpen
