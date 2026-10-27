@@ -293,8 +293,8 @@ func TestAgentPane(t *testing.T) {
 // A pane tells the terminal device its agent runs on, so an outside
 // jump can name it: set again when a restored pane's pty is a new one.
 func TestPaneTTY(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("no /dev/ttys on windows")
+	if runtime.GOOS != "darwin" {
+		t.Skip("a /dev/ttys* device is macOS's; Linux names its ptys /dev/pts/*")
 	}
 	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
 	d := &Daemon{changeCh: make(chan struct{}, 1), saveCh: make(chan struct{}, 1), panes: map[string]*pane{}}
