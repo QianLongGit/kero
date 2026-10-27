@@ -824,29 +824,6 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	}
 }
 
-// A session's name starts where its project's does, past the badge —
-// standard's inset; compact's block has its own, as TestCompactBlock
-// shows.
-func TestSessionAlign(t *testing.T) {
-	a := testApp(t)
-	a.set.SidebarDensity = "standard"
-	a.st.Projects[0].Name = "proj"
-	a.st.Sessions[0].Name = "sess"
-	tt := ui.NewTester(a.view, 1100, 640)
-	tt.Frame()
-	p, ok := tt.Find("proj")
-	if !ok {
-		t.Fatalf("no project name; texts %q", tt.Texts())
-	}
-	s, ok := tt.Find("sess")
-	if !ok {
-		t.Fatalf("no session name; texts %q", tt.Texts())
-	}
-	if s.X != p.X {
-		t.Errorf("the session's name starts at %v, the project's at %v", s.X, p.X)
-	}
-}
-
 // Dragging a project's name moves it among its host's projects, before
 // or after the project it is dropped on.
 func TestProjectOrder(t *testing.T) {
@@ -945,7 +922,7 @@ func TestSidebarDensity(t *testing.T) {
 		t.Errorf("compact metrics %+v", got)
 	}
 	a.set.SidebarDensity = "standard"
-	if got := a.sidebarDensity(); got != (densityMetrics{rowH: 34, hdrH: 28, fontPx: 13.5}) {
+	if got := a.sidebarDensity(); got != (densityMetrics{rowH: 34, hdrH: 28, fontPx: 13.5, block: true}) {
 		t.Errorf("standard metrics %+v", got)
 	}
 	// The rows take their metrics: two sessions' names sit a row's height
@@ -979,24 +956,19 @@ func TestCompactBlockIndent(t *testing.T) {
 	col := color.RGBA{R: badge.R, G: badge.G, B: badge.B, A: badge.A}
 	tt := ui.NewTester(a.view, 1100, 640)
 
-	// Standard: the project's name and its children's sit at one inset,
-	// the badge's room, and nothing bars the block's edge.
+	// Standard stands in the block too, its bar of the project's color.
 	a.set.SidebarDensity = "standard"
 	tt.Frame()
-	proj, ok := tt.Find("proj")
-	if !ok {
-		t.Fatalf("no project name; texts %q", tt.Texts())
-	}
 	std, ok := tt.Find("sess")
 	if !ok {
 		t.Fatalf("no session name; texts %q", tt.Texts())
 	}
-	if std.X != proj.X {
-		t.Errorf("standard children at %g, the project's name at %g: the badge's room insets both", std.X, proj.X)
-	}
+	// Standard stands its children in the block like compact does, the
+	// bar of the project's color at its edge: the densities differ in
+	// their metrics, not in the block.
 	barX := std.X - blockGap - blockBar/2
-	if got := tt.Image().RGBAAt(int(barX), int(std.Y+std.H/2)); got == col {
-		t.Error("standard shows a bar at the block's edge")
+	if got := tt.Image().RGBAAt(int(barX), int(std.Y+std.H/2)); got == (color.RGBA{}) {
+		t.Error("standard shows no bar at the block's edge")
 	}
 
 	// Compact: the block's own inset takes the badge's place, and a bar
@@ -1008,10 +980,8 @@ func TestCompactBlockIndent(t *testing.T) {
 	if !ok {
 		t.Fatalf("no second session; texts %q", tt.Texts())
 	}
-	stdInset := float32(rowInset + projectBadge + projectBadgeGap)
-	blockInset := float32(blockEdge + blockBar + blockGap)
-	if d := std.X - sess.X; d != stdInset-blockInset {
-		t.Errorf("compact children at %g, standard's %g: the block's %g inset takes the badge's room of %g, %g apart", sess.X, std.X, blockInset, stdInset, stdInset-blockInset)
+	if sess.X != std.X {
+		t.Errorf("compact children at %g, standard's %g: the block insets both alike", sess.X, std.X)
 	}
 	barX = sess.X - blockGap - blockBar/2
 	at := func(y float32) color.RGBA { return tt.Image().RGBAAt(int(barX), int(y)) }

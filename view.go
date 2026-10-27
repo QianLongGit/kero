@@ -52,7 +52,7 @@ type densityMetrics struct {
 // more rows by standing lower and smaller.
 func (a *App) sidebarDensity() densityMetrics {
 	if a.set.SidebarDensity == "standard" {
-		return densityMetrics{rowH: rowH, hdrH: 28, fontPx: 13.5}
+		return densityMetrics{rowH: rowH, hdrH: 28, fontPx: 13.5, block: true}
 	}
 	return densityMetrics{rowH: 26, hdrH: 24, fontPx: 12.5, block: true}
 }
