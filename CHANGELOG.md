@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.2
+
+- The sidebar groups by project only: the flat and by-date views are
+  gone, and the sidebar's sort button now picks the order of a
+  project's sessions and nothing else.
+- A host the app cannot reach offers Reinstall Kero… in its menu, for
+  the machines whose Kero was installed by another build and so never
+  hear of updates. Its note carries a Remove beside the retry.
+- A session's row keeps its name clear of the highlight that picks it.
+- Settings' "Open files" has two choices: the system's default app, or
+  a file pane.
+
 ## 2.3.1
 
 - The Files view's open chips are one Preview toggle now. A click on a
