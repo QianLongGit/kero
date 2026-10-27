@@ -132,6 +132,12 @@ func relayInstall(ctx context.Context, run func(string) *exec.Cmd, out io.Writer
 		}
 		version = v
 	}
+	// The release API's word is only as good as its transport; a malformed
+	// tag would reach a remote shell's quoting as-is, as update.Install's
+	// own guard already knows.
+	if !update.ValidVersion(version) {
+		return fmt.Errorf("%s is not a version of Kero", version)
+	}
 	dir, err := os.MkdirTemp("", "kero-install-")
 	if err != nil {
 		return err
