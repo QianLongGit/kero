@@ -509,11 +509,33 @@ func withRunning(detail string, n int) string {
 }
 
 // editorCommand edits a file of a host in a pane, with the editor its
-// shell names, $VISUAL or $EDITOR, else vi, or on Windows edit.
+// shell names, $VISUAL or $EDITOR, else vi, or on Windows edit. A named
+// editor the pane's PATH can't find opens in VSCode instead — by open
+// where there is one, by the CLI elsewhere — and with neither there
+// either, a line says so and holds the pane a while, in place of the
+// exec error a blind run would leave.
 func editorCommand(h *host, file string) []string {
 	if !h.windows() {
-		return []string{"sh", "-c", `exec ${VISUAL:-${EDITOR:-vi}} "$1"`, "sh", file}
+		return []string{"sh", "-c", `e=${VISUAL:-${EDITOR:-vi}}
+if command -v "${e%% *}" >/dev/null 2>&1; then
+	exec $e "$1"
+fi
+if command -v open >/dev/null 2>&1 && open -a "Visual Studio Code" "$1" >/dev/null 2>&1; then
+	exit 0
+fi
+if command -v code >/dev/null 2>&1 && code "$1" >/dev/null 2>&1; then
+	exit 0
+fi
+printf 'editor "%s" not found, and VSCode is not installed\n' "$e"
+sleep 5`, "sh", file}
 	}
+	// An editor that is one word is gated on PowerShell finding it; one
+	// that is more (flags, statements) runs as it ever did, as only its
+	// author can name what it is.
 	return []string{"powershell.exe", "-NoProfile", "-Command",
-		`$e = if ($env:VISUAL) { $env:VISUAL } elseif ($env:EDITOR) { $env:EDITOR } else { 'edit' }; Invoke-Expression ($e + ' ' + ` + shell.PSQuote(shell.PSQuote(file)) + `)`}
+		`$e = if ($env:VISUAL) { $env:VISUAL } elseif ($env:EDITOR) { $env:EDITOR } else { 'edit' }; ` +
+			`if ($e -notmatch '[ ;|&()]' -and -not (Get-Command $e -ErrorAction SilentlyContinue)) { ` +
+			`if (Get-Command code -ErrorAction SilentlyContinue) { code ` + shell.PSQuote(file) + `; exit 0 }; ` +
+			`Write-Host ('editor "' + $e + '" not found, and VSCode is not installed'); Start-Sleep 5; exit 0 }; ` +
+			`Invoke-Expression ($e + ' ' + ` + shell.PSQuote(shell.PSQuote(file)) + `)`}
 }

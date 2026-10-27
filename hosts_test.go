@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -272,6 +273,112 @@ func TestEditorCommandWindows(t *testing.T) {
 		if err != nil || strings.TrimSpace(string(out)) != name {
 			t.Errorf("%q: the editor got %q, %v", name, out, err)
 		}
+	}
+}
+
+// The editor script carries its fallbacks itself, as the pane's shell
+// runs them: gated on the shell finding the editor, VSCode by app where
+// there is one and by CLI elsewhere, and last a line in place of the
+// exec error a blind run leaves. Windows gets the same shape.
+func TestEditorCommandFallbackScript(t *testing.T) {
+	h := &host{name: "b", info: proto.HostInfo{OS: "linux", Home: "/home/me"}}
+	args := editorCommand(h, "/home/me/notes.txt")
+	if len(args) != 5 || args[0] != "sh" || args[1] != "-c" || args[3] != "sh" || args[4] != "/home/me/notes.txt" {
+		t.Fatalf("args %q", args)
+	}
+	for _, want := range []string{
+		`command -v "${e%% *}"`,
+		`exec $e "$1"`,
+		`open -a "Visual Studio Code" "$1"`,
+		`code "$1"`,
+		"not found, and VSCode is not installed",
+		"sleep 5",
+	} {
+		if !strings.Contains(args[2], want) {
+			t.Errorf("the script misses %q:\n%s", want, args[2])
+		}
+	}
+	w := &host{name: "w", info: proto.HostInfo{OS: "windows", Home: `C:\Users\me`}}
+	pw := editorCommand(w, `C:\a b\x.txt`)
+	if pw[0] != "powershell.exe" || pw[2] != "-Command" {
+		t.Fatalf("args %q", pw)
+	}
+	ps := strings.Join(pw[3:], " ")
+	for _, want := range []string{
+		"Get-Command $e",
+		"Get-Command code",
+		`code 'C:\a b\x.txt'`,
+		"Write-Host",
+		"Start-Sleep 5",
+		"Invoke-Expression",
+	} {
+		if !strings.Contains(ps, want) {
+			t.Errorf("the PowerShell misses %q: %s", want, ps)
+		}
+	}
+}
+
+// The script a pane runs for a file, as the shell runs it with only the
+// fixtures of a case on PATH: an editor the PATH finds runs as ever,
+// $VISUAL winning, its flags splitting; one it can't reaches for VSCode,
+// by open where there is one, by the CLI elsewhere; and with neither a
+// line says why and the script exits clean, that the pane may close.
+func TestEditorCommandSh(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("runs sh")
+	}
+	h := &host{name: "b", info: proto.HostInfo{OS: "linux", Home: "/home/me"}}
+	prints := "#!/bin/sh\nprintf '%s\\n' \"$#:$*\"\n"
+	logs := "#!/bin/sh\nprintf '%s\\n' \"$*\" >>\"$KERO_TEST_EDITOR_LOG\"\n"
+	for _, c := range []struct {
+		name           string
+		visual, editor string
+		fixtures       map[string]string
+		out, log       string
+	}{
+		{"editor of the PATH", "", "kero-editor",
+			map[string]string{"kero-editor": prints},
+			"1:/home/me/my notes.txt\n", ""},
+		{"editor with a flag splits as ever", "", "kero-editor -w",
+			map[string]string{"kero-editor": prints},
+			"2:-w /home/me/my notes.txt\n", ""},
+		{"VISUAL wins", "kero-editor", "kero-absent",
+			map[string]string{"kero-editor": prints},
+			"1:/home/me/my notes.txt\n", ""},
+		{"VSCode by open", "", "kero-absent",
+			map[string]string{"open": logs},
+			"", "-a Visual Studio Code /home/me/my notes.txt"},
+		{"VSCode by CLI", "", "kero-absent",
+			map[string]string{"code": logs},
+			"", "/home/me/my notes.txt"},
+		{"neither, a line and a wait", "", "kero-absent",
+			map[string]string{"sleep": "#!/bin/sh\nexit 0\n"},
+			"editor \"kero-absent\" not found, and VSCode is not installed\n", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range c.fixtures {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", dir)
+			t.Setenv("VISUAL", c.visual)
+			t.Setenv("EDITOR", c.editor)
+			t.Setenv("KERO_TEST_EDITOR_LOG", filepath.Join(dir, "log"))
+			args := editorCommand(h, "/home/me/my notes.txt")
+			out, err := exec.Command("/bin/sh", args[1:]...).Output()
+			if err != nil {
+				t.Fatalf("the script failed: %v\n%s", err, out)
+			}
+			if got := string(out); got != c.out {
+				t.Errorf("printed %q, want %q", got, c.out)
+			}
+			logged, _ := os.ReadFile(filepath.Join(dir, "log"))
+			if got := strings.TrimSuffix(string(logged), "\n"); got != c.log {
+				t.Errorf("logged %q, want %q", got, c.log)
+			}
+		})
 	}
 }
 
