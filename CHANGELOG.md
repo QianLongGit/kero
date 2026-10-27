@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.6
+
+- The Files view's Preview starts off, and turning it shows the chosen
+  file at once, hides what showed at once.
+- Turning “Show git status” off hides the branch beside a session's
+  name for remote hosts' projects too, not only the local one's.
+
 ## 2.3.5
 
 - Updating Kero on a host restarts its kerod when the update lands, so
