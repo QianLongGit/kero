@@ -237,13 +237,16 @@ func (a *App) startUploadWatcher() {
 }
 
 // cacheUpload is a cached file's edit leaving, as the watcher queued it:
-// what the write needs, snapshotted under the cache's lock, for the
-// record it came from may answer another upload while this one flies.
+// what the write needs, snapshotted under the cache's lock, and the
+// record it flew from, kept only to tell whether what answers is still
+// that one — a re-materialize may have put another in its place, with
+// the same host and path and so no value to tell them apart.
 type cacheUpload struct {
 	local  string
 	host   string
 	remote string
 	hash   string
+	of     *cacheEntry
 }
 
 // watchCache is one poll of the watcher: it asks the disk what became
@@ -273,7 +276,7 @@ func (a *App) watchCache() {
 			// Still changing, or as it was written: nothing to do.
 		default:
 			e.uploading = true
-			queue = append(queue, cacheUpload{local: local, host: e.host, remote: e.remote, hash: e.hash})
+			queue = append(queue, cacheUpload{local: local, host: e.host, remote: e.remote, hash: e.hash, of: e})
 		}
 	}
 	a.cache.mu.Unlock()
@@ -321,14 +324,18 @@ func (a *App) uploadCache(cl *client.Client, u cacheUpload) {
 // cacheUploaded takes what an upload of a cached file came to: the
 // record's own state, under the lock, and what the user is told of a
 // write that would not go, on the UI thread. A conflict writes nothing
-// more until the user answers it.
+// more until the user answers it. What came belongs to the record only
+// while it is still the one the upload flew from — a re-materialize
+// may have put another in its place, whose mapping is not this
+// answer's to drop nor its hash this answer's to set.
 func (a *App) cacheUploaded(u cacheUpload, sum string, err error) {
 	var tell func()
 	a.cache.mu.Lock()
 	e := a.cache.entries[u.local]
 	switch {
-	case e == nil:
-		// The record is gone; the answer has no one left to tell.
+	case e != u.of:
+		// The record is gone, or another took its place; the answer has
+		// no one left to tell.
 	case errors.Is(err, errCacheOffline):
 		e.uploading = false
 		e.changed = time.Now() // a second of quiet after the host is back
@@ -362,16 +369,18 @@ func (a *App) cacheUploaded(u cacheUpload, sum string, err error) {
 }
 
 // conflictAsk asks which of two changes to a file wins: the edit here,
-// or the host's own — an overwrite is never silent.
+// or the host's own — an overwrite is never silent. The answers run as
+// the dialog gives them, on the UI thread; their own writes fly on
+// goroutines of their own.
 func (a *App) conflictAsk(local string, e *cacheEntry) {
 	a.confirm = &confirmation{
 		open:   true,
 		title:  locales.FilesConflictTitle(),
 		detail: locales.FilesConflictDetail(e.remote),
 		action: locales.FilesConflictOverwrite(),
-		run:    func() { go a.cacheOverwrite(local) },
+		run:    func() { a.cacheOverwrite(local) },
 		alt:    locales.FilesConflictRedownload(),
-		altRun: func() { go a.cacheRefetch(local) },
+		altRun: func() { a.cacheRefetch(local) },
 	}
 }
 

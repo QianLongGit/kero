@@ -136,7 +136,7 @@ func (f *filesHost) writesOf() []proto.FSWriteParams {
 func (f *filesHost) uploadOf(local string) cacheUpload {
 	u := cacheUpload{local: local}
 	if e := f.entry(local); e != nil {
-		u.host, u.remote, u.hash = e.host, e.remote, e.hash
+		u.host, u.remote, u.hash, u.of = e.host, e.remote, e.hash, e
 	}
 	return u
 }
@@ -513,6 +513,43 @@ func TestFilesOpenConflictRedownload(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	if w := f.writesOf(); len(w) != 0 {
 		t.Errorf("%d writes came of a refetch", len(w))
+	}
+}
+
+// An upload's answer belongs to the record it flew from: a
+// re-materialize that put another in its place keeps that one's state
+// — the stale answer neither drops its mapping nor resets its hash.
+func TestFilesOpenUploadedAnotherRecord(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("one")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The upload of the first record is still flying when a refetch
+	// replaces the record wholesale.
+	stale := f.uploadOf(local)
+	f.files["/srv/demo/main.go"] = []byte("two")
+	if err := os.Remove(local); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go"); err != nil {
+		t.Fatal(err)
+	}
+	// The stale upload finds its file gone: the new record stays.
+	f.a.cacheUploaded(stale, "", fmt.Errorf("gone: %w", os.ErrNotExist))
+	if e := f.entry(local); e == nil {
+		t.Fatal("a stale upload dropped the record that took its place")
+	}
+	// A stale success writes its sum nowhere but its own record.
+	f.a.cacheUploaded(stale, "a sum of another read", nil)
+	if err := f.underCache(local, func(e *cacheEntry) error {
+		if e == nil || e.hash != fileSHA([]byte("two")) {
+			return fmt.Errorf("the record's hash is %q, want the refetch's", e.hash)
+		}
+		return nil
+	}); err != nil {
+		t.Error(err)
 	}
 }
 

@@ -449,8 +449,11 @@ func (a *App) openFile(t *fileTree, path string) {
 		a.readFile(t, f)
 		return
 	}
+	// The connection comes down here, on the UI thread that owns the
+	// hosts; the goroutine takes it as a value.
+	cl, name := h.cl, h.name
 	go func() {
-		local, err := a.materialize(h.cl, h.name, path)
+		local, err := a.materialize(cl, name, path)
 		a.update(func() {
 			if err == nil {
 				f.path = local
