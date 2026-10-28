@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.9
+
+- Settings › Git gains “Show branch in sidebar”, off by itself without
+  touching the panes' branch or the changes panel; it sleeps while
+  “Show git status” is off.
+
 ## 2.3.8
 
 - Session rows show no up-and-down arrows while hovered: a drag moves
