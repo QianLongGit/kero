@@ -1186,26 +1186,6 @@ func (msgs Messages) SidebarResetOrder() string {
 	return Catalog.Format(msgs.locale, "sidebarResetOrder", nil)
 }
 
-// SidebarMoveUp says "Move Up"
-// in the language the app shows.
-func SidebarMoveUp() string { return In(i18n.Locale()).SidebarMoveUp() }
-
-// SidebarMoveUp says "Move Up"
-// in the language of msgs.
-func (msgs Messages) SidebarMoveUp() string {
-	return Catalog.Format(msgs.locale, "sidebarMoveUp", nil)
-}
-
-// SidebarMoveDown says "Move Down"
-// in the language the app shows.
-func SidebarMoveDown() string { return In(i18n.Locale()).SidebarMoveDown() }
-
-// SidebarMoveDown says "Move Down"
-// in the language of msgs.
-func (msgs Messages) SidebarMoveDown() string {
-	return Catalog.Format(msgs.locale, "sidebarMoveDown", nil)
-}
-
 // SidebarCloseProjectMenu says "Close Project…"
 // in the language the app shows.
 func SidebarCloseProjectMenu() string { return In(i18n.Locale()).SidebarCloseProjectMenu() }

@@ -1235,58 +1235,6 @@ func TestSessionDrag(t *testing.T) {
 	})
 }
 
-// The arrows a hovered or chosen row shows stand in for a drag of one
-// place: up pins before the row above's place, down after the row below.
-func TestSessionArrows(t *testing.T) {
-	hover := func(t *testing.T, tt *ui.Tester, name string) {
-		t.Helper()
-		r, ok := tt.Find(name)
-		if !ok {
-			t.Fatalf("no %s row; texts %q", name, tt.Texts())
-		}
-		tt.Move(r.X+20, r.Y+r.H/2)
-		tt.Frame()
-	}
-	t.Run("up to the head", func(t *testing.T) {
-		a, tt, moves := dragSessions(t)
-		a.selected = "s2"
-		hover(t, tt, "beta")
-		if err := tt.Click(locales.SidebarMoveUp()); err != nil {
-			t.Fatal(err)
-		}
-		tt.Frame()
-		moved(t, moves, &proto.MoveSessionParams{Session: "s2", Pin: "head"})
-	})
-	t.Run("up past one row", func(t *testing.T) {
-		a, tt, moves := dragSessions(t)
-		a.selected = "s3"
-		hover(t, tt, "gamma")
-		if err := tt.Click(locales.SidebarMoveUp()); err != nil {
-			t.Fatal(err)
-		}
-		tt.Frame()
-		moved(t, moves, &proto.MoveSessionParams{Session: "s3", Pin: "s1"})
-	})
-	t.Run("down", func(t *testing.T) {
-		a, tt, moves := dragSessions(t)
-		a.selected = "s2"
-		hover(t, tt, "beta")
-		if err := tt.Click(locales.SidebarMoveDown()); err != nil {
-			t.Fatal(err)
-		}
-		tt.Frame()
-		moved(t, moves, &proto.MoveSessionParams{Session: "s2", Pin: "s3"})
-	})
-	t.Run("the last row has no down", func(t *testing.T) {
-		a, tt, _ := dragSessions(t)
-		a.selected = "s4"
-		hover(t, tt, "delta")
-		if _, ok := tt.Find(locales.SidebarMoveDown()); ok {
-			t.Error("the last row of its project shows a down arrow")
-		}
-	})
-}
-
 // Reset to Auto Order takes a session's pin off, back to where the
 // order the sidebar keeps would put it.
 func TestSessionReset(t *testing.T) {

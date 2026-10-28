@@ -701,38 +701,6 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 			}
 		}
 		ui.Spacer(c)
-		// The arrows a hovered or chosen row shows stand in for a drag of
-		// one place. Up trades with the row above — past two rows it pins
-		// after the one before that, at the group's top it pins at the
-		// head — and down, when a row is below, pins after it.
-		if hovered || selected {
-			up := ui.ButtonBase(c.Key("up-" + s.ID)).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
-				Label(locales.SidebarMoveUp()).Tooltip(locales.SidebarMoveUp())
-			if up.Hovered() {
-				up.Background(pal.rowHover).TextColor(pal.text)
-			}
-			up.Children(func() { ui.Icon(c, chevronUpIcon).Size(13, 13) })
-			if up.Clicked() {
-				pin := "head"
-				if at >= 2 {
-					pin = ss[at-2].ID
-				}
-				sid := s.ID
-				a.defer_(func() { a.moveSession(sid, pin, nil) })
-			}
-			if at+1 < len(ss) {
-				down := ui.ButtonBase(c.Key("down-" + s.ID)).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
-					Label(locales.SidebarMoveDown()).Tooltip(locales.SidebarMoveDown())
-				if down.Hovered() {
-					down.Background(pal.rowHover).TextColor(pal.text)
-				}
-				down.Children(func() { ui.Icon(c, chevronDownIcon).Size(13, 13) })
-				if down.Clicked() {
-					sid, pin := s.ID, ss[at+1].ID
-					a.defer_(func() { a.moveSession(sid, pin, nil) })
-				}
-			}
-		}
 		cmd := c.Modifiers() == ui.Cmd
 		if cmd && index <= 9 {
 			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
