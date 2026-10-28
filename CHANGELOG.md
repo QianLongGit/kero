@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.11
+
+- A theme picked under Settings › Terminal stands the terminal on its own
+  background, as Ghostty does; before, only the built-in Kero theme read
+  right, and every other theme's colors sat on the card's color instead.
+
 ## 2.3.10
 
 - A file of the Files view drags to other apps and folders: this
