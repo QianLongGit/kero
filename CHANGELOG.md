@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.10
+
+- A file of the Files view drags to other apps and folders: this
+  machine's as itself, a remote host's as the copy Kero fetched of it.
+- The Files view's right-click menu gains Copy and Paste of a file —
+  past it crosses hosts — and Delete of a file or folder, which asks
+  first and refreshes the folder.
+
 ## 2.3.9
 
 - Settings › Git gains “Show branch in sidebar”, off by itself without

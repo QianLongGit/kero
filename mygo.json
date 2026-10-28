@@ -1,8 +1,10 @@
 {
   "name": "Kero",
   "identifier": "sh.kero",
-  "urlSchemes": ["kero"],
-  "version": "2.3.9",
+  "urlSchemes": [
+    "kero"
+  ],
+  "version": "2.3.10",
   "out": "build",
   "i18n": {
     "dir": "locales",
