@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.12
+
+- “Show branch in sidebar” saves: the setting's key was missing from
+  the configuration's table, so a restart brought the branch back.
+
 ## 2.3.11
 
 - A theme picked under Settings › Terminal stands the terminal on its own
