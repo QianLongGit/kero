@@ -5923,3 +5923,23 @@ func SetShortcutGlobal() string { return In(i18n.Locale()).SetShortcutGlobal() }
 func (msgs Messages) SetShortcutGlobal() string {
 	return Catalog.Format(msgs.locale, "setShortcutGlobal", nil)
 }
+
+// SetSidebarBranch says "Show branch in sidebar"
+// in the language the app shows.
+func SetSidebarBranch() string { return In(i18n.Locale()).SetSidebarBranch() }
+
+// SetSidebarBranch says "Show branch in sidebar"
+// in the language of msgs.
+func (msgs Messages) SetSidebarBranch() string {
+	return Catalog.Format(msgs.locale, "setSidebarBranch", nil)
+}
+
+// SetSidebarBranchDetail says "The branch beside a session's name in the sidebar. It needs \"Show git status\" on."
+// in the language the app shows.
+func SetSidebarBranchDetail() string { return In(i18n.Locale()).SetSidebarBranchDetail() }
+
+// SetSidebarBranchDetail says "The branch beside a session's name in the sidebar. It needs \"Show git status\" on."
+// in the language of msgs.
+func (msgs Messages) SetSidebarBranchDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarBranchDetail", nil)
+}

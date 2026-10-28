@@ -691,11 +691,11 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 		if s.Status == proto.Exited && !s.Unread {
 			name.TextColor(pal.textMuted)
 		}
-		// A branch of its own, as an agent's in a worktree, by the name.
-		// The git-state setting reads here, not from the data: a remote
-		// host's kerod keeps telling the branch whatever the app's
-		// setting says.
-		if a.set.GitStatus {
+		// A branch of its own, as an agent's in a worktree, by the name —
+		// its own setting under the git-state one, which reads here, not
+		// from the data: a remote host's kerod keeps telling the branch
+		// whatever the app's settings say.
+		if a.set.GitStatus && a.set.SidebarBranch {
 			if b := offBranch(g); b != "" {
 				ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
 			}

@@ -75,8 +75,9 @@ type Settings struct {
 	RemoteControl bool `json:"remoteControl"` // kero focus and kero do drive the app
 
 	// Git
-	GitStatus  bool   `json:"gitStatus"`  // each pane's branch and changes, which kerod follows
-	DiffLayout string `json:"diffLayout"` // the changes panel's diffs: "auto", "unified" or "split"
+	GitStatus     bool   `json:"gitStatus"`     // each pane's branch and changes, which kerod follows
+	SidebarBranch bool   `json:"sidebarBranch"` // a session's branch beside its name in the sidebar; needs GitStatus
+	DiffLayout    string `json:"diffLayout"`    // the changes panel's diffs: "auto", "unified" or "split"
 	// WorktreeBase is what a session's own worktree branches from:
 	// "default", the repository's default branch, or "current", the
 	// branch of the session the user is in. WorktreeDir is where its
@@ -167,6 +168,7 @@ func Default() Settings {
 		DockBadge:       true,
 		RemoteControl:   true,
 		GitStatus:       true,
+		SidebarBranch:   true,
 		DiffLayout:      "auto",
 		WorktreeBase:    "default",
 		BlockAds:        true,
