@@ -418,6 +418,21 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			})
 		}
 	}
+	// A project's header dragged onto another host's moves its host's
+	// whole section there: the hosts' sections have no other handle, a
+	// host having no header of its own while it needs no row.
+	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.id != "" && d.host != g.host && g.host.remote() {
+		y, _, _ := hdr.PointerPosition()
+		a.hostAt, a.hostAfter = g.host, y > 14
+		hdr.Background(pal.rowHover)
+		hdr.Draw(func(p *ui.Painter, r ui.Rect) {
+			ly := r.Y
+			if a.hostAfter {
+				ly = r.Y + r.H - 2
+			}
+			p.Fill(ui.Rect{X: r.X, Y: ly, W: r.W, H: 2}, pal.accent, 1)
+		})
+	}
 	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.host == g.host {
 		if d.id != "" && d.id != id {
 			y, _, _ := hdr.PointerPosition()
@@ -437,6 +452,15 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			}
 			a.defer_(func() { a.moveSession(sid, "head", project) })
 		}
+	}
+	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.id != "" && d.host != g.host && g.host.remote() {
+		after := a.hostAfter
+		if a.hostAt != g.host {
+			y, _, _ := hdr.PointerPosition()
+			after = y > 14
+		}
+		dh, target := d.host, g.host
+		a.defer_(func() { a.moveHost(dh, target, after) })
 	}
 	hovered := hdr.Hovered()
 	if hdr.Clicked() && !renaming {

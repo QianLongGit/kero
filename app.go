@@ -167,6 +167,10 @@ type App struct {
 	previewKey   string
 	projectAt    string // the project a drag last hovered, and its side
 	projectAfter bool
+	// hostAt is the host whose section a drag last hovered, and its
+	// side, as projectAt is of a project's header.
+	hostAt    *host
+	hostAfter bool
 	previewSince time.Time
 	previewShown bool
 	arrived      map[string]bool
@@ -658,6 +662,39 @@ func (a *App) moveProject(d projectDrag, target string, after bool) {
 	}
 	a.prefs.ProjectOrder = append(kept, order...)
 	a.savePrefs()
+}
+
+// moveHost puts a host's whole section of the sidebar — its row and its
+// groups — before or after target's, and keeps the order in the
+// settings: a project's header dragged onto another host's is the
+// sections' handle, as a host has no header of its own while it needs
+// no row.
+func (a *App) moveHost(h, target *host, after bool) {
+	if h == nil || target == nil || h == target || !h.remote() || !target.remote() {
+		return
+	}
+	var moved settings.Host
+	i := -1
+	for n, cfg := range a.set.Hosts {
+		if cfg.Name == h.name {
+			i, moved = n, cfg
+			break
+		}
+	}
+	j := slices.IndexFunc(a.set.Hosts, func(cfg settings.Host) bool { return cfg.Name == target.name })
+	if i < 0 || j < 0 {
+		return
+	}
+	hosts := slices.Delete(a.set.Hosts, i, i+1)
+	j = slices.IndexFunc(hosts, func(cfg settings.Host) bool { return cfg.Name == target.name })
+	if after {
+		j++
+	}
+	a.set.Hosts = slices.Insert(hosts, j, moved)
+	// syncHosts rebuilds a.hosts in the settings' order; nothing
+	// reconnects, as no host's address changed.
+	a.syncHosts()
+	a.applySettings(a.set)
 }
 
 // orderGroup orders a sidebar group's sessions for showing: the auto

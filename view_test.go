@@ -21,6 +21,7 @@ import (
 
 	"kero/internal/actions"
 	"kero/internal/proto"
+	"kero/internal/settings"
 
 	"kero/locales"
 )
@@ -854,6 +855,51 @@ func TestProjectOrder(t *testing.T) {
 
 // A project's name dragged onto another project's lower half puts it
 // after that project.
+// A project's header dragged onto another host's moves its host's whole
+// section there — the sidebar's only handle on the order of the hosts'
+// sections — and the settings keep it.
+func TestHostDrag(t *testing.T) {
+	a := testApp(t)
+	one := &host{name: "one", conn: connReady, loaded: true}
+	two := &host{name: "two", conn: connReady, loaded: true}
+	a.hosts = append(a.hosts, one, two)
+	a.set.Hosts = append(a.set.Hosts, settings.Host{Name: "one", Addr: "one.local"}, settings.Host{Name: "two", Addr: "two.local"})
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "q1", Name: "pone"},
+		proto.Project{ID: "q2", Name: "ptwo"})
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "os1", Project: "q1", Name: "one sess", Created: 100},
+		proto.Session{ID: "ts1", Project: "q2", Name: "two sess", Created: 100})
+	a.owner = map[string]*host{"q1": one, "q2": two, "os1": one, "ts1": two}
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	src, ok := tt.Find("pone")
+	if !ok {
+		t.Fatalf("no pone project; texts %q", tt.Texts())
+	}
+	dst, ok := tt.Find("ptwo")
+	if !ok {
+		t.Fatalf("no ptwo project; texts %q", tt.Texts())
+	}
+	dragged(tt, src, dst)
+	var order []string
+	for _, h := range a.hosts[1:] {
+		order = append(order, h.name)
+	}
+	if !slices.Equal(order, []string{"two", "one"}) {
+		t.Errorf("hosts %v, want two then one", order)
+	}
+	if len(a.set.Hosts) != 2 || a.set.Hosts[0].Name != "two" || a.set.Hosts[1].Name != "one" {
+		t.Errorf("the settings kept %v", a.set.Hosts)
+	}
+	tt.Frame()
+	late, _ := tt.Find("pone")
+	prior, _ := tt.Find("ptwo")
+	if prior.Y > late.Y {
+		t.Error("the sections did not trade places")
+	}
+}
+
 func TestProjectDrag(t *testing.T) {
 	a := testApp(t)
 	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
@@ -882,6 +928,50 @@ func TestProjectDrag(t *testing.T) {
 	tt.Frame()
 	if !slices.Equal(a.prefs.ProjectOrder, []string{"p2", "p1"}) {
 		t.Errorf("order %v, want p2 then p1", a.prefs.ProjectOrder)
+	}
+}
+
+// A remote host's projects drag as this machine's do, in their own
+// order: the drag of a remote header to another of its host's leaves
+// the order and the screen follows.
+func TestProjectDragRemote(t *testing.T) {
+	a := testApp(t)
+	h := &host{name: "remote", conn: connReady, loaded: true}
+	a.hosts = append(a.hosts, h)
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "r1", Name: "rone"},
+		proto.Project{ID: "r2", Name: "rtwo"})
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "rs1", Project: "r1", Name: "rone sess", Created: 100},
+		proto.Session{ID: "rs2", Project: "r2", Name: "rtwo sess", Created: 200})
+	a.owner = map[string]*host{"r1": h, "r2": h, "rs1": h, "rs2": h}
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	// The host's kerod pushes its layout as it changes, as the app sits
+	// in the sidebar: what each push leaves must not undo the drags.
+	a.mergeState(h, proto.State{
+		Projects: []proto.Project{{ID: "r1", Name: "rone"}, {ID: "r2", Name: "rtwo"}},
+		Sessions: []proto.Session{
+			{ID: "rs1", Project: "r1", Name: "rone sess", Created: 100},
+			{ID: "rs2", Project: "r2", Name: "rtwo sess", Created: 200}}})
+	tt.Frame()
+	src, ok := tt.Find("rone")
+	if !ok {
+		t.Fatalf("no rone project; texts %q", tt.Texts())
+	}
+	dst, ok := tt.Find("rtwo")
+	if !ok {
+		t.Fatalf("no rtwo project; texts %q", tt.Texts())
+	}
+	dragged(tt, src, dst)
+	if !slices.Equal(a.prefs.ProjectOrder, []string{"r2", "r1"}) {
+		t.Errorf("order %v, want r2 then r1", a.prefs.ProjectOrder)
+	}
+	tt.Frame()
+	two, _ := tt.Find("rtwo")
+	one, _ := tt.Find("rone")
+	if one.Y < two.Y {
+		t.Errorf("the remote projects kept their order: rone at %v, rtwo at %v", one.Y, two.Y)
 	}
 }
 
