@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.8
+
+- Session rows show no up-and-down arrows while hovered: a drag moves
+  a session, and the rows keep their view clear.
+
 ## 2.3.7
 
 - The standard sidebar density stands a project's sessions in the
