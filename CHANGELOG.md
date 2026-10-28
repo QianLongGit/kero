@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.13
+
+- A project's header dragged onto another host's moves its host's whole
+  section of the sidebar there, and the order stays: before, the drag
+  was refused in silence, which read as a broken one.
+
 ## 2.3.12
 
 - “Show branch in sidebar” saves: the setting's key was missing from
