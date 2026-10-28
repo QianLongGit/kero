@@ -136,6 +136,25 @@ func TestRemoteUpdatesOptIn(t *testing.T) {
 	}
 }
 
+// The branch beside a session's name is on by default, off only as the
+// user takes it off: what is saved reads back the same, and the default
+// writes no line.
+func TestSidebarBranch(t *testing.T) {
+	s, probs := parse("sidebar-branch = false\n")
+	if s.SidebarBranch || len(probs) != 0 {
+		t.Errorf("sidebar-branch = false: %v, problems %q", s.SidebarBranch, probs)
+	}
+	off := Default()
+	off.SidebarBranch = false
+	back, _ := parse(format(off, ""))
+	if back.SidebarBranch {
+		t.Error("an off sidebar branch did not save")
+	}
+	if out := format(Default(), ""); strings.Contains(out, "sidebar-branch") {
+		t.Errorf("the default wrote the key:\n%s", out)
+	}
+}
+
 func TestMigratesSettingsJSON(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("KERO_HOME", dir)
