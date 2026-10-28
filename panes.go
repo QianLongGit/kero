@@ -620,7 +620,21 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 	// The terminal fills the card under the header: its own padding
 	// takes the colors of the cells beside it, so that a full-screen
 	// program's background reaches the card's edges.
-	ui.Box(c.Key("body")).Grow(1).MinHeight(0).Children(func() {
+	body := ui.Box(c.Key("body")).Grow(1).MinHeight(0)
+	// A named theme's colors are tuned to its own background, which the
+	// transparent terminal does not paint: the card's color would show
+	// through them, so the theme's background goes under the terminal.
+	// Kero's themes already sit on the card's color, and the quick panel
+	// lays its theme's background down the same way.
+	light, dark := a.termThemes()
+	theme := light
+	if c.Theme().Dark {
+		theme = dark
+	}
+	if theme != lightTermTheme && theme != darkTermTheme {
+		body.Background(theme.Background)
+	}
+	body.Children(func() {
 		switch {
 		case e != nil && e.term != nil:
 			ref := a.paneRef(p.ID)
