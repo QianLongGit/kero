@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/egoist/mygo/transfer"
 
 	"kero/internal/proto"
 
@@ -49,6 +50,9 @@ type filesState struct {
 	share    float32
 	drag     float32
 	dragging bool
+	// clip is the file the user copied in the view, pasted into a folder
+	// of a tree; nil while none.
+	clip *fileClip
 }
 
 // fileTree is a folder's tree, as the user opened it: a folder's listing
@@ -370,12 +374,16 @@ func (a *App) treeView(c *ui.Context, pal *palette, t *fileTree, picker bool) {
 		if !dir && row.DoubleClicked() {
 			opened = path
 		}
-		// A right click on a file opens it in an app the user names — a
-		// remote host's file through the cache, as any open of it is; a
-		// folder has nothing to open with one.
-		if !dir {
-			row.ContextMenu(func(m *ui.Menu) { a.openWithMenu(m, a.hostOf(t.pane), path) })
-		}
+		// A drag of a row offers the file to the system: to another app,
+		// to a folder of the Finder's — a remote host's as the cache's
+		// copy of it, as any drag of it is.
+		row.DragDataFrom(func() transfer.Data {
+			return a.fileDragData(a.hostOf(t.pane), path, dir)
+		})
+		// A right click opens the file's Open With, and the tree's own
+		// copy, paste and delete; a folder's the paste into it and its
+		// delete.
+		row.ContextMenu(func(m *ui.Menu) { a.fileMenu(m, a.hostOf(t.pane), t, path, dir) })
 		fg := pal.text
 		if t.shown == path {
 			fg = pal.attention

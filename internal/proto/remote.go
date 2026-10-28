@@ -151,6 +151,11 @@ type (
 		Content []byte `json:"content"`
 		Hash    string `json:"hash"` // sha256 hex of what was read; "" writes whatever is there
 	}
+	// FSDeleteParams delete a file of the host, or a folder and all
+	// that is in it.
+	FSDeleteParams struct {
+		Path string `json:"path"`
+	}
 	// PasteFileParams put a file the user pasted or dropped into a pane on
 	// the host, in a directory of kero's, for the program to read by its
 	// path.

@@ -106,6 +106,19 @@ func (f *filesHost) handle(method string, raw json.RawMessage) (any, error) {
 		}
 		f.files[p.Path] = p.Content
 		return fileSHA(p.Content), nil
+	case "fs.delete":
+		var p proto.FSDeleteParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		delete(f.files, p.Path)
+		return nil, nil
+	case "fs.list":
+		var p proto.FSListParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		return proto.FSList{Dir: p.Dir, Home: "/", Entries: []proto.FSEntry{}}, nil
 	case "split":
 		var p proto.CreateParams
 		if err := json.Unmarshal(raw, &p); err != nil {

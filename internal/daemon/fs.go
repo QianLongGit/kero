@@ -195,6 +195,16 @@ func fsWrite(p proto.FSWriteParams) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// fsDelete deletes a file, or a folder and all that is in it, as the
+// user's own remove does: the app asks before it, kerod only does it. An
+// empty path would be the home, whole — refused, as nothing asks that.
+func fsDelete(p proto.FSDeleteParams) error {
+	if strings.TrimSpace(p.Path) == "" {
+		return errors.New("no path to delete")
+	}
+	return os.RemoveAll(hostPath(p.Path, ""))
+}
+
 // maxPaste bounds a pasted file, which comes in a request of a control
 // connection, base64 (proto.MaxLine).
 const maxPaste = 32 << 20

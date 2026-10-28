@@ -145,6 +145,37 @@ func TestFSWrite(t *testing.T) {
 	}
 }
 
+// fsDelete takes a file, and a folder with all that is in it; no empty
+// path, which would be the home itself.
+func TestFSDelete(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a.txt")
+	sub := filepath.Join(dir, "sub")
+	inner := filepath.Join(sub, "b.txt")
+	os.WriteFile(file, []byte("a"), 0o600)
+	os.MkdirAll(sub, 0o755)
+	os.WriteFile(inner, []byte("b"), 0o600)
+
+	if err := fsDelete(proto.FSDeleteParams{Path: file}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(file); !os.IsNotExist(err) {
+		t.Errorf("the file is still there: %v", err)
+	}
+	if err := fsDelete(proto.FSDeleteParams{Path: sub}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(inner); !os.IsNotExist(err) {
+		t.Error("a folder's files outlived it")
+	}
+	if err := fsDelete(proto.FSDeleteParams{Path: filepath.Join(dir, "none")}); err != nil {
+		t.Errorf("what is not there is no error: %v", err)
+	}
+	if err := fsDelete(proto.FSDeleteParams{Path: "  "}); err == nil {
+		t.Error("an empty path would be the home, whole")
+	}
+}
+
 // The method answers over the connection, as a client calls it.
 func TestFSWriteCall(t *testing.T) {
 	d := testDaemon(t)

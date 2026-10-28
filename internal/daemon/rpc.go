@@ -585,6 +585,13 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return fsWrite(p)
 
+	case "fs.delete":
+		var p proto.FSDeleteParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return nil, fsDelete(p)
+
 	case "paste.file":
 		var p proto.PasteFileParams
 		if err := decode(&p); err != nil {

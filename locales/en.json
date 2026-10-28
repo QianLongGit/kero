@@ -584,6 +584,45 @@
   "filesChooseApp": "Choose App…",
   "filesNoApps": "No app found that opens this file",
   "filesUpdateHost": "The kerod on this host is older than this version of Kero. Update it on the host to browse its files.",
+  "filesCopy": "Copy",
+  "filesPaste": "Paste",
+  "filesDelete": "Delete",
+  "filesDeleteFileTitle": "Delete “{name}”?",
+  "@filesDeleteFileTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDeleteFileDetail": "The file is deleted for good.",
+  "filesDeleteFolderTitle": "Delete “{name}”?",
+  "@filesDeleteFolderTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDeleteFolderDetail": "The folder and everything in it are deleted for good.",
+  "filesDeleted": "Deleted {name}",
+  "@filesDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesPasted": "Pasted {name}",
+  "@filesPasted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCantDelete": "Can't delete",
+  "filesCantPaste": "Can't paste",
   "changesRevert": "Revert",
   "changesKeep": "Keep",
   "changesRevertTip": "Put the old lines back in the file",

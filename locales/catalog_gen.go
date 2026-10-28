@@ -4288,6 +4288,118 @@ func (msgs Messages) FilesUpdateHost() string {
 	return Catalog.Format(msgs.locale, "filesUpdateHost", nil)
 }
 
+// FilesCopy says "Copy"
+// in the language the app shows.
+func FilesCopy() string { return In(i18n.Locale()).FilesCopy() }
+
+// FilesCopy says "Copy"
+// in the language of msgs.
+func (msgs Messages) FilesCopy() string {
+	return Catalog.Format(msgs.locale, "filesCopy", nil)
+}
+
+// FilesPaste says "Paste"
+// in the language the app shows.
+func FilesPaste() string { return In(i18n.Locale()).FilesPaste() }
+
+// FilesPaste says "Paste"
+// in the language of msgs.
+func (msgs Messages) FilesPaste() string {
+	return Catalog.Format(msgs.locale, "filesPaste", nil)
+}
+
+// FilesDelete says "Delete"
+// in the language the app shows.
+func FilesDelete() string { return In(i18n.Locale()).FilesDelete() }
+
+// FilesDelete says "Delete"
+// in the language of msgs.
+func (msgs Messages) FilesDelete() string {
+	return Catalog.Format(msgs.locale, "filesDelete", nil)
+}
+
+// FilesDeleteFileTitle says "Delete “{name}”?"
+// in the language the app shows.
+func FilesDeleteFileTitle(name string) string { return In(i18n.Locale()).FilesDeleteFileTitle(name) }
+
+// FilesDeleteFileTitle says "Delete “{name}”?"
+// in the language of msgs.
+func (msgs Messages) FilesDeleteFileTitle(name string) string {
+	return Catalog.Format(msgs.locale, "filesDeleteFileTitle", map[string]any{"name": name})
+}
+
+// FilesDeleteFileDetail says "The file is deleted for good."
+// in the language the app shows.
+func FilesDeleteFileDetail() string { return In(i18n.Locale()).FilesDeleteFileDetail() }
+
+// FilesDeleteFileDetail says "The file is deleted for good."
+// in the language of msgs.
+func (msgs Messages) FilesDeleteFileDetail() string {
+	return Catalog.Format(msgs.locale, "filesDeleteFileDetail", nil)
+}
+
+// FilesDeleteFolderTitle says "Delete “{name}”?"
+// in the language the app shows.
+func FilesDeleteFolderTitle(name string) string {
+	return In(i18n.Locale()).FilesDeleteFolderTitle(name)
+}
+
+// FilesDeleteFolderTitle says "Delete “{name}”?"
+// in the language of msgs.
+func (msgs Messages) FilesDeleteFolderTitle(name string) string {
+	return Catalog.Format(msgs.locale, "filesDeleteFolderTitle", map[string]any{"name": name})
+}
+
+// FilesDeleteFolderDetail says "The folder and everything in it are deleted for good."
+// in the language the app shows.
+func FilesDeleteFolderDetail() string { return In(i18n.Locale()).FilesDeleteFolderDetail() }
+
+// FilesDeleteFolderDetail says "The folder and everything in it are deleted for good."
+// in the language of msgs.
+func (msgs Messages) FilesDeleteFolderDetail() string {
+	return Catalog.Format(msgs.locale, "filesDeleteFolderDetail", nil)
+}
+
+// FilesDeleted says "Deleted {name}"
+// in the language the app shows.
+func FilesDeleted(name string) string { return In(i18n.Locale()).FilesDeleted(name) }
+
+// FilesDeleted says "Deleted {name}"
+// in the language of msgs.
+func (msgs Messages) FilesDeleted(name string) string {
+	return Catalog.Format(msgs.locale, "filesDeleted", map[string]any{"name": name})
+}
+
+// FilesPasted says "Pasted {name}"
+// in the language the app shows.
+func FilesPasted(name string) string { return In(i18n.Locale()).FilesPasted(name) }
+
+// FilesPasted says "Pasted {name}"
+// in the language of msgs.
+func (msgs Messages) FilesPasted(name string) string {
+	return Catalog.Format(msgs.locale, "filesPasted", map[string]any{"name": name})
+}
+
+// FilesCantDelete says "Can't delete"
+// in the language the app shows.
+func FilesCantDelete() string { return In(i18n.Locale()).FilesCantDelete() }
+
+// FilesCantDelete says "Can't delete"
+// in the language of msgs.
+func (msgs Messages) FilesCantDelete() string {
+	return Catalog.Format(msgs.locale, "filesCantDelete", nil)
+}
+
+// FilesCantPaste says "Can't paste"
+// in the language the app shows.
+func FilesCantPaste() string { return In(i18n.Locale()).FilesCantPaste() }
+
+// FilesCantPaste says "Can't paste"
+// in the language of msgs.
+func (msgs Messages) FilesCantPaste() string {
+	return Catalog.Format(msgs.locale, "filesCantPaste", nil)
+}
+
 // ChangesRevert says "Revert"
 // in the language the app shows.
 func ChangesRevert() string { return In(i18n.Locale()).ChangesRevert() }
