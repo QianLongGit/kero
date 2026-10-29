@@ -745,7 +745,15 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 					when()
 					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
 				})
-				line, msg := rowDetail(s, g, h.shortDir(s.WorkDir()))
+				// The second line's branch obeys the sidebar's branch
+				// setting, as the one beside a compact row's name does:
+				// a remote host's kerod keeps telling the branch
+				// whatever the app's settings say.
+				dg := g
+				if !(a.set.GitStatus && a.set.SidebarBranch) {
+					dg = nil
+				}
+				line, msg := rowDetail(s, dg, h.shortDir(s.WorkDir()))
 				fg := pal.textFaint
 				if msg {
 					fg = pal.textMuted

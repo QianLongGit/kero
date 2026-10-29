@@ -850,6 +850,20 @@ func TestSidebarRows(t *testing.T) {
 			t.Errorf("detailed rows have no %q; texts %q", want, tt.Texts())
 		}
 	}
+	// The branch on the second line obeys the sidebar's branch setting,
+	// as the one beside a compact row's name does; the line falls back
+	// to the folder, which is its own last choice.
+	a.set.SidebarBranch = false
+	tt.Frame()
+	texts = strings.Join(tt.Texts(), "\n")
+	if strings.Contains(texts, "fix-login-redirect-after-oauth") || strings.Contains(texts, "↑2") {
+		t.Errorf("a detailed row shows the branch with the setting off; texts %q", tt.Texts())
+	}
+	if !strings.Contains(texts, "Migrating the database") {
+		t.Errorf("a detailed row lost its message with the branch off; texts %q", tt.Texts())
+	}
+	a.set.SidebarBranch = true
+	tt.Frame()
 	a.set.SidebarRows = "compact"
 	tt.Frame()
 	shot(t, tt, "sidebar-rows-compact")

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.17
+
+- "Show branch in sidebar" reaches the sidebar's detailed rows: their
+  second line showed the branch and its changes whatever the switch
+  said, so it read as broken. Turned off, the line falls to the
+  session's status message, else its folder.
+
 ## 2.3.16
 
 - A theme colors the whole window now, as it does in Ghostty: the panes,

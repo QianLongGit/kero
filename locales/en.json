@@ -1253,5 +1253,5 @@
   "toastGlobalShortcutFailed": "Couldn’t use {keys} for the quick terminal: {error}",
   "setShortcutGlobal": "Works in every app",
   "setSidebarBranch": "Show branch in sidebar",
-  "setSidebarBranchDetail": "The branch beside a session's name in the sidebar. It needs \"Show git status\" on."
+  "setSidebarBranchDetail": "The branch of a session's row: beside its name, or on the line under it. It needs \"Show git status\" on."
 }

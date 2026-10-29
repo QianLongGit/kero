@@ -6298,11 +6298,11 @@ func (msgs Messages) SetSidebarBranch() string {
 	return Catalog.Format(msgs.locale, "setSidebarBranch", nil)
 }
 
-// SetSidebarBranchDetail says "The branch beside a session's name in the sidebar. It needs \"Show git status\" on."
+// SetSidebarBranchDetail says "The branch of a session's row: beside its name, or on the line under it. It needs \"Show git status\" on."
 // in the language the app shows.
 func SetSidebarBranchDetail() string { return In(i18n.Locale()).SetSidebarBranchDetail() }
 
-// SetSidebarBranchDetail says "The branch beside a session's name in the sidebar. It needs \"Show git status\" on."
+// SetSidebarBranchDetail says "The branch of a session's row: beside its name, or on the line under it. It needs \"Show git status\" on."
 // in the language of msgs.
 func (msgs Messages) SetSidebarBranchDetail() string {
 	return Catalog.Format(msgs.locale, "setSidebarBranchDetail", nil)
