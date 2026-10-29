@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.14
+
+- The Files view of a remote host gains Download and Upload in its
+  right-click menu: a file or folder downloads to this machine through
+  a save dialog — a folder arrives with its insides whole — and picked
+  files upload into the folder, named to keep clear of what already
+  sits there.
+- A transfer travels over the connection's own stream — files of any
+  size — shows its progress in the Files view and the panel's header,
+  and can be cancelled mid-flight; a host still on an older kero asks
+  for its update first.
+
 ## 2.3.13
 
 - A project's header dragged onto another host's moves its host's whole
