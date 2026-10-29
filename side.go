@@ -195,8 +195,23 @@ func (a *App) sidePanel(c *ui.Context, pal *palette, s *proto.Session, width flo
 				a.defer_(func() { a.showSide(set) })
 			}
 			if dir := a.sideDir(s); dir != "" {
-				ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
+				h := a.hostOf(s.ID)
+				lbl := ui.Text(c, h.shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
+				// The label is the folder it names: its menu the upload
+				// into it, as a folder's row of the Files view has — a
+				// remote host's, for this machine's files need no upload.
+				if h.remote() {
+					lbl.ContextMenu(func(m *ui.Menu) {
+						if m.Item(locales.FilesUploadHere()).Chosen() {
+							a.uploadTo(h, dir)
+						}
+					})
+				}
 			}
+			// A transfer under way stays in sight on every tab of the
+			// panel: the arc of its progress and the ✕ that ends it,
+			// beside the folder the panel shows.
+			a.xferHeader(c, pal)
 			ui.Box(c.Key("drag")).Grow(1).AlignSelf(ui.Stretch).DragWindow()
 			iconButton(c, "close-side", closeIcon, a.tip(locales.SideClose(), "changes.toggle"), pal, func() { a.defer_(func() { a.toggleSide(a.prefs.Side) }) })
 			if right {

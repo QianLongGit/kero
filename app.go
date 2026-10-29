@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -188,6 +190,13 @@ type App struct {
 	// updateFn runs what a window would run on the UI thread when there is
 	// none — a test's, inline.
 	updateFn func(fn func())
+	// The transfer stream's own seams (files_transfer.go): the dial that
+	// opens one, and the dialogs that say where a download lands and what
+	// an upload sends. The app's own in production (defaultXfer*), a
+	// test's stand-in for the wire and the dialogs.
+	xferDial func(h *host) (net.Conn, *bufio.Reader, error)
+	xferSave func(defaultPath string) (string, error)
+	xferPick func(dir, multiple bool) ([]string, error)
 	quick    quickTerm // the terminal the global shortcut drops down
 }
 
@@ -219,6 +228,8 @@ func newApp() *App {
 	// The cache's mappings of the last run read back: a pane of a cached
 	// file opens where it left.
 	a.loadCacheIndex()
+	// The transfer stream's seams, overridable by a test.
+	a.xferDial, a.xferSave, a.xferPick = defaultXferDial, defaultXferSave, defaultXferPick
 	return a
 }
 

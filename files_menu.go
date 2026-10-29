@@ -5,8 +5,10 @@ package main
 // delete of either. A copy is of the Files view alone — it notes the
 // file and the host it is on, and a paste reads it there and writes it
 // into the folder the paste is of, any host's folder as any other's, so
-// a file crosses machines on a paste. A delete asks first, as it cannot
-// be undone, and the folder that held what it deleted lists again.
+// a file crosses machines on a paste. A remote host's rows carry the
+// transfers too (files_transfer.go): a Download… of the row's own, an
+// Upload Here… into a folder. A delete asks first, as it cannot be
+// undone, and the folder that held what it deleted lists again.
 
 import (
 	"os"
@@ -28,27 +30,68 @@ type fileClip struct {
 }
 
 // fileMenu is the menu a right click on a file or folder of the tree
-// opens: a file's Open With, the copy of a file, the paste of what was
-// copied into the folder the click is of, and the delete of either.
+// opens: a file's Open With, then the items fileMenuEntries orders —
+// the download of a remote host's file or folder and the upload into
+// its folder, the copy of a file, the paste of what was copied into the
+// folder the click is of — and the delete of either, which asks first,
+// as it cannot be undone.
 func (a *App) fileMenu(m *ui.Menu, h *host, t *fileTree, path string, dir bool) {
 	if !dir {
 		a.openWithMenu(m, h, path)
 		m.Separator()
-		if m.Item(locales.FilesCopy()).Chosen() {
-			a.side.files.clip = &fileClip{host: h.name, path: path}
-		}
 	}
 	into := path
 	if !dir {
 		into = parentPath(path)
 	}
-	if m.Item(locales.FilesPaste()).Disabled(a.side.files.clip == nil).Chosen() {
-		a.pasteFileInto(t, into)
+	// The items in fileMenuEntries' order, each label its own item; the
+	// Open With labels a file's list begins with pass unnamed here, for
+	// the group above built them already.
+	for _, label := range fileMenuEntries(h, path, dir) {
+		switch label {
+		case locales.FilesDownload():
+			if m.Item(label).Chosen() {
+				a.downloadFrom(h, path, dir)
+			}
+		case locales.FilesUploadHere():
+			if m.Item(label).Chosen() {
+				a.uploadTo(h, path)
+			}
+		case locales.FilesCopy():
+			if m.Item(label).Chosen() {
+				a.side.files.clip = &fileClip{host: h.name, path: path}
+			}
+		case locales.FilesPaste():
+			if m.Item(label).Disabled(a.side.files.clip == nil).Chosen() {
+				a.pasteFileInto(t, into)
+			}
+		}
 	}
 	m.Separator()
 	if m.Item(locales.FilesDelete()).Chosen() {
 		a.deleteFile(t, path, dir)
 	}
+}
+
+// fileMenuEntries is the labels of the menu a right click on a row of
+// the tree opens, in their order: a file's Open With, the transfer
+// items a remote host's rows carry — a file's Download…, a folder's
+// Download… and Upload Here… — the tree's own copy and paste, and the
+// delete of either. This machine has its files already: no transfer
+// items, and a local file's menu holds its Open With in fileMenu's
+// hand, which this list walks.
+func fileMenuEntries(h *host, path string, isDir bool) []string {
+	var out []string
+	if !isDir {
+		out = append(out, locales.CommonOpen(), locales.FilesOpenVSCode())
+		if h.remote() {
+			out = append(out, locales.FilesDownload())
+		}
+		out = append(out, locales.FilesCopy())
+	} else if h.remote() {
+		out = append(out, locales.FilesDownload(), locales.FilesUploadHere())
+	}
+	return append(out, locales.FilesPaste(), locales.FilesDelete())
 }
 
 // parentPath is the folder a path of the tree is in: the path less its

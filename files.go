@@ -53,6 +53,11 @@ type filesState struct {
 	// clip is the file the user copied in the view, pasted into a folder
 	// of a tree; nil while none.
 	clip *fileClip
+	// xfer is the one transfer under way — a download of a host's file
+	// or folder, an upload into its — nil while none: the busy gate
+	// every transfer's flow takes. Its row rides at the top of the view
+	// and in the panel's header while it is.
+	xfer *transferState
 }
 
 // fileTree is a folder's tree, as the user opened it: a folder's listing
@@ -201,6 +206,8 @@ func (a *App) filesView(c *ui.Context, pal *palette, s *proto.Session) {
 			share = treeShare
 		}
 		ui.Column(c.Key("files")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef("files-body")).Children(func() {
+			// The transfer under way, above the tree.
+			a.xferRow(c, pal)
 			ui.Column(c.Key("tree")).Grow(share).Basis(0).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 				a.treeView(c, pal, t, true)
 			})
@@ -212,6 +219,8 @@ func (a *App) filesView(c *ui.Context, pal *palette, s *proto.Session) {
 		return
 	}
 	ui.Column(c.Key("files")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+		// The transfer under way, above the tree.
+		a.xferRow(c, pal)
 		a.treeView(c, pal, t, true)
 	})
 }

@@ -4400,6 +4400,98 @@ func (msgs Messages) FilesCantPaste() string {
 	return Catalog.Format(msgs.locale, "filesCantPaste", nil)
 }
 
+// FilesDownload says "Download…"
+// in the language the app shows.
+func FilesDownload() string { return In(i18n.Locale()).FilesDownload() }
+
+// FilesDownload says "Download…"
+// in the language of msgs.
+func (msgs Messages) FilesDownload() string {
+	return Catalog.Format(msgs.locale, "filesDownload", nil)
+}
+
+// FilesUploadHere says "Upload Here…"
+// in the language the app shows.
+func FilesUploadHere() string { return In(i18n.Locale()).FilesUploadHere() }
+
+// FilesUploadHere says "Upload Here…"
+// in the language of msgs.
+func (msgs Messages) FilesUploadHere() string {
+	return Catalog.Format(msgs.locale, "filesUploadHere", nil)
+}
+
+// FilesTransferBusy says "A transfer is already in progress"
+// in the language the app shows.
+func FilesTransferBusy() string { return In(i18n.Locale()).FilesTransferBusy() }
+
+// FilesTransferBusy says "A transfer is already in progress"
+// in the language of msgs.
+func (msgs Messages) FilesTransferBusy() string {
+	return Catalog.Format(msgs.locale, "filesTransferBusy", nil)
+}
+
+// FilesDownloadToast says "Downloading {name}…"
+// in the language the app shows.
+func FilesDownloadToast(name string) string { return In(i18n.Locale()).FilesDownloadToast(name) }
+
+// FilesDownloadToast says "Downloading {name}…"
+// in the language of msgs.
+func (msgs Messages) FilesDownloadToast(name string) string {
+	return Catalog.Format(msgs.locale, "filesDownloadToast", map[string]any{"name": name})
+}
+
+// FilesUploadToast says "Uploading to {host}…"
+// in the language the app shows.
+func FilesUploadToast(host string) string { return In(i18n.Locale()).FilesUploadToast(host) }
+
+// FilesUploadToast says "Uploading to {host}…"
+// in the language of msgs.
+func (msgs Messages) FilesUploadToast(host string) string {
+	return Catalog.Format(msgs.locale, "filesUploadToast", map[string]any{"host": host})
+}
+
+// FilesDownloadDone says "Downloaded {name}"
+// in the language the app shows.
+func FilesDownloadDone(name string) string { return In(i18n.Locale()).FilesDownloadDone(name) }
+
+// FilesDownloadDone says "Downloaded {name}"
+// in the language of msgs.
+func (msgs Messages) FilesDownloadDone(name string) string {
+	return Catalog.Format(msgs.locale, "filesDownloadDone", map[string]any{"name": name})
+}
+
+// FilesUploadDone says "Uploaded {count} file(s) to {host}"
+// in the language the app shows.
+func FilesUploadDone(count int, host string) string {
+	return In(i18n.Locale()).FilesUploadDone(count, host)
+}
+
+// FilesUploadDone says "Uploaded {count} file(s) to {host}"
+// in the language of msgs.
+func (msgs Messages) FilesUploadDone(count int, host string) string {
+	return Catalog.Format(msgs.locale, "filesUploadDone", map[string]any{"count": count, "host": host})
+}
+
+// FilesTransferFailed says "Transfer failed: {err}"
+// in the language the app shows.
+func FilesTransferFailed(err string) string { return In(i18n.Locale()).FilesTransferFailed(err) }
+
+// FilesTransferFailed says "Transfer failed: {err}"
+// in the language of msgs.
+func (msgs Messages) FilesTransferFailed(err string) string {
+	return Catalog.Format(msgs.locale, "filesTransferFailed", map[string]any{"err": err})
+}
+
+// FilesTransferCancelled says "Transfer cancelled"
+// in the language the app shows.
+func FilesTransferCancelled() string { return In(i18n.Locale()).FilesTransferCancelled() }
+
+// FilesTransferCancelled says "Transfer cancelled"
+// in the language of msgs.
+func (msgs Messages) FilesTransferCancelled() string {
+	return Catalog.Format(msgs.locale, "filesTransferCancelled", nil)
+}
+
 // ChangesRevert says "Revert"
 // in the language the app shows.
 func ChangesRevert() string { return In(i18n.Locale()).ChangesRevert() }

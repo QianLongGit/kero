@@ -684,10 +684,12 @@ func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id iden
 		return
 	}
 	info := &proto.ClientInfo{Kind: hello.Kind, Peer: id.peer, Via: id.via, Client: id.client, Since: time.Now().UnixMilli()}
-	if info.Kind != "attach" {
-		info.Kind = "control"
-	} else {
+	// A transfer connection is its own kind, which kero clients shows
+	// apart from a control's, rather than a control's as every other.
+	if info.Kind == "attach" {
 		info.Session = hello.Session
+	} else if info.Kind != proto.KindTransfer {
+		info.Kind = "control"
 	}
 	d.mu.Lock()
 	d.clients[info] = struct{}{}
@@ -700,6 +702,8 @@ func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id iden
 	switch hello.Kind {
 	case "attach":
 		d.serveAttach(conn, r, hello, welcome)
+	case proto.KindTransfer:
+		d.serveTransfer(conn, r, id)
 	default:
 		json.NewEncoder(conn).Encode(welcome)
 		d.serveControl(conn, r)

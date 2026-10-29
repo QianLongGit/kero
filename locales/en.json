@@ -623,6 +623,53 @@
   },
   "filesCantDelete": "Can't delete",
   "filesCantPaste": "Can't paste",
+  "filesDownload": "Download…",
+  "filesUploadHere": "Upload Here…",
+  "filesTransferBusy": "A transfer is already in progress",
+  "filesDownloadToast": "Downloading {name}…",
+  "@filesDownloadToast": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesUploadToast": "Uploading to {host}…",
+  "@filesUploadToast": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDownloadDone": "Downloaded {name}",
+  "@filesDownloadDone": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesUploadDone": "Uploaded {count} file(s) to {host}",
+  "@filesUploadDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "filesTransferFailed": "Transfer failed: {err}",
+  "@filesTransferFailed": {
+    "placeholders": {
+      "err": {
+        "type": "String"
+      }
+    }
+  },
+  "filesTransferCancelled": "Transfer cancelled",
   "changesRevert": "Revert",
   "changesKeep": "Keep",
   "changesRevertTip": "Put the old lines back in the file",
