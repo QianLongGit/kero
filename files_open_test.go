@@ -670,8 +670,8 @@ func TestFilesOpenWithRemoteMenu(t *testing.T) {
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{locales.CommonOpen(), locales.FilesOpenVSCode(),
-		"-", locales.FilesCopy(), locales.FilesPaste(), "-", locales.FilesDelete()}
+	want := []string{locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesChooseApp(),
+		"-", locales.FilesDownload(), locales.FilesCopy(), locales.FilesPaste(), "-", locales.FilesDelete()}
 	if got := tt.Menu(); len(got) < 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Fatalf("a remote file's menu is %q, want %q", got, want)
 	}

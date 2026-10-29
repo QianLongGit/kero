@@ -825,6 +825,43 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	}
 }
 
+// A detailed row shows, under the session's name, its status message,
+// else its branch and changes, at the whole row's width; a compact one
+// keeps to one line ($KERO_SHOTS).
+func TestSidebarRows(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	a.st.Sessions[0].Dir = "/Users/someone/dev/demo"
+	base := a.st.Sessions[0]
+	add := func(id, name string, st proto.Status, msg string, g *proto.GitInfo) {
+		s := base
+		s.ID, s.Name, s.Status, s.Message, s.Git = id, name, st, msg, g
+		a.st.Sessions = append(a.st.Sessions, s)
+	}
+	add("s2", "migrate", proto.Working, "Migrating the\ndatabase", nil)
+	add("s3", "login", proto.Idle, "", &proto.GitInfo{Root: "/tmp/demo", Branch: "fix-login-redirect-after-oauth", Default: "main", Ahead: 2, Files: 3, Added: 40, Removed: 2})
+	a.st.Sessions[1].Progress = 40
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	shot(t, tt, "sidebar-rows-detailed")
+	texts := strings.Join(tt.Texts(), "\n")
+	for _, want := range []string{"Migrating the database", "fix-login-redirect-after-oauth ↑2 · 3 files +40 −2", "/Users/someone/dev/demo"} {
+		if !strings.Contains(texts, want) {
+			t.Errorf("detailed rows have no %q; texts %q", want, tt.Texts())
+		}
+	}
+	a.set.SidebarRows = "compact"
+	tt.Frame()
+	shot(t, tt, "sidebar-rows-compact")
+	texts = strings.Join(tt.Texts(), "\n")
+	if strings.Contains(texts, "Migrating the database") {
+		t.Errorf("a compact row shows the message")
+	}
+	if !strings.Contains(texts, "fix-login-redirect-after-oauth") {
+		t.Errorf("a compact row lost its branch; texts %q", tt.Texts())
+	}
+}
+
 // Dragging a project's name moves it among its host's projects, before
 // or after the project it is dropped on.
 func TestProjectOrder(t *testing.T) {
@@ -1005,6 +1042,7 @@ func TestSidebarOrder(t *testing.T) {
 // and standard, the look before the setting.
 func TestSidebarDensity(t *testing.T) {
 	a := testApp(t)
+	a.set.SidebarRows = "compact" // the density alone moves the rows here
 	a.st.Projects[0].Name = "proj"
 	a.st.Sessions[0].Name = "sess"
 	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200})
@@ -1039,6 +1077,7 @@ func TestSidebarDensity(t *testing.T) {
 // keeps today's layout, no bar.
 func TestCompactBlockIndent(t *testing.T) {
 	a := testApp(t)
+	a.set.SidebarRows = "compact" // the density's block alone is under test
 	a.st.Projects[0].Name = "proj"
 	a.st.Sessions[0].Name = "sess"
 	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Project: "p1", Name: "beta", Created: 200})

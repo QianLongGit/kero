@@ -258,3 +258,86 @@ func TestAdLists(t *testing.T) {
 		t.Errorf("the default lists were written:\n%s", out)
 	}
 }
+
+func TestSaveKeepsASymlinkedConfig(t *testing.T) {
+	dir := t.TempDir()
+	dotfiles := filepath.Join(dir, "dotfiles", "kero", "config")
+	os.MkdirAll(filepath.Dir(dotfiles), 0o755)
+	os.WriteFile(dotfiles, []byte("# mine\nfont-size = 14\n"), 0o600)
+	link := filepath.Join(dir, "config", "kero", "config")
+	os.MkdirAll(filepath.Dir(link), 0o755)
+	if err := os.Symlink("../../dotfiles/kero/config", link); err != nil {
+		t.Skip(err) // Windows without the privilege
+	}
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", link)
+	mu.Lock()
+	cache = nil
+	mu.Unlock()
+	s := Load()
+	s.FontSize = 16
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Lstat(link); err != nil || st.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the symlink went: %v %v", st, err)
+	}
+	b, _ := os.ReadFile(dotfiles)
+	if string(b) != "# mine\nfont-size = 16\n" {
+		t.Errorf("dotfiles' config:\n%s", b)
+	}
+	if st, _ := os.Stat(dotfiles); st.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v", st.Mode().Perm())
+	}
+}
+
+func TestTargetFollowsSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "dotfiles", "config") // not there yet, as before stow's first save
+	mid := filepath.Join(dir, "mid")
+	link := filepath.Join(dir, "config")
+	if err := os.Symlink("dotfiles/config", mid); err != nil {
+		t.Skip(err)
+	}
+	os.Symlink(mid, link)
+	if got := target(link); got != file {
+		t.Errorf("target(link) = %s, want %s", got, file)
+	}
+	if got := target(file); got != file {
+		t.Errorf("target(file) = %s", got)
+	}
+}
+
+// TestMouseScrollMultiplier: Ghostty's mouse-scroll-multiplier, with its
+// precision: and discrete: prefixes or one number for both, kept in
+// Ghostty's bounds.
+func TestMouseScrollMultiplier(t *testing.T) {
+	for _, c := range []struct {
+		line                string
+		precision, discrete float32
+	}{
+		{"", 1, 3},
+		{"mouse-scroll-multiplier = 0.5", 0.5, 0.5},
+		{"mouse-scroll-multiplier = precision:0.5,discrete:3", 0.5, 3},
+		{"mouse-scroll-multiplier = discrete:1", 1, 1},
+		{"mouse-scroll-multiplier = precision: 2 , discrete: 6", 2, 6},
+		{"mouse-scroll-multiplier = precision:0,discrete:20000", 0.01, 10000},
+	} {
+		s, probs := parse(c.line + "\n")
+		if len(probs) != 0 || s.ScrollPrecision != c.precision || s.ScrollDiscrete != c.discrete {
+			t.Errorf("%q: precision %v, discrete %v, problems %q; want %v, %v", c.line, s.ScrollPrecision, s.ScrollDiscrete, probs, c.precision, c.discrete)
+		}
+		back, _ := parse(format(s, ""))
+		if back.ScrollPrecision != s.ScrollPrecision || back.ScrollDiscrete != s.ScrollDiscrete {
+			t.Errorf("%q: read back %v, %v", c.line, back.ScrollPrecision, back.ScrollDiscrete)
+		}
+	}
+	for _, bad := range []string{"mouse-scroll-multiplier = fast", "mouse-scroll-multiplier = wheel:2"} {
+		if _, probs := parse(bad + "\n"); len(probs) != 1 {
+			t.Errorf("%q: problems %q, want one", bad, probs)
+		}
+	}
+	if out := format(Default(), ""); strings.Contains(out, "mouse-scroll-multiplier =") {
+		t.Errorf("a new file sets the default:\n%s", out)
+	}
+}

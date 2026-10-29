@@ -1001,7 +1001,8 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		PaddingColor: terminal.PaddingExtend,
 		// Text a program colored for the other appearance, as a dark
 		// theme's light grays on a light one, stays legible.
-		MinimumContrast: a.set.MinContrast,
+		MinimumContrast:  a.set.MinContrast,
+		ScrollMultiplier: terminal.ScrollMultiplier{Precision: a.set.ScrollPrecision, Discrete: a.set.ScrollDiscrete},
 		// Every terminal zooms together, and the size is remembered.
 		OnZoom: func(z terminal.Zoom) bool {
 			a.zoom(z.Steps, z.Reset)
@@ -1109,6 +1110,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 		if old.MinContrast != s.MinContrast {
 			t.SetMinimumContrast(s.MinContrast)
 		}
+		if old.ScrollPrecision != s.ScrollPrecision || old.ScrollDiscrete != s.ScrollDiscrete {
+			t.SetScrollMultiplier(terminal.ScrollMultiplier{Precision: s.ScrollPrecision, Discrete: s.ScrollDiscrete})
+		}
 		if old.CopyOnSelect != s.CopyOnSelect {
 			mode := terminal.CopyOnSelectNone
 			if s.CopyOnSelect {
@@ -1182,24 +1186,53 @@ func (a *App) apply(s settings.Settings, save bool) {
 // replaces the file, shows too: a hint is all it takes, as Load reads the
 // file again only when its modification time changed, so the watch keeps
 // no snapshot and stats nothing. The app's own saves come back as changes
-// already applied, which change nothing.
+// already applied, which change nothing. A configuration that is a
+// symlink, as one kept in a dotfiles repository, is watched in the
+// directory of the file it points to as well, where the user edits it.
 func (a *App) watchConfig() {
 	dir := filepath.Dir(settings.Path())
 	for {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return
 		}
-		w, err := mygo.WatchFiles(context.Background(), dir, mygo.FileWatchOptions{HintsOnly: true})
+		ctx, stop := context.WithCancel(context.Background())
+		w, err := mygo.WatchFiles(ctx, dir, mygo.FileWatchOptions{HintsOnly: true})
 		if err != nil {
+			stop()
 			return
+		}
+		linked := filepath.Dir(settings.Target())
+		if linked != dir {
+			go a.watchLinkedConfig(ctx, linked)
 		}
 		for {
 			if _, err := w.Next(context.Background()); err != nil {
 				break // the directory went: watch it again, made anew
 			}
 			a.reloadConfig()
+			if filepath.Dir(settings.Target()) != linked {
+				break // the symlink points elsewhere now: watch there
+			}
 		}
+		stop()
 		w.Close()
+	}
+}
+
+// watchLinkedConfig applies the configuration as the user saves the file
+// a symlinked configuration points to, watching its directory till ctx
+// ends or the directory goes.
+func (a *App) watchLinkedConfig(ctx context.Context, dir string) {
+	w, err := mygo.WatchFiles(ctx, dir, mygo.FileWatchOptions{HintsOnly: true})
+	if err != nil {
+		return
+	}
+	defer w.Close()
+	for {
+		if _, err := w.Next(ctx); err != nil {
+			return
+		}
+		a.reloadConfig()
 	}
 }
 

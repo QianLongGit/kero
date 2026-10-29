@@ -26,6 +26,7 @@ const (
 	headerH = 2 * (barMid - cardGap)
 	cardGap = 8 // around the card
 	rowH    = 34
+	rowH2   = 48 // a detailed row, of two lines
 	// rowInset is where a sidebar row's text starts: a project's name and
 	// its sessions', the badge telling the project from its children.
 	rowInset = 12
@@ -629,7 +630,14 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	selected := s.ID == a.selected
 	h := a.hostOf(s.ID)
 	m := a.sidebarDensity()
-	row := ui.Row(c.Key(s.ID)).Height(m.rowH).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
+	// A detailed row stands its second line under the name: the density's
+	// height plus the detail line's share of a detailed one.
+	detailed := a.set.SidebarRows != "compact"
+	rh := m.rowH
+	if detailed {
+		rh += rowH2 - rowH
+	}
+	row := ui.Row(c.Key(s.ID)).Height(rh).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
 	if pal.dark {
 		// Room for the chosen row's edge in every row, so that choosing
@@ -708,32 +716,71 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 			}
 			return
 		}
-		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(m.fontPx).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
-		if s.Unread {
-			name.FontWeight(650)
-		}
-		if s.Status == proto.Exited && !s.Unread {
-			name.TextColor(pal.textMuted)
-		}
-		// A branch of its own, as an agent's in a worktree, by the name —
-		// its own setting under the git-state one, which reads here, not
-		// from the data: a remote host's kerod keeps telling the branch
-		// whatever the app's settings say.
-		if a.set.GitStatus && a.set.SidebarBranch {
-			if b := offBranch(g); b != "" {
-				ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+		name := func() {
+			name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(m.fontPx).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
+			if s.Unread {
+				name.FontWeight(650)
+			}
+			if s.Status == proto.Exited && !s.Unread {
+				name.TextColor(pal.textMuted)
 			}
 		}
-		ui.Spacer(c)
-		cmd := c.Modifiers() == ui.Cmd
-		if cmd && index <= 9 {
-			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
-		} else {
-			// The name gives way to these, never they to the name.
-			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
+		when := func() {
+			if c.Modifiers() == ui.Cmd && index <= 9 {
+				ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
+			} else {
+				// The name gives way to these, never they to the name.
+				ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
+			}
 		}
-		statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+		if detailed {
+			// The name, the time and the status over what the session is
+			// at, on a line of the whole row's width, so that a long
+			// branch reads as far as it can.
+			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					name()
+					ui.Spacer(c)
+					when()
+					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+				})
+				line, msg := rowDetail(s, g, h.shortDir(s.WorkDir()))
+				fg := pal.textFaint
+				if msg {
+					fg = pal.textMuted
+				}
+				ui.Text(c, line).FontSize(12).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
+			})
+		} else {
+			name()
+			// A branch of its own, as an agent's in a worktree, by the name —
+			// its own setting under the git-state one, which reads here, not
+			// from the data: a remote host's kerod keeps telling the branch
+			// whatever the app's settings say.
+			if a.set.GitStatus && a.set.SidebarBranch {
+				if b := offBranch(g); b != "" {
+					ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+				}
+			}
+			ui.Spacer(c)
+			when()
+			statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+		}
 	})
+}
+
+// rowDetail is the second line of a session's detailed row: its program's
+// status message, else its worktree's branch and changes, else its folder,
+// dir. msg tells it is a message, which reads stronger than the others.
+func rowDetail(s *proto.Session, g *proto.GitInfo, dir string) (line string, msg bool) {
+	if s.Message != "" {
+		// A notification's text can run over lines: the row has one.
+		return strings.Join(strings.Fields(s.Message), " "), true
+	}
+	if g != nil {
+		return gitSummary(g), false
+	}
+	return dir, false
 }
 
 // renameStarted keeps a rename from ending in the frame it began in,

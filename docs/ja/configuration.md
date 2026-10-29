@@ -43,6 +43,7 @@ kero config check             # 不明なキーと不正な値を報告
 | ----------------------- | ---------- | ------------------------------------------------------------- |
 | `new-session-directory` | `current`  | 新規セッションの開始場所: `current`、`project`、`home`        |
 | `session-name`          | `focused`  | 名前を付けていないセッションの名前の付け方: `focused`、`lead`、`folder`（[詳しく](./sessions.md#how-an-unnamed-session-is-named)） |
+| `sidebar-rows`          | `detailed` | サイドバーでのセッションの表示: `detailed` はステータスメッセージ、なければブランチと変更を 2 行目に表示、`compact` は 1 行で表示 |
 | `focus-follows-mouse`   | `false`    | ポインタが入ったペインにフォーカスを移す                      |
 | `confirm-close`         | `true`     | プログラムが実行中のペインを閉じる前に確認する                |
 | `restore-sessions`      | `true`     | 再起動のあとなど kerod が再起動したら、セッションを再び開始する |
@@ -78,6 +79,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `copy-on-select`      | `false`    | 選択したものをクリップボードにコピーする                                 |
 | `clipboard-read`      | `ask`      | プログラムによるクリップボードの読み取り（OSC 52）: `ask`、`allow`、`deny` |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste`、`copy-or-paste`                             |
+| `mouse-scroll-multiplier` | `precision:1,discrete:3` | スクロールの量。Ghostty と同じく、`precision:` はトラックパッドのスクロールの倍率、`discrete:` はマウスホイール 1 ノッチでスクロールする行数（Windows では 3 行設定のときの 1 ノッチ）。数値を 1 つだけ書くと両方に適用。`0.01` から `10000` |
 
 ## シェル
 

@@ -25,6 +25,7 @@ func settingsIndex() []searchEntry {
 	entries := []searchEntry{
 		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home tab"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
+		{"general", locales.SetSidebarRows(), "sidebar-rows compact detailed status message branch two lines"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
@@ -59,6 +60,8 @@ func settingsIndex() []searchEntry {
 		{"terminal", locales.SetCopyOnSelect(), "copy-on-select clipboard selection"},
 		{"terminal", locales.SetRightClick(), "right-click-action context menu paste mouse"},
 		{"terminal", locales.SetClipboardRead(), "clipboard-read osc 52 paste privacy"},
+		{"terminal", locales.SetWheelScroll(), "mouse-scroll-multiplier discrete scroll speed wheel notch rows"},
+		{"terminal", locales.SetTrackpadScroll(), "mouse-scroll-multiplier precision scroll speed trackpad touchpad"},
 
 		{"shell", locales.SetShell(), "command fish zsh bash login"},
 		{"shell", locales.SetScrollback(), "scrollback-limit history buffer lines memory"},
