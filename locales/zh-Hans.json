@@ -619,5 +619,7 @@
   "toastGlobalShortcutFailed": "无法将 {keys} 用于快速终端：{error}",
   "setShortcutGlobal": "在任何应用中都可用",
   "setSidebarBranch": "在侧边栏显示分支",
-  "setSidebarBranchDetail": "会话行上的分支名：名字旁，或名字下一行。需要先打开\"显示 Git 状态\"。"
+  "setSidebarBranchDetail": "会话行上的分支名：名字旁，或名字下一行。需要先打开\"显示 Git 状态\"。",
+  "setSidebarPath": "在侧边栏显示路径",
+  "setSidebarPathDetail": "会话的工作路径，显示在详细行的名字下一行。"
 }

@@ -6307,3 +6307,23 @@ func SetSidebarBranchDetail() string { return In(i18n.Locale()).SetSidebarBranch
 func (msgs Messages) SetSidebarBranchDetail() string {
 	return Catalog.Format(msgs.locale, "setSidebarBranchDetail", nil)
 }
+
+// SetSidebarPath says "Show folder in sidebar"
+// in the language the app shows.
+func SetSidebarPath() string { return In(i18n.Locale()).SetSidebarPath() }
+
+// SetSidebarPath says "Show folder in sidebar"
+// in the language of msgs.
+func (msgs Messages) SetSidebarPath() string {
+	return Catalog.Format(msgs.locale, "setSidebarPath", nil)
+}
+
+// SetSidebarPathDetail says "The folder a session works in, on a line of its own under its name in detailed rows."
+// in the language the app shows.
+func SetSidebarPathDetail() string { return In(i18n.Locale()).SetSidebarPathDetail() }
+
+// SetSidebarPathDetail says "The folder a session works in, on a line of its own under its name in detailed rows."
+// in the language of msgs.
+func (msgs Messages) SetSidebarPathDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarPathDetail", nil)
+}

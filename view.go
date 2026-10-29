@@ -631,12 +631,16 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	selected := s.ID == a.selected
 	h := a.hostOf(s.ID)
 	m := a.sidebarDensity()
-	// A detailed row stands its second line under the name: the density's
-	// height plus the detail line's share of a detailed one.
+	g := sessionGit(s)
+	// A detailed row stands its detail lines under the name, each a row's
+	// own setting; none showing, the row keeps the one line of a compact
+	// one.
 	detailed := a.set.SidebarRows != "compact"
 	rh := m.rowH
+	var lines []rowLine
 	if detailed {
-		rh += rowH2 - rowH
+		lines = rowLines(s, g, h.shortDir(s.WorkDir()), a.set.GitStatus && a.set.SidebarBranch, a.set.SidebarPath)
+		rh += float32(len(lines)) * (rowH2 - rowH)
 	}
 	row := ui.Row(c.Key(s.ID)).Height(rh).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
@@ -696,7 +700,6 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	if s.Message != "" {
 		tip = s.Message + "\n" + tip
 	}
-	g := sessionGit(s)
 	if g != nil {
 		tip += "\n" + gitSummary(g)
 	}
@@ -745,20 +748,13 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 					when()
 					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
 				})
-				// The second line's branch obeys the sidebar's branch
-				// setting, as the one beside a compact row's name does:
-				// a remote host's kerod keeps telling the branch
-				// whatever the app's settings say.
-				dg := g
-				if !(a.set.GitStatus && a.set.SidebarBranch) {
-					dg = nil
+				for _, ln := range lines {
+					fg := pal.textFaint
+					if ln.msg {
+						fg = pal.textMuted
+					}
+					ui.Text(c, ln.text).FontSize(12).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
 				}
-				line, msg := rowDetail(s, dg, h.shortDir(s.WorkDir()))
-				fg := pal.textFaint
-				if msg {
-					fg = pal.textMuted
-				}
-				ui.Text(c, line).FontSize(12).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
 			})
 		} else {
 			name()
@@ -778,18 +774,32 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	})
 }
 
-// rowDetail is the second line of a session's detailed row: its program's
-// status message, else its worktree's branch and changes, else its folder,
-// dir. msg tells it is a message, which reads stronger than the others.
-func rowDetail(s *proto.Session, g *proto.GitInfo, dir string) (line string, msg bool) {
+// rowLine is one line under a session's name in a detailed row. msg
+// tells it is the program's status message, which reads stronger than
+// the others.
+type rowLine struct {
+	text string
+	msg  bool
+}
+
+// rowLines are the lines under a session's name in a detailed row: its
+// program's status message, its worktree's branch and changes, and its
+// folder, each a row of its own, and each only while its setting shows
+// it — branch says the branch, path the folder, and none of them the
+// message, which is what the session is at now.
+func rowLines(s *proto.Session, g *proto.GitInfo, dir string, branch, path bool) []rowLine {
+	var lines []rowLine
 	if s.Message != "" {
 		// A notification's text can run over lines: the row has one.
-		return strings.Join(strings.Fields(s.Message), " "), true
+		lines = append(lines, rowLine{strings.Join(strings.Fields(s.Message), " "), true})
 	}
-	if g != nil {
-		return gitSummary(g), false
+	if branch && g != nil {
+		lines = append(lines, rowLine{gitSummary(g), false})
 	}
-	return dir, false
+	if path && dir != "" {
+		lines = append(lines, rowLine{dir, false})
+	}
+	return lines
 }
 
 // renameStarted keeps a rename from ending in the frame it began in,

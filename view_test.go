@@ -826,8 +826,8 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 }
 
 // A detailed row shows, under the session's name, its status message,
-// else its branch and changes, at the whole row's width; a compact one
-// keeps to one line ($KERO_SHOTS).
+// its branch and changes, and its folder, a line each while their
+// settings show them; a compact one keeps to one line ($KERO_SHOTS).
 func TestSidebarRows(t *testing.T) {
 	a := testApp(t)
 	a.local().conn = connReady
@@ -845,24 +845,52 @@ func TestSidebarRows(t *testing.T) {
 	tt.Frame()
 	shot(t, tt, "sidebar-rows-detailed")
 	texts := strings.Join(tt.Texts(), "\n")
+	// Both settings on: the message, the branch with its changes, and
+	// the folder, a line each.
 	for _, want := range []string{"Migrating the database", "fix-login-redirect-after-oauth ↑2 · 3 files +40 −2", "/Users/someone/dev/demo"} {
 		if !strings.Contains(texts, want) {
 			t.Errorf("detailed rows have no %q; texts %q", want, tt.Texts())
 		}
 	}
-	// The branch on the second line obeys the sidebar's branch setting,
-	// as the one beside a compact row's name does; the line falls back
-	// to the folder, which is its own last choice.
+	// The branch line obeys the sidebar's branch setting alone: the
+	// message and the folder keep their lines.
 	a.set.SidebarBranch = false
 	tt.Frame()
 	texts = strings.Join(tt.Texts(), "\n")
 	if strings.Contains(texts, "fix-login-redirect-after-oauth") || strings.Contains(texts, "↑2") {
 		t.Errorf("a detailed row shows the branch with the setting off; texts %q", tt.Texts())
 	}
-	if !strings.Contains(texts, "Migrating the database") {
-		t.Errorf("a detailed row lost its message with the branch off; texts %q", tt.Texts())
+	for _, keep := range []string{"Migrating the database", "/Users/someone/dev/demo"} {
+		if !strings.Contains(texts, keep) {
+			t.Errorf("a detailed row lost %q with the branch off; texts %q", keep, tt.Texts())
+		}
+	}
+	// The folder line obeys the path setting the same way; both off, the
+	// row keeps its name line alone.
+	a.set.SidebarBranch = true
+	a.set.SidebarPath = false
+	tt.Frame()
+	texts = strings.Join(tt.Texts(), "\n")
+	if strings.Contains(texts, "/Users/someone/dev/demo") {
+		t.Errorf("a detailed row shows the folder with the setting off; texts %q", tt.Texts())
+	}
+	if !strings.Contains(texts, "fix-login-redirect-after-oauth ↑2 · 3 files +40 −2") {
+		t.Errorf("a detailed row lost its branch with the folder off; texts %q", tt.Texts())
+	}
+	a.set.SidebarBranch = false
+	tt.Frame()
+	rowH := func(id string) float32 {
+		r, ok := tt.Find(id)
+		if !ok {
+			t.Fatalf("no %s row; texts %q", id, tt.Texts())
+		}
+		return r.H
+	}
+	if got, want := rowH("login"), rowH("demo"); got != want {
+		t.Errorf("everything off, the row stands %g tall, a name-only one %g", got, want)
 	}
 	a.set.SidebarBranch = true
+	a.set.SidebarPath = true
 	tt.Frame()
 	a.set.SidebarRows = "compact"
 	tt.Frame()
@@ -870,6 +898,9 @@ func TestSidebarRows(t *testing.T) {
 	texts = strings.Join(tt.Texts(), "\n")
 	if strings.Contains(texts, "Migrating the database") {
 		t.Errorf("a compact row shows the message")
+	}
+	if strings.Contains(texts, "/Users/someone/dev/demo") {
+		t.Errorf("a compact row shows the folder")
 	}
 	if !strings.Contains(texts, "fix-login-redirect-after-oauth") {
 		t.Errorf("a compact row lost its branch; texts %q", tt.Texts())

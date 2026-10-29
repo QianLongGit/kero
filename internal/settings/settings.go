@@ -82,6 +82,7 @@ type Settings struct {
 	// Git
 	GitStatus     bool   `json:"gitStatus"`     // each pane's branch and changes, which kerod follows
 	SidebarBranch bool   `json:"sidebarBranch"` // a session's branch beside its name in the sidebar; needs GitStatus
+	SidebarPath   bool   `json:"sidebarPath"`   // a session's folder on a line of its own in the sidebar's detailed rows
 	DiffLayout    string `json:"diffLayout"`    // the changes panel's diffs: "auto", "unified" or "split"
 	// WorktreeBase is what a session's own worktree branches from:
 	// "default", the repository's default branch, or "current", the
@@ -176,6 +177,7 @@ func Default() Settings {
 		RemoteControl:   true,
 		GitStatus:       true,
 		SidebarBranch:   true,
+		SidebarPath:     true,
 		DiffLayout:      "auto",
 		WorktreeBase:    "default",
 		BlockAds:        true,

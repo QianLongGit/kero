@@ -526,6 +526,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				sw.Disabled(true)
 			}
 		})
+		settingRow(c, pal, locales.SetSidebarPath(), locales.SetSidebarPathDetail(), func() {
+			toggle(c.Key("sidebar-path"), &s.SidebarPath, pal)
+		})
 		settingRow(c, pal, locales.SetDiffLayout(), locales.SetDiffLayoutDetail(), func() {
 			segmented(c, "diff-layout", &s.DiffLayout, []string{"auto", "unified", "split"},
 				[]string{locales.SetDiffAuto(), locales.ChangesUnified(), locales.ChangesSplit()})

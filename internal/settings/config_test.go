@@ -230,6 +230,24 @@ func TestFileOpen(t *testing.T) {
 	}
 }
 
+// The sidebar shows a session's folder on a line of its own in detailed
+// rows unless the user turns it off, and what is saved reads back.
+func TestSidebarPath(t *testing.T) {
+	if d := Default().SidebarPath; !d {
+		t.Errorf("default sidebar path %v, want true", d)
+	}
+	s, probs := parse("sidebar-path = false\n")
+	if s.SidebarPath || len(probs) != 0 {
+		t.Errorf("false read as %v, problems %q", s.SidebarPath, probs)
+	}
+	if back, _ := parse(format(s, "")); back.SidebarPath {
+		t.Errorf("saved and read back %v", back.SidebarPath)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "sidebar-path") {
+		t.Errorf("the default was written:\n%s", out)
+	}
+}
+
 // background, which chose kero's theme before theme took kero's themes
 // by name, still does, for theme = kero too; saving writes theme in its
 // place.

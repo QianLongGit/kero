@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.18
+
+- A session's detailed row in the sidebar shows its branch and its
+  folder on a line each, and each line its own setting: **Show branch
+  in sidebar** and the new **Show folder in sidebar**, side by side
+  under Settings › Git (`sidebar-path` in the configuration). Both off,
+  the row keeps its name alone; a session outside a repository shows
+  its folder, where its branch line has nothing to say.
+
 ## 2.3.17
 
 - "Show branch in sidebar" reaches the sidebar's detailed rows: their
