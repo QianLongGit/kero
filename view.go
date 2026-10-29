@@ -639,7 +639,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	rh := m.rowH
 	var lines []rowLine
 	if detailed {
-		lines = rowLines(s, g, h.shortDir(s.WorkDir()), a.set.GitStatus && a.set.SidebarBranch, a.set.SidebarPath)
+		lines = rowLines(s, g, h.shortDir(s.WorkDir()), a.set.SidebarSmart, a.set.GitStatus && a.set.SidebarBranch, a.set.SidebarPath)
 		rh += float32(len(lines)) * (rowH2 - rowH)
 	}
 	row := ui.Row(c.Key(s.ID)).Height(rh).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
@@ -783,15 +783,32 @@ type rowLine struct {
 }
 
 // rowLines are the lines under a session's name in a detailed row: its
-// program's status message, its worktree's branch and changes, and its
-// folder, each a row of its own, and each only while its setting shows
-// it — branch says the branch, path the folder, and none of them the
-// message, which is what the session is at now.
-func rowLines(s *proto.Session, g *proto.GitInfo, dir string, branch, path bool) []rowLine {
-	var lines []rowLine
+// program's status message, then its worktree's branch and changes, and
+// its folder, each a row of its own, and each only while its setting
+// shows it — branch says the branch, path the folder, and none of them
+// the message, which is what the session is at now. Smart takes it all
+// down to one line — the message, else the branch of a repository's
+// session, else its folder — whatever the branch and path settings say.
+func rowLines(s *proto.Session, g *proto.GitInfo, dir string, smart, branch, path bool) []rowLine {
+	msg := ""
 	if s.Message != "" {
 		// A notification's text can run over lines: the row has one.
-		lines = append(lines, rowLine{strings.Join(strings.Fields(s.Message), " "), true})
+		msg = strings.Join(strings.Fields(s.Message), " ")
+	}
+	if smart {
+		switch {
+		case msg != "":
+			return []rowLine{{msg, true}}
+		case g != nil:
+			return []rowLine{{gitSummary(g), false}}
+		case dir != "":
+			return []rowLine{{dir, false}}
+		}
+		return nil
+	}
+	var lines []rowLine
+	if msg != "" {
+		lines = append(lines, rowLine{msg, true})
 	}
 	if branch && g != nil {
 		lines = append(lines, rowLine{gitSummary(g), false})

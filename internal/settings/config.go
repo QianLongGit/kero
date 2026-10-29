@@ -297,6 +297,7 @@ var keys = []key{
 		}},
 	boolKey("remote-updates", "let Kero on another machine that connects update the Kero app here to its version, which restarts it", func(s *Settings) *bool { return &s.RemoteUpdates }),
 	boolKey("git-status", "show the git branch and changes of each session", func(s *Settings) *bool { return &s.GitStatus }),
+	boolKey("sidebar-smart", "a session's detailed row shows one line: its branch in a repository, else its folder; while on, the branch and folder switches do not apply", func(s *Settings) *bool { return &s.SidebarSmart }),
 	boolKey("sidebar-branch", "show a session's branch in the sidebar, beside its name in compact rows and on the second line of detailed ones; needs git-status", func(s *Settings) *bool { return &s.SidebarBranch }),
 	boolKey("sidebar-path", "show a session's folder on a line of its own under its name in the sidebar's detailed rows", func(s *Settings) *bool { return &s.SidebarPath }),
 	choiceKey("worktree-base", "what a session's own git worktree branches from: the repository's default branch, or the branch of the session you're in", func(s *Settings) *string { return &s.WorktreeBase }, "default", "current"),

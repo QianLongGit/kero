@@ -81,6 +81,7 @@ type Settings struct {
 
 	// Git
 	GitStatus     bool   `json:"gitStatus"`     // each pane's branch and changes, which kerod follows
+	SidebarSmart  bool   `json:"sidebarSmart"`  // a session's detailed row shows one line, its branch in a repository else its folder, over the branch and folder switches
 	SidebarBranch bool   `json:"sidebarBranch"` // a session's branch beside its name in the sidebar; needs GitStatus
 	SidebarPath   bool   `json:"sidebarPath"`   // a session's folder on a line of its own in the sidebar's detailed rows
 	DiffLayout    string `json:"diffLayout"`    // the changes panel's diffs: "auto", "unified" or "split"

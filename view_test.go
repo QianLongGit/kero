@@ -892,6 +892,25 @@ func TestSidebarRows(t *testing.T) {
 	a.set.SidebarBranch = true
 	a.set.SidebarPath = true
 	tt.Frame()
+	// Smart takes the detail down to one line, whatever the branch and
+	// path switches say: a repository's session its branch, one outside
+	// a repository its folder.
+	a.set.SidebarPath = false
+	a.set.SidebarSmart = true
+	tt.Frame()
+	texts = strings.Join(tt.Texts(), "\n")
+	if !strings.Contains(texts, "fix-login-redirect-after-oauth ↑2 · 3 files +40 −2") {
+		t.Errorf("a smart row lost the branch of a repository's session; texts %q", tt.Texts())
+	}
+	if texts2 := texts; strings.Count(texts2, "/Users/someone/dev/demo") != 1 {
+		t.Errorf("a smart row shows the repository's session's folder, or lost the plain one's; texts %q", tt.Texts())
+	}
+	if !strings.Contains(texts, "Migrating the database") {
+		t.Errorf("a smart row lost its message; texts %q", tt.Texts())
+	}
+	a.set.SidebarSmart = false
+	a.set.SidebarPath = true
+	tt.Frame()
 	a.set.SidebarRows = "compact"
 	tt.Frame()
 	shot(t, tt, "sidebar-rows-compact")

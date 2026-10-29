@@ -1255,5 +1255,7 @@
   "setSidebarBranch": "Show branch in sidebar",
   "setSidebarBranchDetail": "The branch of a session's row: beside its name, or on the line under it. It needs \"Show git status\" on.",
   "setSidebarPath": "Show folder in sidebar",
-  "setSidebarPathDetail": "The folder a session works in, on a line of its own under its name in detailed rows."
+  "setSidebarPathDetail": "The folder a session works in, on a line of its own under its name in detailed rows.",
+  "setSidebarSmart": "Smart details",
+  "setSidebarSmartDetail": "One line under the name: the session's branch in a repository, else its folder. While on, the branch and folder switches do not apply."
 }

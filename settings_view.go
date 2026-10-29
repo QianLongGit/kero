@@ -517,17 +517,26 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetGitStatus(), locales.SetGitStatusDetail(), func() {
 			toggle(c.Key("git-status"), &s.GitStatus, pal)
 		})
+		settingRow(c, pal, locales.SetSidebarSmart(), locales.SetSidebarSmartDetail(), func() {
+			toggle(c.Key("sidebar-smart"), &s.SidebarSmart, pal)
+		})
 		settingRow(c, pal, locales.SetSidebarBranch(), locales.SetSidebarBranchDetail(), func() {
 			// The branch by a session's name is part of what git state
 			// shows: with the whole of it off, the part has nothing to
-			// draw from, so its switch sleeps too.
+			// draw from, so its switch sleeps too — and the smart row
+			// takes the line it would draw, so it sleeps under it.
 			sw := toggle(c.Key("sidebar-branch"), &s.SidebarBranch, pal)
-			if !s.GitStatus {
+			if !s.GitStatus || s.SidebarSmart {
 				sw.Disabled(true)
 			}
 		})
 		settingRow(c, pal, locales.SetSidebarPath(), locales.SetSidebarPathDetail(), func() {
-			toggle(c.Key("sidebar-path"), &s.SidebarPath, pal)
+			// The smart row takes the folder's line when it has no
+			// branch to show, so this switch sleeps under it too.
+			sw := toggle(c.Key("sidebar-path"), &s.SidebarPath, pal)
+			if s.SidebarSmart {
+				sw.Disabled(true)
+			}
 		})
 		settingRow(c, pal, locales.SetDiffLayout(), locales.SetDiffLayoutDetail(), func() {
 			segmented(c, "diff-layout", &s.DiffLayout, []string{"auto", "unified", "split"},

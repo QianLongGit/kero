@@ -113,7 +113,7 @@ func TestFileOpenSetting(t *testing.T) {
 	a.ss.page = "general"
 	// The page's rows run past a window's height; a tall one reaches the
 	// file-open row without scrolling.
-	tt := ui.NewTester(a.settingsView, 820, 1200)
+	tt := ui.NewTester(a.settingsView, 820, 1300)
 	tt.Frame()
 	if err := tt.Click("System default"); err != nil {
 		t.Fatal(err)

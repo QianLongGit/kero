@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.19
+
+- **Smart details**, under Settings › Git, takes a session's detailed
+  row down to one line: its branch in a repository, else its folder
+  (`sidebar-smart` in the configuration). While it is on, the branch
+  and folder switches stand off, greyed out beside it.
+
 ## 2.3.18
 
 - A session's detailed row in the sidebar shows its branch and its

@@ -248,6 +248,24 @@ func TestSidebarPath(t *testing.T) {
 	}
 }
 
+// The sidebar's smart row is off unless the user takes it, and what is
+// saved reads back.
+func TestSidebarSmart(t *testing.T) {
+	if d := Default().SidebarSmart; d {
+		t.Errorf("default sidebar smart %v, want false", d)
+	}
+	s, probs := parse("sidebar-smart = true\n")
+	if !s.SidebarSmart || len(probs) != 0 {
+		t.Errorf("true read as %v, problems %q", s.SidebarSmart, probs)
+	}
+	if back, _ := parse(format(s, "")); !back.SidebarSmart {
+		t.Errorf("saved and read back %v", back.SidebarSmart)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "sidebar-smart") {
+		t.Errorf("the default was written:\n%s", out)
+	}
+}
+
 // background, which chose kero's theme before theme took kero's themes
 // by name, still does, for theme = kero too; saving writes theme in its
 // place.

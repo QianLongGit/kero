@@ -621,5 +621,7 @@
   "setSidebarBranch": "在侧边栏显示分支",
   "setSidebarBranchDetail": "会话行上的分支名：名字旁，或名字下一行。需要先打开\"显示 Git 状态\"。",
   "setSidebarPath": "在侧边栏显示路径",
-  "setSidebarPathDetail": "会话的工作路径，显示在详细行的名字下一行。"
+  "setSidebarPathDetail": "会话的工作路径，显示在详细行的名字下一行。",
+  "setSidebarSmart": "智能显示",
+  "setSidebarSmartDetail": "名字下单行：是 git 仓库显示分支，否则显示路径。打开时，分支和路径两个开关不生效。"
 }

@@ -6327,3 +6327,23 @@ func SetSidebarPathDetail() string { return In(i18n.Locale()).SetSidebarPathDeta
 func (msgs Messages) SetSidebarPathDetail() string {
 	return Catalog.Format(msgs.locale, "setSidebarPathDetail", nil)
 }
+
+// SetSidebarSmart says "Smart details"
+// in the language the app shows.
+func SetSidebarSmart() string { return In(i18n.Locale()).SetSidebarSmart() }
+
+// SetSidebarSmart says "Smart details"
+// in the language of msgs.
+func (msgs Messages) SetSidebarSmart() string {
+	return Catalog.Format(msgs.locale, "setSidebarSmart", nil)
+}
+
+// SetSidebarSmartDetail says "One line under the name: the session's branch in a repository, else its folder. While on, the branch and folder switc…"
+// in the language the app shows.
+func SetSidebarSmartDetail() string { return In(i18n.Locale()).SetSidebarSmartDetail() }
+
+// SetSidebarSmartDetail says "One line under the name: the session's branch in a repository, else its folder. While on, the branch and folder switc…"
+// in the language of msgs.
+func (msgs Messages) SetSidebarSmartDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarSmartDetail", nil)
+}
