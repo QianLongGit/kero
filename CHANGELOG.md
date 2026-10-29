@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.15
+
+- A session's row in the sidebar can stand on two lines: the message its
+  program reported, as with `kero report`, else its branch and its
+  changes, else its folder. A long branch no longer gets cut to a few
+  characters by the name. Settings › General › **Sidebar rows** keeps
+  the one-line rows as **Compact**, and `sidebar-rows` sets it in the
+  configuration; the rows keep their density setting, which says how
+  tall and large they stand.
+- Settings › Terminal › **Scrolling** sets how far a notch of the mouse
+  wheel scrolls, and how fast scrolling with two fingers goes, as
+  Ghostty's `mouse-scroll-multiplier` does in the configuration.
+- A configuration that is a symlink, as one kept in a dotfiles
+  repository, stays a symlink when you save from Settings, and an edit
+  to the file it points to applies at once.
+- `kero report` works when a program runs it with no terminal, as
+  Claude Code's shell tool does: the report reaches the pane's row all
+  the same. Hosts get it with their next update.
+
 ## 2.3.14
 
 - The Files view of a remote host gains Download and Upload in its
