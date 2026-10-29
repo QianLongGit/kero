@@ -7,7 +7,8 @@ import (
 )
 
 // Surfaces stand out by their color and an edge, crisp, on whole pixels.
-// In the light, the edge is a small soft shadow and no line; in the dark,
+// In the light, the edge is a small soft shadow and no line, but for the
+// panes', a hairline (paned); in the dark,
 // where shadows hardly show, a hairline a little lighter than the
 // surface, over a dark shadow, as a lit edge. These are kero's levels.
 
@@ -18,6 +19,16 @@ func raised(e ui.Element, pal *palette) ui.Element {
 		return darkShadow(litEdge(e, pal))
 	}
 	return e.Shadow(0, 1, 2, 0, pal.cardShadow).Shadow(0, 1, 6, 0, pal.cardShadow2)
+}
+
+// paned edges a pane's card, and the settings', flat on the wash: in the
+// light a hairline and no shadow, as Rex's panes; in the dark, as raised.
+func paned(e ui.Element, pal *palette) ui.Element {
+	if pal.dark {
+		return raised(e, pal)
+	}
+	// Measured from Rex's at 2x: a darker outer pixel, a lighter inner.
+	return e.Border(0.5, ui.RGBA(0, 0, 0, 0.106)).InsetShadow(0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.063))
 }
 
 // chosen lifts the chosen row of a list, the sidebars', a hair: an even

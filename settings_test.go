@@ -126,6 +126,32 @@ func TestFileOpenSetting(t *testing.T) {
 	}
 }
 
+// A theme is chosen for light windows and for dark ones apart, colors
+// each, and is saved.
+func TestThemePerAppearance(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	a.ss.page = "appearance"
+	tt := ui.NewTester(a.settingsView, 820, 1400)
+	tt.Frame()
+	for _, tile := range []string{"Paper, Light windows", "Dusk, Dark windows"} {
+		if err := tt.Click(tile); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if a.set.LightTheme != "paper" || a.set.DarkTheme != "dusk" {
+		t.Fatalf("themes %q and %q, want paper and dusk", a.set.LightTheme, a.set.DarkTheme)
+	}
+	if light, dark := a.termThemes(); light != keroLook("paper", false).term || dark != keroLook("dusk", true).term {
+		t.Error("the terminals do not take the themes chosen")
+	}
+	if saved := settings.Load(); saved.LightTheme != "paper" || saved.DarkTheme != "dusk" {
+		t.Errorf("saved %q and %q", saved.LightTheme, saved.DarkTheme)
+	}
+	shot(t, tt, "theme-per-appearance")
+}
+
 // Dark pages, and the plain background, for a look ($KERO_SHOTS).
 func TestDarkShots(t *testing.T) {
 	a := testApp(t)
@@ -136,7 +162,7 @@ func TestDarkShots(t *testing.T) {
 		tt.Frame()
 		shot(t, tt, "dark-"+p)
 	}
-	a.set.Background = "plain"
+	a.set.LightTheme, a.set.DarkTheme = "plain", "plain"
 	a.applied = a.set.Clone()
 	main := ui.NewTester(a.view, 1000, 560)
 	main.SetDark(true)
@@ -387,8 +413,12 @@ func TestPopupButtons(t *testing.T) {
 			t.Errorf("chose weight %d, want 500", a.set.FontWeight)
 		}
 
-		// The theme picker: typing filters, Return chooses.
-		if err := tt.Click("kero"); err != nil {
+		// The theme picker, under Appearance: typing filters, Return
+		// chooses.
+		a.ss.page = "appearance"
+		tt.SetSize(820, 1400) // under both rows of themes
+		tt.Frame()
+		if err := tt.Click("None"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()
@@ -407,6 +437,9 @@ func TestPopupButtons(t *testing.T) {
 		}
 
 		// The font picker takes a font it does not list.
+		a.ss.page = "terminal"
+		tt.SetSize(820, 900)
+		tt.Frame()
 		if err := tt.Click("JetBrains Mono Nerd Font"); err != nil {
 			t.Fatal(err)
 		}

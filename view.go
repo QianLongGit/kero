@@ -110,6 +110,7 @@ func b2f(b bool) float32 {
 }
 
 func (a *App) view(c *ui.Context) {
+	a.looks()
 	pal := paletteFor(c)
 	c.SetTheme(borderless(c, pal))
 
@@ -121,7 +122,7 @@ func (a *App) view(c *ui.Context) {
 
 	bar := c.TitleBar()
 	row := ui.Row(c).Fill().AlignItems(ui.Stretch)
-	backdrop(c, pal, row, a.set)
+	backdrop(c, row)
 	// A curve, not a spring: a spring's long tail crawls under a pixel a
 	// frame, which whole pixels turn into hops and holds, a shake as it
 	// settles. This one lands in about 13 frames, moving in every one.
@@ -1072,7 +1073,7 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 		return
 	}
 	// No session: one card, for what the app has to say.
-	card := raised(ui.Column(c).Grow(1).MinHeight(0).Radius(14).Background(pal.card), pal).Clip()
+	card := paned(ui.Column(c).Grow(1).MinHeight(0).Radius(14).Background(pal.card), pal).Clip()
 	card.Children(func() {
 		left := a.chrome.headerPad
 		ui.Row(c).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, left).DragWindow().Children(func() {

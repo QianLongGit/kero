@@ -187,6 +187,7 @@ func durationWords(d time.Duration) string {
 }
 
 func (a *App) settingsView(c *ui.Context) {
+	a.looks()
 	pal := paletteFor(c)
 	c.SetTheme(borderless(c, pal))
 	if a.ss.toast != "" {
@@ -196,7 +197,7 @@ func (a *App) settingsView(c *ui.Context) {
 	found := a.searchSettings()
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.ss.searchRef.Focus(c) })
 	row := ui.Row(c).Fill().AlignItems(ui.Stretch)
-	backdrop(c, pal, row, a.set)
+	backdrop(c, row)
 	row.Children(func() {
 		// Under the traffic lights on macOS; elsewhere the search starts
 		// the sidebar, centered on barMid as the page's title and the
@@ -231,7 +232,7 @@ func (a *App) settingsView(c *ui.Context) {
 			}
 		})
 		ui.Column(c).Grow(1).MinWidth(0).Padding(cardGap, cardGap, cardGap, 0).Children(func() {
-			card := raised(ui.Column(c).Grow(1).MinHeight(0).Radius(14).Background(pal.card), pal).Clip()
+			card := paned(ui.Column(c).Grow(1).MinHeight(0).Radius(14).Background(pal.card), pal).Clip()
 			card.Children(func() {
 				page := settingsPages[0]
 				for _, p := range settingsPages {
@@ -673,10 +674,40 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 	})
 	ui.Column(c).Gap(8).Children(func() {
 		groupTitle(c, pal, locales.SetBackground())
-		ui.Row(c).Gap(12).Wrap().Children(func() {
-			for _, b := range settings.Backgrounds {
-				a.backgroundTile(c, pal, b.ID, backgroundName(b.ID, b.Name))
+		// A theme for each appearance: the tiles of one show its colors.
+		for _, dark := range []bool{false, true} {
+			label := locales.SetLightWindows()
+			if dark {
+				label = locales.SetDarkWindows()
 			}
+			ui.Text(c, label).FontSize(12).TextColor(pal.textFaint).Padding(4, 4, 0, 4)
+			ui.Row(c).Gap(12).Wrap().Children(func() {
+				for _, t := range settings.KeroThemes {
+					a.backgroundTile(c, pal, t.ID, backgroundName(t.ID, t.Name), dark)
+				}
+			})
+		}
+	})
+	// A Ghostty theme in place of kero's: none goes back to kero's default.
+	none := locales.SetThemeNone()
+	themes := append([]string{none}, terminal.GhosttyThemes()...)
+	ghostty := func(key, value string, choose func(string)) {
+		if keroID(value) != "" {
+			value = none
+		}
+		a.searchPopup(c, key, value, themes, 240, nil, pal, func(v string) {
+			if v == none {
+				v = settings.Default().LightTheme
+			}
+			choose(v)
+		})
+	}
+	settingsGroup(c, pal, locales.SetColors(), locales.SetColorsDetail(), func() {
+		settingRow(c, pal, locales.SetLightWindows(), "", func() {
+			ghostty("light", s.LightTheme, func(v string) { a.set.LightTheme = v })
+		})
+		settingRow(c, pal, locales.SetDarkWindows(), "", func() {
+			ghostty("dark", s.DarkTheme, func(v string) { a.set.DarkTheme = v })
 		})
 	})
 }
@@ -712,35 +743,55 @@ func localeTag(language string) string {
 
 // backgroundName is a wash's name in the language the app shows.
 func backgroundName(id, name string) string {
-	if t, ok := map[string]func() string{"rex": locales.BgPetal, "mist": locales.BgMist, "meadow": locales.BgMeadow, "dusk": locales.BgDusk, "plain": locales.BgPlain}[id]; ok {
+	if t, ok := map[string]func() string{"rex": locales.BgPetal, "mist": locales.BgMist, "meadow": locales.BgMeadow, "dusk": locales.BgDusk,
+		"tide": locales.BgTide, "apricot": locales.BgApricot, "aurora": locales.BgAurora, "dune": locales.BgDune, "paper": locales.BgPaper, "plain": locales.BgPlain}[id]; ok {
 		return t()
 	}
 	return name
 }
 
-// backgroundTile previews a wash, choosing it on a click.
-func (a *App) backgroundTile(c *ui.Context, pal *palette, id, name string) {
-	sel := a.set.Background == id
-	tile := ui.ButtonBase(c.Key("bg-" + id)).Column().Width(104).Gap(8).AlignItems(ui.Stretch).Label(name)
+// backgroundTile previews one of kero's themes as windows of an
+// appearance show it, choosing it for them on a click: a card of its
+// colors on its wash, with text, a prompt, the cursor and the programs'
+// colors.
+func (a *App) backgroundTile(c *ui.Context, pal *palette, id, name string, dark bool) {
+	slot, key, windows := &a.set.LightTheme, "bg-light-", locales.SetLightWindows()
+	if dark {
+		slot, key, windows = &a.set.DarkTheme, "bg-dark-", locales.SetDarkWindows()
+	}
+	sel := keroID(*slot) == id
+	tile := ui.ButtonBase(c.Key(key + id)).Column().Width(124).Gap(8).AlignItems(ui.Stretch).Label(name + ", " + windows)
 	if tile.Clicked() {
-		a.set.Background = id
+		*slot = keroName(id)
 	}
 	tile.Children(func() {
-		sw := raised(ui.Box(c).Size(104, 68).Radius(12), pal).Clip()
-		base, glow := washes(id, pal.dark)
-		sw.LinearGradient(base)
-		sw.Children(func() {
-			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).LinearGradient(glow)
-			// A card on it, as the window shows them.
-			ui.Box(c).Absolute().Top(12).Left(26).Right(8).Bottom(-6).Radius(7).Background(pal.card)
-			ui.Box(c).Absolute().Top(20).Left(8).Width(12).Height(4).Radius(2).Background(pal.textFaint.Alpha(0.5))
-			if sel {
-				ui.Box(c).Absolute().Top(6).Right(6).Size(18, 18).Radius(9).Center().Background(pal.accent).Children(func() {
-					ui.Box(c).Size(10, 10).Draw(func(p *ui.Painter, r ui.Rect) {
-						ck := (&ui.Path{}).MoveTo(r.X+1, r.Y+5.2).LineTo(r.X+4, r.Y+8).LineTo(r.X+9, r.Y+2)
-						p.StrokePath(ck, 1.6, ui.Hex("#ffffff"))
+		l := keroLook(id, dark)
+		th := l.term
+		ui.Box(c).Children(func() {
+			sw := raised(ui.Box(c).Size(124, 80).Radius(12), pal).Clip()
+			sw.LinearGradient(l.base)
+			sw.Children(func() {
+				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).LinearGradient(l.glow)
+				ui.Column(c).Absolute().Top(8).Left(8).Right(8).Bottom(8).Radius(8).Background(th.Background).
+					Padding(8, 9).Justify(ui.SpaceBetween).Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+						ui.Text(c, "Aa").FontSize(17).TextColor(th.Foreground).Grow(1)
+						ui.Box(c).Radius(4).Padding(1, 4).Background(th.Selection).Children(func() {
+							ui.Text(c, "~/").Font(a.termFamily()).FontSize(10).TextColor(th.Foreground)
+						})
+						ui.Box(c).Size(6, 13).Radius(1.5).Background(th.Cursor)
+					})
+					ui.Row(c).Gap(3).Children(func() {
+						for i := range 8 {
+							ui.Box(c).Size(8, 8).Radius(4).Background(th.Palette[i])
+						}
 					})
 				})
+			})
+			if sel {
+				// The ring, a gap off the tile and around it, so that
+				// nothing in the tile moves for it.
+				ui.Box(c).Absolute().Top(-5).Left(-5).Right(-5).Bottom(-5).Radius(17).Border(2, l.pal.accent)
 			}
 		})
 		lbl := ui.Text(c, name).FontSize(12.5).TextColor(pal.textMuted).TextAlign(ui.Center)
@@ -840,14 +891,7 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			toggle(c.Key("thicken"), &s.Thicken, pal)
 		})
 	})
-	themes := append([]string{"kero"}, terminal.GhosttyThemes()...)
-	settingsGroup(c, pal, locales.SetColors(), locales.SetColorsDetail(), func() {
-		settingRow(c, pal, locales.SetLightWindows(), "", func() {
-			a.searchPopup(c, "light", s.LightTheme, themes, 240, nil, pal, func(v string) { a.set.LightTheme = v })
-		})
-		settingRow(c, pal, locales.SetDarkWindows(), "", func() {
-			a.searchPopup(c, "dark", s.DarkTheme, themes, 240, nil, pal, func(v string) { a.set.DarkTheme = v })
-		})
+	settingsGroup(c, pal, "", "", func() {
 		settingRow(c, pal, locales.SetDimUnfocused(), locales.SetDimUnfocusedDetail(), func() {
 			toggle(c.Key("dim-unfocused"), &s.DimUnfocused, pal)
 		})

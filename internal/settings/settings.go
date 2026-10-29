@@ -37,7 +37,6 @@ type Settings struct {
 	// Appearance
 	Appearance     string `json:"appearance"`     // "system", "light" or "dark"
 	Language       string `json:"language"`       // "system", or one of Languages
-	Background     string `json:"background"`     // a wash, see Backgrounds
 	Vibrancy       bool   `json:"vibrancy"`       // the window's material under the wash
 	SidebarDensity string `json:"sidebarDensity"` // the sidebar's rows: "compact" or "standard"
 
@@ -52,7 +51,7 @@ type Settings struct {
 	DimUnfocused bool    `json:"dimUnfocusedTerminals"` // the terminals the user is not in fade
 	Cursor       string  `json:"cursor"`                // "block", "bar" or "underline"
 	CursorBlink  bool    `json:"cursorBlink"`
-	LightTheme   string  `json:"lightTheme"` // "kero", or a Ghostty theme's name
+	LightTheme   string  `json:"lightTheme"` // one of KeroThemes by its Name, or a Ghostty theme's
 	DarkTheme    string  `json:"darkTheme"`
 	OptionAsAlt  bool    `json:"optionAsAlt"`
 	CopyOnSelect bool    `json:"copyOnSelect"`
@@ -153,7 +152,6 @@ func Default() Settings {
 		FileOpen:        "pane",
 		Appearance:      "system",
 		Language:        "system",
-		Background:      "rex",
 		Vibrancy:        true,
 		SidebarDensity:  "compact",
 		DimUnfocused:    true,
@@ -164,8 +162,8 @@ func Default() Settings {
 		MinContrast:     3,
 		Cursor:          "block",
 		CursorBlink:     true,
-		LightTheme:      "kero",
-		DarkTheme:       "kero",
+		LightTheme:      "paper",
+		DarkTheme:       "paper",
 		Clipboard:       "ask",
 		RightClick:      "menu",
 		ScrollPrecision: 1,
@@ -200,13 +198,19 @@ var Languages = []string{"en", "ja", "zh-Hans"}
 // bar, the Dock alone, or the menu bar alone.
 var AppIcons = []string{"dock-and-menubar", "dock", "menubar"}
 
-// Backgrounds are the washes the window can show.
-var Backgrounds = []struct{ ID, Name string }{
-	{"rex", "Petal"},
-	{"mist", "Mist"},
-	{"meadow", "Meadow"},
-	{"dusk", "Dusk"},
-	{"plain", "Plain"},
+// KeroThemes are kero's themes: the wash each shows under the window's
+// cards, and its name in the configuration.
+var KeroThemes = []struct{ ID, Name string }{
+	{"rex", "petal"},
+	{"mist", "mist"},
+	{"meadow", "meadow"},
+	{"dusk", "dusk"},
+	{"tide", "tide"},
+	{"apricot", "apricot"},
+	{"aurora", "aurora"},
+	{"dune", "dune"},
+	{"paper", "paper"},
+	{"plain", "plain"},
 }
 
 // Path returns the settings' file, the configuration (ConfigPath).
@@ -266,9 +270,18 @@ func migrate() {
 	if err != nil {
 		return
 	}
-	s := Default()
-	if json.Unmarshal(b, &s) != nil {
+	// Then, the themes were "kero" for background's.
+	old := struct {
+		Settings
+		Background string `json:"background"`
+	}{Settings: Default()}
+	old.LightTheme, old.DarkTheme = "kero", "kero"
+	if json.Unmarshal(b, &old) != nil {
 		return
+	}
+	s := old.Settings
+	if bg := keroThemeName(old.Background); bg != "" {
+		s.LightTheme, s.DarkTheme = keroTheme(s.LightTheme, bg), keroTheme(s.DarkTheme, bg)
 	}
 	s.normalize()
 	if write(s) == nil {
@@ -376,13 +389,6 @@ func (s *Settings) normalize() {
 	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
 	oneOf(&s.FileOpen, d.FileOpen, "system", "pane")
-	known := false
-	for _, b := range Backgrounds {
-		known = known || b.ID == s.Background
-	}
-	if !known {
-		s.Background = d.Background
-	}
 	if s.FontSize < 8 || s.FontSize > 36 {
 		s.FontSize = d.FontSize
 	}
@@ -401,12 +407,28 @@ func (s *Settings) normalize() {
 	if s.Scrollback < 0 || s.Scrollback > 256 {
 		s.Scrollback = d.Scrollback
 	}
-	if s.LightTheme == "" {
-		s.LightTheme = d.LightTheme
+	s.LightTheme, s.DarkTheme = keroTheme(s.LightTheme, d.LightTheme), keroTheme(s.DarkTheme, d.DarkTheme)
+}
+
+// keroTheme is a theme as kero had it before theme took kero's themes by
+// name: "kero" was the one background chose, bg, and "" none.
+func keroTheme(theme, bg string) string {
+	if theme == "" || theme == "kero" {
+		return bg
 	}
-	if s.DarkTheme == "" {
-		s.DarkTheme = d.DarkTheme
+	return theme
+}
+
+// keroThemeName is the name of one of kero's themes as background, which
+// theme followed before it took them by name, wrote it: "rex" in the JSON
+// settings, else as theme does; "" for none.
+func keroThemeName(bg string) string {
+	for _, t := range KeroThemes {
+		if bg == t.ID || bg == t.Name {
+			return t.Name
+		}
 	}
+	return ""
 }
 
 // ParseHost reads a host as the configuration's host key writes it:

@@ -171,7 +171,7 @@ func TestMigratesSettingsJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "font-size = 16") || strings.Contains(string(b), "background") {
+	if !strings.Contains(string(b), "font-size = 16") || !strings.Contains(string(b), "theme = petal") {
 		t.Errorf("config:\n%s", b)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "settings.json")); err == nil {
@@ -227,6 +227,34 @@ func TestFileOpen(t *testing.T) {
 	}
 	if bad, probs := parse("file-open = editor\n"); bad.FileOpen != "pane" || len(probs) != 1 {
 		t.Errorf("the removed editor choice read as %q, problems %q", bad.FileOpen, probs)
+	}
+}
+
+// background, which chose kero's theme before theme took kero's themes
+// by name, still does, for theme = kero too; saving writes theme in its
+// place.
+func TestLegacyBackground(t *testing.T) {
+	tests := []struct{ file, light, dark string }{
+		{"background = mist\n", "mist", "mist"},
+		{"background = mist\ntheme = kero\n", "mist", "mist"},
+		{"background = mist\ntheme = light:kero,dark:Catppuccin Mocha\n", "mist", "Catppuccin Mocha"},
+		{"theme = dusk\nbackground = mist\n", "dusk", "dusk"},
+		{"theme = kero\n", "paper", "paper"},
+		{"", "paper", "paper"},
+	}
+	for _, tt := range tests {
+		s, probs := parse(tt.file)
+		if s.LightTheme != tt.light || s.DarkTheme != tt.dark || len(probs) > 0 {
+			t.Errorf("%q: themes %q and %q, problems %q; want %q and %q", tt.file, s.LightTheme, s.DarkTheme, probs, tt.light, tt.dark)
+		}
+	}
+	if _, probs := parse("background = nope\n"); len(probs) != 1 {
+		t.Errorf("problems %q", probs)
+	}
+	file := "# mine\nbackground = mist\nfont-size = 14\n"
+	s, _ := parse(file)
+	if out := format(s, file); out != "# mine\ntheme = mist\nfont-size = 14\n" {
+		t.Errorf("formatted:\n%s", out)
 	}
 }
 

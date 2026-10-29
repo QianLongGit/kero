@@ -324,13 +324,9 @@ func (a *App) quickChanged() {
 // quickView is the panel's content: the terminal, or what keeps it.
 func (a *App) quickView(c *ui.Context) {
 	q := &a.quick
+	a.looks()
 	pal := paletteFor(c)
-	light, dark := a.termThemes()
-	bg := light.Background
-	if c.Theme().Dark {
-		bg = dark.Background
-	}
-	c.Root().Background(bg)
+	c.Root().Background(lookFor(c).term.Background)
 	switch {
 	case q.e != nil && q.e.term != nil:
 		terminal.View(c.Key("term"), q.e.term).Fill().Bind(&q.ref)
