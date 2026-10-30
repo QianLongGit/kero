@@ -214,7 +214,9 @@ func (c *tmuxCache) get(now time.Time) *tmuxSnapshot {
 // tmuxRun is the cache's runner: the tmux binary's path, looked for once —
 // a host without it fails every query, which the cache holds as an empty
 // snapshot — asked under a deadline of its own, its combined output (a
-// complaint of tmux's included) trimmed.
+// complaint of tmux's included) trimmed of trailing newlines alone: a
+// pane's last field is its start command, often empty, whose separating
+// tab a wider trim would take, dropping the pane.
 func tmuxRun() func(ctx context.Context, args ...string) (string, error) {
 	look := sync.OnceValues(func() (string, error) { return exec.LookPath("tmux") })
 	return func(ctx context.Context, args ...string) (string, error) {
@@ -225,6 +227,6 @@ func tmuxRun() func(ctx context.Context, args ...string) (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput()
-		return strings.TrimSpace(string(out)), err
+		return strings.TrimRight(string(out), "\n"), err
 	}
 }

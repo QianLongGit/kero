@@ -16,7 +16,7 @@ import (
 // whatever else comes out of it — an empty line, a row short of its
 // fields — is dropped rather than taken for data.
 func TestTmuxParse(t *testing.T) {
-	clients := parseClients("/dev/pts/3\tmain\n/dev/pts/5\twork\n\n/dev/pts/9\n")
+	clients := parseClients("\n/dev/pts/3\tmain\n/dev/pts/5\twork\n\n/dev/pts/9\n")
 	want := []tmuxClient{{TTY: "/dev/pts/3", Session: "main"}, {TTY: "/dev/pts/5", Session: "work"}}
 	if !slices.Equal(clients, want) {
 		t.Errorf("clients %+v, want %+v", clients, want)
@@ -29,11 +29,15 @@ func TestTmuxParse(t *testing.T) {
 		"",
 		"/dev/pts/8\twork\t$3",
 		"junk",
+		// Last line, its start command empty: the tab that ends it is a
+		// field separator, not trailing whitespace.
+		"/dev/pts/9\twork\t$3\t1\t1\tzsh\t",
 	}, "\n"))
 	wanted := []tmuxPane{
 		{TTY: "/dev/pts/4", Session: "main", SessionID: "$2", Command: "claude", StartCommand: "claude", WindowActive: true, PaneActive: true},
 		{TTY: "/dev/pts/6", Session: "main", SessionID: "$2", Command: "zsh", StartCommand: "zsh -l", WindowActive: true},
 		{TTY: "/dev/pts/7", Session: "main", SessionID: "$2", Command: "node", StartCommand: "node claude.js"},
+		{TTY: "/dev/pts/9", Session: "work", SessionID: "$3", Command: "zsh", WindowActive: true, PaneActive: true},
 	}
 	if !slices.Equal(panes, wanted) {
 		t.Errorf("panes %+v, want %+v", panes, wanted)
@@ -143,7 +147,7 @@ func TestTmuxRun(t *testing.T) {
 	script := `#!/bin/sh
 case "$1" in
 list-clients) printf '/dev/pts/3\tmain\n' ;;
-*) printf '/dev/pts/4\tmain\t$2\t1\t1\tclaude\tclaude\n' ;;
+*) printf '/dev/pts/4\tmain\t$2\t1\t1\tclaude\tclaude\n/dev/pts/5\tmain\t$2\t1\t0\tzsh\t\n' ;;
 esac
 `
 	if err := os.WriteFile(filepath.Join(bin, "tmux"), []byte(script), 0o755); err != nil {
@@ -152,8 +156,11 @@ esac
 	t.Setenv("PATH", bin)
 	c := tmuxCache{run: tmuxRun(), ttl: 2 * time.Second}
 	s := c.get(time.Now())
+	// The last pane's start command is empty, its line ending in the tab
+	// that says so: the pane is data, not trailing whitespace to trim.
 	if len(s.Clients) != 1 || s.Clients[0].Session != "main" ||
-		len(s.Panes) != 1 || s.Panes[0].SessionID != "$2" || !s.Panes[0].WindowActive || s.Panes[0].Command != "claude" {
+		len(s.Panes) != 2 || s.Panes[0].SessionID != "$2" || !s.Panes[0].WindowActive || s.Panes[0].Command != "claude" ||
+		s.Panes[1].Command != "zsh" || s.Panes[1].StartCommand != "" {
 		t.Fatalf("snapshot %+v", s)
 	}
 }
