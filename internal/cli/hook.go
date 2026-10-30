@@ -19,11 +19,11 @@ import (
 	"kero/internal/proto"
 )
 
-// hookCmd is what an agent runs as its session starts (the hook `kero
-// skill setup` installs): it tells the agent that it runs in Kero, in
-// which session and pane, and tells kerod the agent's own session, to
-// resume after a restart. It never fails the agent: outside Kero, or on
-// any trouble, it says nothing.
+// hookCmd is what an agent's hooks run (the ones `kero skill setup`
+// installs), on each event kero takes: it tells kerod what the agent's
+// conversation is doing, and on SessionStart answers the agent that it
+// runs in Kero, in which session and pane. It never fails the agent:
+// outside Kero, or on any trouble, it says nothing.
 func hookCmd(args []string) error {
 	agent := ""
 	if len(args) > 0 {
@@ -32,46 +32,105 @@ func hookCmd(args []string) error {
 	if agent == "context" && len(args) >= 3 {
 		return contextCmd(args[1], args[2], len(args) > 3 && args[3] == "wait")
 	}
-	pane := os.Getenv("KERO_PANE")
-	var in struct {
-		Event   string `json:"hook_event_name"`
-		AgentID string `json:"agent_id"`   // set for Claude Code's subagents
-		Session string `json:"session_id"` // the agent's own
-		Cwd     string `json:"cwd"`
-		Source  string `json:"source"` // "startup", "resume", "clear", "compact"
-	}
+	var in hookInput
 	json.NewDecoder(io.LimitReader(os.Stdin, 1<<20)).Decode(&in)
-	if pane == "" || in.Event != "SessionStart" || in.AgentID != "" {
-		return nil
+	if in.AgentID != "" || !slices.Contains(hookEvents, in.Event) {
+		return nil // a subagent's event, or one kero doesn't take
 	}
 	if t := os.Getenv("CODEX_THREAD_ID"); t != "" && in.Session != "" && t != in.Session {
 		return nil // a Codex run by another agent in this pane, not the pane's
 	}
-	sid, away := os.Getenv("KERO_SESSION"), false
 	c, err := client.Connect(true)
 	if err != nil {
-		c = nil
-	} else {
-		defer c.Close()
-		if in.Session != "" {
-			// kerod tells the pane: the environment may be that of
-			// another, as when Codex's app server, which panes share,
-			// runs the hook.
-			var r proto.AgentSessionResult
-			if c.Call("pane.agentSession", proto.AgentSessionParams{PID: os.Getpid(), Agent: agent, Session: in.Session, Dir: in.Cwd}, &r) != nil {
-				return nil
-			}
-			pane, sid, away = r.Pane, r.Session, r.Away
-		}
-		if in.Source != "resume" && in.Source != "compact" {
-			forgetAgentName(c, pane, sid)
-		}
+		return nil
+	}
+	defer c.Close()
+	p := agentEventParams(in, agent, os.Getenv("KERO_PANE"), os.Getenv("TMUX"), controllingTTY())
+	p.PID = os.Getpid()
+	// kerod tells the pane the event is of: the environment may be that
+	// of another, as when Codex's app server, which panes share, runs
+	// the hook.
+	var r proto.AgentEventResult
+	if hookCall(c, "pane.agentEvent", p, &r) != nil {
+		return nil
+	}
+	if in.Event != "SessionStart" {
+		return nil
+	}
+	if in.Source != "resume" && in.Source != "compact" {
+		forgetAgentName(c, r.Pane, r.Session)
 	}
 	out := map[string]any{"hookSpecificOutput": map[string]string{
 		"hookEventName":     "SessionStart",
-		"additionalContext": hookContext(c, pane, sid, away),
+		"additionalContext": hookContext(c, r.Pane, r.Session, r.Away),
 	}}
 	return json.NewEncoder(os.Stdout).Encode(out)
+}
+
+// hookInput is what a hook's stdin carries, of the event it runs on, as
+// Claude Code's hook JSON has it.
+type hookInput struct {
+	Event   string `json:"hook_event_name"`
+	AgentID string `json:"agent_id"`   // set for Claude Code's subagents
+	Session string `json:"session_id"` // the agent's own
+	Cwd     string `json:"cwd"`
+	Source  string `json:"source"` // "startup", "resume", "clear", "compact"
+	Message string `json:"message"`
+}
+
+// hookEvents are the events kero's hooks tell kerod of, by
+// hook_event_name: the life of an agent's conversation.
+var hookEvents = []string{"SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd"}
+
+// agentEventParams is a hook's input as kerod takes it, in the
+// environment the hook runs in — its pane ($KERO_PANE), its tmux socket
+// ($TMUX), its terminal — for kerod to tell the pane by. PID is the
+// hook's own process, the caller's to set.
+func agentEventParams(in hookInput, agent, pane, tmux, tty string) proto.AgentEventParams {
+	return proto.AgentEventParams{
+		Pane:    pane,
+		Agent:   agent,
+		Session: in.Session,
+		Dir:     in.Cwd,
+		Event:   in.Event,
+		Message: in.Message,
+		Tmux:    tmux,
+		TTY:     tty,
+	}
+}
+
+// hookDeadline bounds a hook's calls to kerod, so a daemon that hangs
+// can't hold the hook past the timeout of its entry in the agent's
+// settings.
+var hookDeadline = 2 * time.Second
+
+// hookCall calls a method of kerod as a hook does, under hookDeadline:
+// a timeout is an error like any other, silence to the hook. Closing
+// the client unbinds the call's goroutine from a socket that will
+// never answer.
+func hookCall(c *client.Client, method string, params, out any) error {
+	ch := make(chan error, 1)
+	go func() { ch <- c.Call(method, params, out) }()
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(hookDeadline):
+		c.Close()
+		return errors.New("kerod did not answer in time")
+	}
+}
+
+// controllingTTY names the controlling terminal the hook runs on
+// (/dev/pts/3): what a tmux pane's program reads, for kerod to tell the
+// kero pane that forwards it. "" when there is none, as under a daemon
+// or CI, or its name can't be had.
+func controllingTTY() string {
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		return ""
+	}
+	defer tty.Close()
+	return ttyName(tty)
 }
 
 // forgetAgentName drops the name an agent gave session sid, as a new

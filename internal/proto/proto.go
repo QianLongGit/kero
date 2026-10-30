@@ -907,6 +907,21 @@ type (
 		Session string `json:"session"`
 		Dir     string `json:"dir,omitempty"` // the agent's, to tell its pane by
 	}
+	// AgentEventParams tell a pane's agent's event (kero hook): what its
+	// hook saw, with where it runs — its pane ($KERO_PANE), its terminal
+	// (TTY, the pty it reads), its tmux socket (Tmux) when inside tmux —
+	// for kerod to tell the pane by, as the pane whose shell runs PID.
+	AgentEventParams struct {
+		PID     int    `json:"pid"`
+		Pane    string `json:"pane"`
+		Agent   string `json:"agent"`
+		Session string `json:"session"`
+		Dir     string `json:"dir"`
+		Event   string `json:"event"`
+		Message string `json:"message"`
+		Tmux    string `json:"tmux"`
+		TTY     string `json:"tty"`
+	}
 	// ConversationParams names a conversation (Conversation), to resume
 	// in a session after After, of Cols and Rows, to forget, or to
 	// archive or not, as Archived.
@@ -924,6 +939,13 @@ type (
 		Pane    string `json:"pane"`
 		Session string `json:"session"`
 		Away    bool   `json:"away,omitempty"`
+	}
+	// AgentEventResult is the pane an event was told of, and its session;
+	// Away is AgentSessionResult's.
+	AgentEventResult struct {
+		Pane    string `json:"pane"`
+		Session string `json:"session"`
+		Away    bool   `json:"away"`
 	}
 	ProjectParams struct {
 		ID   string `json:"id,omitempty"`

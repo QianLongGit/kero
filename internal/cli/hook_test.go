@@ -1,11 +1,19 @@
 package cli
 
 import (
+	"bufio"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"kero/internal/client"
+	"kero/internal/proto"
 )
 
 func testHook(t *testing.T, settings string) agentHook {
@@ -176,5 +184,82 @@ func TestAgentPlugins(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".pi", "agent", "extensions")); err != nil {
 		t.Fatal("Pi's extensions directory went with Kero's extension")
+	}
+}
+
+// The params carry the event as the hook saw it, in the environment it
+// runs in, for kerod to tell the pane by.
+func TestAgentEventParams(t *testing.T) {
+	const pane, tmux, tty = "p1", "/tmp/tmux-1000/default,1234,0", "/dev/pts/3"
+	for _, in := range []hookInput{
+		{Event: "SessionStart", Session: "cc81", Cwd: "/work", Source: "startup"},
+		{Event: "UserPromptSubmit", Session: "cc81", Cwd: "/work", Message: "fix the bug"},
+		{Event: "Notification", Session: "cc81", Message: "Claude needs your permission to use Bash"},
+		{Event: "Stop", Session: "cc81", Cwd: "/work"},
+		{Event: "SessionEnd", Session: "cc81"},
+	} {
+		want := proto.AgentEventParams{
+			Pane: pane, Agent: "claude", Session: in.Session, Dir: in.Cwd,
+			Event: in.Event, Message: in.Message, Tmux: tmux, TTY: tty,
+		}
+		if got := agentEventParams(in, "claude", pane, tmux, tty); got != want {
+			t.Errorf("%s: got %+v, want %+v", in.Event, got, want)
+		}
+	}
+	// Outside kero and tmux there is nothing to tell the pane by.
+	if got := agentEventParams(hookInput{Event: "Stop"}, "claude", "", "", ""); got != (proto.AgentEventParams{Agent: "claude", Event: "Stop"}) {
+		t.Errorf("outside kero: %+v", got)
+	}
+}
+
+// hungDaemon listens on KERO_SOCKET, welcomes the client, and never
+// answers its calls: a daemon that hangs, as one whose socket a hook's
+// call would wait on forever.
+func hungDaemon(t *testing.T) {
+	t.Helper()
+	sock := filepath.Join(t.TempDir(), "kerod.sock")
+	t.Setenv("KERO_SOCKET", sock)
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				r := bufio.NewReader(c)
+				if _, err := r.ReadString('\n'); err != nil { // the Hello
+					return
+				}
+				fmt.Fprintf(c, "{\"version\":%d}\n", proto.Version) // the Welcome
+				io.Copy(io.Discard, r)                              // then nothing
+			}(conn)
+		}
+	}()
+}
+
+// A hook's call waits no longer than its deadline: a daemon that never
+// answers is an error, so the hook goes silent instead of hanging the
+// agent that runs it.
+func TestHookCallDeadline(t *testing.T) {
+	hungDaemon(t)
+	c, err := client.Connect(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	old := hookDeadline
+	hookDeadline = 50 * time.Millisecond
+	defer func() { hookDeadline = old }()
+	start := time.Now()
+	if err := hookCall(c, "pane.agentEvent", proto.AgentEventParams{Event: "Stop"}, nil); err == nil {
+		t.Fatal("a daemon that never answers was no error")
+	} else if d := time.Since(start); d > time.Second {
+		t.Fatalf("the call took %s, past its deadline", d)
 	}
 }
