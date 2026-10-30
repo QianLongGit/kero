@@ -238,6 +238,9 @@ func (a *App) filesPreviewRow(c *ui.Context, pal *palette, t *fileTree) {
 	row := ui.Row(c.Key("files-open")).Shrink(0).Padding(6, 8, 10, 8).Gap(4).AlignItems(ui.Center)
 	row.Children(func() {
 		ui.Spacer(c)
+		// Reload reads the tree's folders anew: a listing sits as it
+		// came, and a machine that changed since has its say only here.
+		iconButton(c, "tree-refresh", reloadIcon, locales.FilesRefresh(), pal, func() { a.defer_(func() { a.refreshTree(t) }) })
 		on := a.filesPreview()
 		fg := pal.textFaint
 		if on {
@@ -344,6 +347,18 @@ func (a *App) fetchDir(t *fileTree, path string) {
 			d.paths = paths
 		})
 	}()
+}
+
+// refreshTree empties the tree's listings, each folder reading anew as
+// the view asks for it: what changed on the machine since the tree
+// opened — a file added, a folder gone — reads fresh now. gen drops an
+// answer still on its way, and busy comes off for the asking to start
+// over; the folders stay as open as they were.
+func (a *App) refreshTree(t *fileTree) {
+	for _, d := range t.dirs {
+		d.paths, d.err, d.busy = nil, "", false
+		d.gen++
+	}
 }
 
 // treeView is the tree: a folder's folders and files, whose folders open

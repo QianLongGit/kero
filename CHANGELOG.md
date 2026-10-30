@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.20
+
+- The Files view's tree has a **Reload** button, beside the Preview
+  one: a folder's listing sits as it came, and what changed on the
+  machine since — a file added, a folder gone — shows once it reads
+  the tree anew. It works for the local machine's folders and a remote
+  host's alike.
+
 ## 2.3.19
 
 - **Smart details**, under Settings › Git, takes a session's detailed

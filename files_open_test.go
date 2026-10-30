@@ -40,12 +40,13 @@ type filesHost struct {
 	h *host
 
 	mu       sync.Mutex
-	files    map[string][]byte     // the host's, by path
-	reads    map[string]int        // fs.read as they came, by path
-	writes   []proto.FSWriteParams // fs.write as they came
-	writeErr error                 // what fs.write answers instead, nil for ok
-	readErr  error                 // what fs.read answers instead, nil for ok
-	split    *proto.CreateParams   // the split the pane's open made, nil for none
+	files    map[string][]byte          // the host's, by path
+	listing  map[string][]proto.FSEntry // fs.list's answers, by dir, nil for empty
+	reads    map[string]int             // fs.read as they came, by path
+	writes   []proto.FSWriteParams      // fs.write as they came
+	writeErr error                      // what fs.write answers instead, nil for ok
+	readErr  error                      // what fs.read answers instead, nil for ok
+	split    *proto.CreateParams        // the split the pane's open made, nil for none
 
 	// ui stands for the UI thread: the app's updates run one at a time
 	// under it, and what a test asks of their state takes it too.
@@ -117,6 +118,9 @@ func (f *filesHost) handle(method string, raw json.RawMessage) (any, error) {
 		var p proto.FSListParams
 		if err := json.Unmarshal(raw, &p); err != nil {
 			return nil, err
+		}
+		if e, ok := f.listing[p.Dir]; ok {
+			return proto.FSList{Dir: p.Dir, Home: "/", Entries: e}, nil
 		}
 		return proto.FSList{Dir: p.Dir, Home: "/", Entries: []proto.FSEntry{}}, nil
 	case "split":
@@ -676,6 +680,62 @@ func TestFilesOpenWithRemoteMenu(t *testing.T) {
 		t.Fatalf("a remote file's menu is %q, want %q", got, want)
 	}
 	tt.CloseMenu()
+}
+
+// The tree's Reload button reads its folders anew: a listing sits as
+// it came, and a file the host gained since the tree opened shows only
+// after it.
+func TestFilesRefresh(t *testing.T) {
+	f := newFilesHost(t)
+	f.listing = map[string][]proto.FSEntry{
+		"/srv/demo": {{Name: "main.go"}},
+	}
+	a := f.a
+	a.prefs.Side = sideFiles
+	s := &a.st.Sessions[0]
+	s.Panes[0].ProcessDir = "/srv/demo"
+	pane, root := a.filesRoot(s)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	// The tree read its folder as it opened.
+	f.waitsFor(t, func() error {
+		if d := a.tree(pane, root).dirs[root]; d == nil || d.paths == nil {
+			return errors.New("no listing")
+		}
+		return nil
+	})
+	tt.Frame()
+	if !tt.HasText("main.go") {
+		t.Fatalf("the tree shows no main.go; texts %q", tt.Texts())
+	}
+	// The host gains a file; the listing sits as it read until the
+	// button reads it anew.
+	f.mu.Lock()
+	f.listing["/srv/demo"] = append(f.listing["/srv/demo"], proto.FSEntry{Name: "added.go"})
+	f.mu.Unlock()
+	tt.Frame()
+	if tt.HasText("added.go") {
+		t.Fatal("added.go shows before any reload")
+	}
+	if err := tt.Click(locales.FilesRefresh()); err != nil {
+		t.Fatal(err)
+	}
+	f.waitsFor(t, func() error {
+		d := a.tree(pane, root).dirs[root]
+		if d == nil || d.paths == nil {
+			return errors.New("the reload left no listing")
+		}
+		for _, p := range d.paths {
+			if strings.HasSuffix(p, "added.go") {
+				return nil
+			}
+		}
+		return errors.New("the reload kept the old listing")
+	})
+	tt.Frame()
+	if !tt.HasText("added.go") {
+		t.Errorf("the reloaded tree shows no added.go; texts %q", tt.Texts())
+	}
 }
 
 // What a click on a remote file opens is the file of the cache: the
