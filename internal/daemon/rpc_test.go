@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -47,6 +48,54 @@ func sessionByID(t *testing.T, d *Daemon, id string) proto.Session {
 	}
 	t.Fatalf("no session %s in the state", id)
 	return proto.Session{}
+}
+
+// hooks.setup and hooks.remove put kero's hooks in the agent's settings
+// and take them out, answering the state they leave — the GUI drives
+// them per host — and a remove leaves the marker that keeps the
+// daemon's startup ensure from putting them right back; a setup beats
+// the marker, for it is the user asking for the hooks.
+func TestHooksRPC(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home) // the marker goes there
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "codex"))
+	d := testDaemon(t)
+	call := func(method string) proto.HooksResult {
+		t.Helper()
+		raw, err := json.Marshal(proto.HooksParams{Agent: "claude"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := d.call(nil, method, raw)
+		if err != nil {
+			t.Fatalf("%s: %v", method, err)
+		}
+		r, ok := out.(proto.HooksResult)
+		if !ok {
+			t.Fatalf("%s answered %T", method, out)
+		}
+		return r
+	}
+	if got := call("hooks.state").State; got != "missing" {
+		t.Fatalf("state %s before setup", got)
+	}
+	if got := call("hooks.setup").State; got != "current" {
+		t.Fatalf("state %s after setup", got)
+	}
+	if got := call("hooks.remove").State; got != "missing" {
+		t.Fatalf("state %s after remove", got)
+	}
+	if _, err := os.Stat(filepath.Join(home, "no-agent-hooks")); err != nil {
+		t.Fatal("remove left no marker")
+	}
+	if got := call("hooks.setup").State; got != "current" {
+		t.Fatalf("state %s after setup over the marker", got)
+	}
+	if _, err := os.Stat(filepath.Join(home, "no-agent-hooks")); !os.IsNotExist(err) {
+		t.Fatal("setup left the removal marker")
+	}
 }
 
 // A pin set by session.move shows in the state, and survives a restart:

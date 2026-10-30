@@ -8,10 +8,13 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"kero/internal/proto"
 )
 
 func testHook(t *testing.T, settings string) Hook {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir()) // the marker goes there
 	t.Setenv("KERO_HOME", filepath.Join(t.TempDir(), "kero home"))
 	h := Hook{Agent: "claude", Events: claudeEvents, File: filepath.Join(t.TempDir(), "settings.json")}
 	if settings != "" {
@@ -286,6 +289,7 @@ func TestHooksForAgents(t *testing.T) {
 // nothing when they are kero's own already; Remove and State speak for
 // the package as a whole.
 func TestEnsureAgent(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // the marker goes there
 	t.Setenv("KERO_HOME", filepath.Join(t.TempDir(), "kero home"))
 	dir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", dir)
@@ -312,5 +316,57 @@ func TestEnsureAgent(t *testing.T) {
 	}
 	if st := State("claude"); st != "missing" {
 		t.Fatalf("state %s after remove:\n%s", st, read(t, file))
+	}
+}
+
+// The marker an explicit removal leaves — `kero skill remove`, or the
+// hooks.remove RPC — keeps the daemon's ensure from putting the hooks
+// back: a removal stays until a setup takes the marker away. The marker
+// is one for every agent: it tells of kero's hooks, not one agent's.
+func TestEnsureMarker(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home) // the marker goes there
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "codex"))
+	marker := filepath.Join(proto.Home(), "no-agent-hooks")
+	settings := filepath.Join(dir, "settings.json")
+
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Ensure("claude"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(settings); !os.IsNotExist(err) {
+		t.Fatal("ensure installed the hooks the marker refuses:\n" + read(t, settings))
+	}
+
+	os.Remove(marker)
+	if err := Setup("claude"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("setup left the removal marker")
+	}
+	if st := State("claude"); st != "current" {
+		t.Fatalf("state %s after setup", st)
+	}
+
+	if err := Remove("claude"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("remove left no marker")
+	}
+	if st := State("claude"); st != "missing" {
+		t.Fatalf("state %s after remove", st)
+	}
+	if err := Ensure("claude"); err != nil {
+		t.Fatal(err)
+	}
+	if st := State("claude"); st != "missing" {
+		t.Fatal("ensure healed the hooks past the marker:\n" + read(t, settings))
 	}
 }

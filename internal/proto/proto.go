@@ -947,6 +947,16 @@ type (
 		Session string `json:"session"`
 		Away    bool   `json:"away"`
 	}
+	// HooksParams name the agent whose hooks a hooks.setup, hooks.remove
+	// or hooks.state call takes, as `kero hook` names it: "claude".
+	HooksParams struct {
+		Agent string `json:"agent"`
+	}
+	// HooksResult tells of kero's hooks for the agent after the call:
+	// "current", "outdated" or "missing", as the settings show them.
+	HooksResult struct {
+		State string `json:"state"`
+	}
 	ProjectParams struct {
 		ID   string `json:"id,omitempty"`
 		Name string `json:"name,omitempty"`

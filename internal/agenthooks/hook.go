@@ -118,10 +118,15 @@ func (h Hook) scan(settings object) (settled, ours bool) {
 
 // Install puts the hook in the agent's settings, for every event it
 // takes, in place of kero's others, keeping the rest of the file as it
-// is.
+// is — and takes the removal marker away, for a setup is the answer to
+// the removal that wrote it.
 func (h Hook) Install() error {
 	LinkCLI()
-	return h.edit(true)
+	if err := h.edit(true); err != nil {
+		return err
+	}
+	os.Remove(marker()) // absent mostly; an error only leaves a stale one
+	return nil
 }
 
 // LinkCLI makes the kero command that hooks and plugins run, should kerod
@@ -139,12 +144,16 @@ func LinkCLI() {
 }
 
 // Remove takes kero's hooks out of the agent's settings, and the events
-// they leave empty.
+// they leave empty — and writes the marker, so that the daemon's ensure
+// does not put them right back.
 func (h Hook) Remove() error {
 	if _, err := os.Stat(h.File); errors.Is(err, os.ErrNotExist) {
-		return nil
+		return markRemoved()
 	}
-	return h.edit(false)
+	if err := h.edit(false); err != nil {
+		return err
+	}
+	return markRemoved()
 }
 
 func (h Hook) edit(add bool) error {
@@ -268,8 +277,20 @@ func Hooks(agent string) []Hook {
 
 // Ensure installs kero's hooks for agent where they are missing or
 // outdated: what the daemon does as it starts, for agents to be hooked
-// without anyone running `kero skill setup`.
+// without anyone running `kero skill setup`. A removal the user asked
+// for stays: while its marker is there, ensure touches nothing.
 func Ensure(agent string) error {
+	if removed() {
+		return nil
+	}
+	return Setup(agent)
+}
+
+// Setup installs kero's hooks for agent whatever the removal marker
+// says, taking the marker away (Install does): what an explicit setup
+// is — `kero skill setup`, the hooks.setup RPC — the answer to the
+// removal the marker holds.
+func Setup(agent string) error {
 	for _, h := range Hooks(agent) {
 		if err := h.Install(); err != nil {
 			return err
@@ -304,6 +325,28 @@ func State(agent string) string {
 		return "missing"
 	}
 	return "outdated"
+}
+
+// marker is the file an explicit removal — `kero skill remove`, the
+// hooks.remove RPC — leaves in the user's home: kero's hooks, once
+// taken out on purpose, stay out. One marker tells of kero's hooks as a
+// whole, not one agent's, so any removal is the user refusing them.
+func marker() string {
+	return filepath.Join(proto.Home(), "no-agent-hooks")
+}
+
+// removed tells whether the marker is there.
+func removed() bool {
+	_, err := os.Stat(marker())
+	return err == nil
+}
+
+// markRemoved writes the marker; Install takes it away.
+func markRemoved() error {
+	if removed() {
+		return nil
+	}
+	return os.WriteFile(marker(), nil, 0o644)
 }
 
 // object is a JSON object that keeps its keys' order, so that editing a

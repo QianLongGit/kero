@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/term"
 
+	"kero/internal/agenthooks"
 	"kero/internal/cli"
 	"kero/internal/clilink"
 	"kero/internal/daemon"
@@ -33,6 +34,9 @@ func main() {
 	if len(os.Args) > 1 {
 		switch {
 		case os.Args[1] == "__kerod":
+			// The hooks self-heal at startup, an explicit removal's marker
+			// aside, so agents report without anyone running the setup.
+			_ = agenthooks.Ensure("claude")
 			if err := daemon.Run(daemon.Options{}); err != nil {
 				fmt.Fprintln(os.Stderr, "kerod:", err)
 				os.Exit(1)

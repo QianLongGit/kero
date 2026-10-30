@@ -120,6 +120,35 @@ func TestHookEventsMatchInstalled(t *testing.T) {
 	}
 }
 
+// `kero skill remove` leaves the marker that keeps the daemon's ensure
+// from putting the hooks back, and `kero skill setup` takes it away as
+// it installs: a removal the user asked for stays, and so does a setup.
+func TestHooksSkillMarker(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	for _, env := range []string{"CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME"} {
+		t.Setenv(env, "")
+	}
+	marker := filepath.Join(proto.Home(), "no-agent-hooks")
+	if err := skillCmd([]string{"remove", "--agent", "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("skill remove left no marker")
+	}
+	if err := skillCmd([]string{"setup", "--agent", "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("skill setup left the removal marker")
+	}
+	if st := agenthooks.State("claude"); st != "current" {
+		t.Fatalf("state %s after setup", st)
+	}
+}
+
 // hungDaemon listens on KERO_SOCKET, welcomes the client, and never
 // answers its calls: a daemon that hangs, as one whose socket a hook's
 // call would wait on forever.

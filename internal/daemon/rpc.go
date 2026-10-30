@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"kero/internal/agenthooks"
 	"kero/internal/proto"
 	"kero/internal/remote"
 )
@@ -403,6 +404,26 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			return nil, err
 		}
 		return d.agentEvent(p)
+
+	case "hooks.setup", "hooks.remove", "hooks.state":
+		var p proto.HooksParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		// setup beats the removal marker a remove leaves: it is the user
+		// asking for the hooks back, so the daemon's ensure heals them
+		// again.
+		switch method {
+		case "hooks.setup":
+			if err := agenthooks.Setup(p.Agent); err != nil {
+				return nil, err
+			}
+		case "hooks.remove":
+			if err := agenthooks.Remove(p.Agent); err != nil {
+				return nil, err
+			}
+		}
+		return proto.HooksResult{State: agenthooks.State(p.Agent)}, nil
 
 	case "conversations":
 		return d.conversations(), nil
