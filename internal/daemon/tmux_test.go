@@ -176,3 +176,93 @@ func TestTmuxWithoutTmux(t *testing.T) {
 		t.Error("the empty snapshot did not stand for its ttl")
 	}
 }
+
+// The pane that runs tmux does no work itself: the agent works in the
+// session the pane's terminal watches. The session's panes answer in the
+// order a user looks at them — the pane in front first, then a window no
+// one looks at — and a pane running a runtime names its agent by how its
+// shell started it.
+func TestTmuxAgent(t *testing.T) {
+	for _, test := range []struct {
+		what string
+		snap *tmuxSnapshot
+		tty  string
+		want string
+	}{
+		{
+			what: "the active pane's agent",
+			snap: &tmuxSnapshot{
+				Clients: []tmuxClient{{TTY: "/dev/pts/3", Session: "main"}},
+				Panes: []tmuxPane{
+					{TTY: "/dev/pts/4", Session: "main", Command: "claude", WindowActive: true, PaneActive: true},
+					{TTY: "/dev/pts/6", Session: "main", Command: "zsh", WindowActive: true},
+				},
+			},
+			tty:  "/dev/pts/3",
+			want: "claude",
+		},
+		{
+			what: "another session's agent unseen",
+			snap: &tmuxSnapshot{
+				Clients: []tmuxClient{{TTY: "/dev/pts/3", Session: "main"}},
+				Panes: []tmuxPane{
+					{TTY: "/dev/pts/4", Session: "work", Command: "codex", WindowActive: true, PaneActive: true},
+				},
+			},
+			tty:  "/dev/pts/3",
+			want: "",
+		},
+		{
+			what: "an agent behind the pane in front",
+			snap: &tmuxSnapshot{
+				Clients: []tmuxClient{{TTY: "/dev/pts/3", Session: "main"}},
+				Panes: []tmuxPane{
+					{TTY: "/dev/pts/4", Session: "main", Command: "codex", WindowActive: true, PaneActive: true},
+					{TTY: "/dev/pts/6", Session: "main", Command: "claude"},
+				},
+			},
+			tty:  "/dev/pts/3",
+			want: "codex",
+		},
+		{
+			what: "a runtime's script naming its agent",
+			snap: &tmuxSnapshot{
+				Clients: []tmuxClient{{TTY: "/dev/pts/3", Session: "main"}},
+				Panes: []tmuxPane{
+					{TTY: "/dev/pts/4", Session: "main", Command: "zsh", WindowActive: true, PaneActive: true},
+					{TTY: "/dev/pts/6", Session: "main", Command: "node",
+						StartCommand: "node /lib/node_modules/@anthropic-ai/claude-code/cli.js"},
+				},
+			},
+			tty:  "/dev/pts/3",
+			want: "claude",
+		},
+		{
+			what: "no session on the tty",
+			snap: &tmuxSnapshot{
+				Clients: []tmuxClient{{TTY: "/dev/pts/9", Session: "main"}},
+				Panes: []tmuxPane{
+					{TTY: "/dev/pts/4", Session: "main", Command: "claude", WindowActive: true, PaneActive: true},
+				},
+			},
+			tty:  "/dev/pts/3",
+			want: "",
+		},
+		{
+			what: "a session without an agent",
+			snap: &tmuxSnapshot{
+				Clients: []tmuxClient{{TTY: "/dev/pts/3", Session: "main"}},
+				Panes: []tmuxPane{
+					{TTY: "/dev/pts/4", Session: "main", Command: "zsh", WindowActive: true, PaneActive: true},
+					{TTY: "/dev/pts/6", Session: "main", Command: "node", StartCommand: "node server.js"},
+				},
+			},
+			tty:  "/dev/pts/3",
+			want: "",
+		},
+	} {
+		if got := tmuxAgent(test.snap, test.tty); got != test.want {
+			t.Errorf("%s: tmuxAgent = %q, want %q", test.what, got, test.want)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -101,6 +102,32 @@ func (s *tmuxSnapshot) sessionName(id string) string {
 	for _, p := range s.Panes {
 		if p.SessionID == id {
 			return p.Session
+		}
+	}
+	return ""
+}
+
+// tmuxAgent names the agent working in the tmux session the client on
+// paneTTY watches, "" for none. The session's panes answer in the order a
+// user looks at them, so the pane in front wins over one in a window no
+// one looks at; a pane running a runtime — an agent npm installed, that
+// node runs — names its agent by how its shell started it.
+func tmuxAgent(snap *tmuxSnapshot, paneTTY string) string {
+	session := snap.clientSession(paneTTY)
+	if session == "" {
+		return ""
+	}
+	for _, p := range snap.sessionPanes(session) {
+		if a := detectAgent(p.Command, nil); a != "" {
+			return a
+		}
+		switch p.Command {
+		case "node", "bun", "python", "python3", "deno":
+			if fields := strings.Fields(p.StartCommand); len(fields) > 0 {
+				if a := detectAgent(filepath.Base(fields[0]), fields[1:]); a != "" {
+					return a
+				}
+			}
 		}
 	}
 	return ""
