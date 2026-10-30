@@ -68,8 +68,11 @@ type Daemon struct {
 	viewed atomic.Pointer[string]
 	// theme is the colors of the client that last told them, which the
 	// panes answer programs' questions about the colors with.
-	theme    atomic.Pointer[terminal.Theme]
-	git      *gitFollow
+	theme atomic.Pointer[terminal.Theme]
+	git   *gitFollow
+	// tmux is the host's tmux as last read, for panes that run a tmux
+	// client and events that come from inside one.
+	tmux     tmuxCache
 	convs    convStore
 	net      *listeners
 	changeCh chan struct{}
@@ -150,6 +153,7 @@ func Run(opts Options) error {
 		watchers: map[*controlConn]struct{}{},
 		clients:  map[*proto.ClientInfo]struct{}{},
 		panes:    map[string]*pane{},
+		tmux:     tmuxCache{run: tmuxRun(), ttl: 2 * time.Second},
 		changeCh: make(chan struct{}, 1),
 		saveCh:   make(chan struct{}, 1),
 		quit:     make(chan struct{}),
