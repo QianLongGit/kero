@@ -945,7 +945,7 @@ type (
 	AgentEventResult struct {
 		Pane    string `json:"pane"`
 		Session string `json:"session"`
-		Away    bool   `json:"away"`
+		Away    bool   `json:"away,omitempty"`
 	}
 	// HooksParams name the agent whose hooks a hooks.setup, hooks.remove
 	// or hooks.state call takes, as `kero hook` names it: "claude".
