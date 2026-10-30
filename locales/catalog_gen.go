@@ -5348,6 +5348,26 @@ func (msgs Messages) HostReinstall() string {
 	return Catalog.Format(msgs.locale, "hostReinstall", nil)
 }
 
+// HostMenuInstallHooks says "Install Claude Code Hooks"
+// in the language the app shows.
+func HostMenuInstallHooks() string { return In(i18n.Locale()).HostMenuInstallHooks() }
+
+// HostMenuInstallHooks says "Install Claude Code Hooks"
+// in the language of msgs.
+func (msgs Messages) HostMenuInstallHooks() string {
+	return Catalog.Format(msgs.locale, "hostMenuInstallHooks", nil)
+}
+
+// HostMenuRemoveHooks says "Remove Claude Code Hooks"
+// in the language the app shows.
+func HostMenuRemoveHooks() string { return In(i18n.Locale()).HostMenuRemoveHooks() }
+
+// HostMenuRemoveHooks says "Remove Claude Code Hooks"
+// in the language of msgs.
+func (msgs Messages) HostMenuRemoveHooks() string {
+	return Catalog.Format(msgs.locale, "hostMenuRemoveHooks", nil)
+}
+
 // HostUpdateAction says "Update Kero on {host}…"
 // in the language the app shows.
 func HostUpdateAction(host string) string { return In(i18n.Locale()).HostUpdateAction(host) }
@@ -5742,6 +5762,26 @@ func SetHostRemoteControlDetail(host string) string {
 // in the language of msgs.
 func (msgs Messages) SetHostRemoteControlDetail(host string) string {
 	return Catalog.Format(msgs.locale, "setHostRemoteControlDetail", map[string]any{"host": host})
+}
+
+// SetHostHooks says "Claude Code hooks"
+// in the language the app shows.
+func SetHostHooks() string { return In(i18n.Locale()).SetHostHooks() }
+
+// SetHostHooks says "Claude Code hooks"
+// in the language of msgs.
+func (msgs Messages) SetHostHooks() string {
+	return Catalog.Format(msgs.locale, "setHostHooks", nil)
+}
+
+// SetHostHooksDetail says "Claude Code tells Kero what it's doing, and in which pane, so the sidebar shows its state."
+// in the language the app shows.
+func SetHostHooksDetail() string { return In(i18n.Locale()).SetHostHooksDetail() }
+
+// SetHostHooksDetail says "Claude Code tells Kero what it's doing, and in which pane, so the sidebar shows its state."
+// in the language of msgs.
+func (msgs Messages) SetHostHooksDetail() string {
+	return Catalog.Format(msgs.locale, "setHostHooksDetail", nil)
 }
 
 // SetListenTitle says "This Computer as a Host"

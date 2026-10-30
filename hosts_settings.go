@@ -209,6 +209,29 @@ func (a *App) hostRow(c *ui.Context, pal *palette, h *host) {
 				}
 			}
 		})
+		// The agent hooks on the host: what state they're in, and what the
+		// user may do about them, as the skills' rows at home.
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(0, 0, 0, 26).Children(func() {
+			l := a.hooksLook(h)
+			a.refreshHostHooks(h)
+			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				ui.Text(c, locales.SetHostHooks()).FontSize(12.5).TextColor(pal.text)
+				ui.Text(c, hooksDetail(l.state)).FontSize(12).TextColor(pal.textMuted).LineHeight(1.35)
+			})
+			remove, install := hooksOffers(l.state)
+			if remove && button(c, "hooks-remove", locales.CommonRemove(), "", false, pal) {
+				a.hostHooksAction(h, false)
+			}
+			if install {
+				label := locales.CommonInstall()
+				if l.state == "outdated" {
+					label = locales.CommonUpdate()
+				}
+				if button(c, "hooks-install", label, "", true, pal) {
+					a.hostHooksAction(h, true)
+				}
+			}
+		})
 	})
 }
 

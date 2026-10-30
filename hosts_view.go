@@ -76,7 +76,8 @@ func (a *App) hostHeader(c *ui.Context, pal *palette, h *host, top float32) {
 func (a *App) hostTag(c *ui.Context, pal *palette, h *host) {
 	col := pal.hostColor(h)
 	tag := ui.Row(c.Key("host")).Height(18).Padding(0, 6).Radius(5).AlignItems(ui.Center).Shrink(0).
-		Background(col.Alpha(0.14)).Tooltip(a.hostTip(h))
+		Background(col.Alpha(0.14)).Tooltip(a.hostTip(h)).
+		ContextMenu(func(m *ui.Menu) { a.hostMenu(m, h) })
 	if h.conn != connReady {
 		tag.Opacity(0.55)
 	}
@@ -258,6 +259,13 @@ func (a *App) hostMenu(m *ui.Menu, h *host) {
 	// cross to this fork's releases, moves only by a reinstall.
 	if m.Item(locales.HostReinstall()).Disabled(h.busy != "").Chosen() {
 		a.installOnHost(h)
+	}
+	// The agent hooks, as the host's row in Settings keeps them.
+	if m.Item(locales.HostMenuInstallHooks()).Disabled(h.cl == nil || h.busy != "").Chosen() {
+		a.hostHooksAction(h, true)
+	}
+	if m.Item(locales.HostMenuRemoveHooks()).Disabled(h.cl == nil || h.busy != "").Chosen() {
+		a.hostHooksAction(h, false)
 	}
 	a.colorMenu(m, h)
 	m.Separator()

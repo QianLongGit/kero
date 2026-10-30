@@ -895,6 +895,8 @@
     }
   },
   "hostReinstall": "Reinstall Kero…",
+  "hostMenuInstallHooks": "Install Claude Code Hooks",
+  "hostMenuRemoveHooks": "Remove Claude Code Hooks",
   "hostUpdateAction": "Update Kero on {host}…",
   "@hostUpdateAction": {
     "placeholders": {
@@ -1121,6 +1123,8 @@
       }
     }
   },
+  "setHostHooks": "Claude Code hooks",
+  "setHostHooksDetail": "Claude Code tells Kero what it's doing, and in which pane, so the sidebar shows its state.",
   "setListenTitle": "This Computer as a Host",
   "setListen": "Let other machines connect",
   "setListenDetail": "kerod listens at this computer's Tailscale addresses, for Kero on your other machines. Only your Tailscale account may connect.",
