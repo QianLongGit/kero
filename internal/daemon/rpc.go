@@ -397,6 +397,13 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		d.noteConversations()
 		return proto.AgentSessionResult{Pane: id, Session: sid, Away: away}, nil
 
+	case "pane.agentEvent":
+		var p proto.AgentEventParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.agentEvent(p)
+
 	case "conversations":
 		return d.conversations(), nil
 
@@ -642,6 +649,52 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return true, nil
 	}
 	return nil, fmt.Errorf("unknown method %q", method)
+}
+
+// agentEvent takes what a pane's agent's hook saw (pane.agentEvent): it
+// finds the pane the hook runs in — the one it names, the one whose
+// terminal it reads, through tmux when it reads one of its panes, else
+// the heuristics of agentPane — and the event becomes the pane's record,
+// so the one pipeline of reports serves OSC 7501, kero report and hooks
+// alike. SessionStart registers the agent's session to resume, exactly as
+// pane.agentSession does. The pane takes the agent's name when no
+// detection gave it one yet, as an npm-run claude's would have none.
+func (d *Daemon) agentEvent(p proto.AgentEventParams) (proto.AgentEventResult, error) {
+	var as *proto.AgentSession
+	if p.Event == "SessionStart" {
+		as = &proto.AgentSession{Agent: p.Agent, ID: p.Session}
+		if resumeCommand(as) == nil {
+			return proto.AgentEventResult{}, fmt.Errorf("no agent session %q of %q", p.Session, p.Agent)
+		}
+	}
+	pn, away := d.eventPane(p)
+	if pn == nil {
+		return proto.AgentEventResult{}, fmt.Errorf("no pane runs %s's %s hook", p.Agent, p.Event)
+	}
+	var rec proto.Record
+	if p.Event != "SessionStart" {
+		rec, _ = eventRecord(p)
+	}
+	pn.mu.Lock()
+	if pn.info.Agent == "" {
+		pn.info.Agent = p.Agent
+	}
+	if as != nil {
+		pn.info.AgentSession = as
+	}
+	if rec.State != "" {
+		pn.applyReport(rec)
+	}
+	id := pn.info.ID
+	pn.mu.Unlock()
+	d.changed()
+	d.mu.Lock()
+	sid := pn.sid
+	d.mu.Unlock()
+	if as != nil {
+		d.noteConversations()
+	}
+	return proto.AgentEventResult{Pane: id, Session: sid, Away: away}, nil
 }
 
 // browseGrace is how long kerod waits for the app's answer to a browser

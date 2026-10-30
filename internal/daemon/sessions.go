@@ -209,6 +209,62 @@ func sharedService(pid int) bool {
 	return slices.Contains(args, "app-server") && slices.Contains(args, "--managed-daemon")
 }
 
+// eventPane finds the pane an event's hook tells of, from where the hook
+// runs: the pane it names ($KERO_PANE), the pane whose terminal the hook
+// reads (its TTY, a kero pane's pty), or, reading a pane of a tmux
+// session, the kero pane whose tmux client watches that session — the
+// pane's terminal names its session exactly, where the session's name may
+// not be its alone. Only then the pid-walk and heuristics of agentPane,
+// for a hook that runs under none of kero's shells, as a shared agent
+// service runs it. Away tells of the last two: the agent works beside
+// kero's shells, and its commands have no pane of theirs.
+func (d *Daemon) eventPane(p proto.AgentEventParams) (found *pane, away bool) {
+	d.mu.Lock()
+	var named *pane
+	if p.Pane != "" {
+		named = d.findPaneLocked(p.Pane)
+	}
+	panes := make([]*pane, 0, len(d.panes))
+	for _, pn := range d.panes {
+		panes = append(panes, pn)
+	}
+	d.mu.Unlock()
+	if named != nil {
+		return named, false
+	}
+	// A terminal names at most one live pane.
+	onTTY := func(tty string) *pane {
+		for _, pn := range panes {
+			pn.mu.Lock()
+			at, live := pn.info.TTY, pn.info.Status != proto.Exited
+			pn.mu.Unlock()
+			if live && at == tty {
+				return pn
+			}
+		}
+		return nil
+	}
+	if p.TTY != "" {
+		if pn := onTTY(p.TTY); pn != nil {
+			return pn, false
+		}
+		snap := d.tmux.get(time.Now())
+		if session, _ := snap.paneSession(p.TTY); session != "" {
+			for _, c := range snap.Clients {
+				if c.Session != session {
+					continue
+				}
+				// The agent works in the tmux session, whose panes are no
+				// shells of kero's: away, as agentPane's guesses tell it.
+				if pn := onTTY(c.TTY); pn != nil {
+					return pn, true
+				}
+			}
+		}
+	}
+	return d.agentPane(p.PID, p.Agent, p.Dir)
+}
+
 // focusedLocked returns a session's focused pane, else its first; d.mu is
 // held.
 func focusedLocked(s *session) *pane {

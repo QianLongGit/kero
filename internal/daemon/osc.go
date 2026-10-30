@@ -194,6 +194,51 @@ func parseStatus(body string) (statusReport, bool) {
 	return statusReport{rec: r}, true
 }
 
+// maxMsg is how long a record's message may run, as the reports' grammar
+// has it: a hook's longer telling is cut at its edge rather than lost.
+const maxMsg = 2048
+
+// eventRecord is a hook's event of an agent's conversation as the pane's
+// record, in the grammar of the reports (OSC 7501) that the pane's other
+// status comes by: a prompt starts the work, a stop ends it, a
+// notification words a wait for the user — one asking permission waits as
+// blocked — or a quiet turn, and the session's end clears what the
+// conversation told. The session's start is no record (it registers the
+// session, as pane.agentSession does), nor is an event kero asks no hook
+// for.
+func eventRecord(p proto.AgentEventParams) (proto.Record, bool) {
+	r := proto.Record{Progress: -1}
+	msg := func() string {
+		s := neutralize(p.Message)
+		if len(s) > maxMsg {
+			s = s[:maxMsg]
+			for !utf8.ValidString(s) {
+				s = s[:len(s)-1]
+			}
+		}
+		return s
+	}
+	switch p.Event {
+	case "UserPromptSubmit":
+		r.State = "working"
+	case "Notification":
+		r.Msg = msg()
+		if strings.Contains(strings.ToLower(r.Msg), "permission") {
+			r.State, r.Kind = "blocked", "permission"
+		} else {
+			r.State = "idle"
+		}
+	case "Stop":
+		r.State = "done"
+	case "SessionEnd":
+		r.State = "clear"
+	default:
+		return proto.Record{}, false
+	}
+	r.Updated = time.Now().UnixMilli()
+	return r, true
+}
+
 // neutralize drops the bidi overrides and invisible formatting that
 // would make text shown outside the grid lie about itself.
 func neutralize(s string) string {
