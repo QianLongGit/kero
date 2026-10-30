@@ -7,10 +7,12 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"kero/internal/agenthooks"
 	"kero/internal/client"
 	"kero/internal/proto"
 )
@@ -101,6 +103,20 @@ func TestAgentEventParams(t *testing.T) {
 	// Outside kero and tmux there is nothing to tell the pane by.
 	if got := agentEventParams(hookInput{Event: "Stop"}, "claude", "", "", ""); got != (proto.AgentEventParams{Agent: "claude", Event: "Stop"}) {
 		t.Errorf("outside kero: %+v", got)
+	}
+}
+
+// The events hookCmd takes (hookEvents) and the ones setup installs for
+// Claude Code (package agenthooks' claudeEvents) are two lists of the
+// same thing: were they to drift apart, kero would install hooks it
+// ignores, or handle events it never hooked. This pins them together.
+func TestHookEventsMatchInstalled(t *testing.T) {
+	hooks := agenthooks.Hooks("claude")
+	if len(hooks) != 1 {
+		t.Fatalf("claude's hooks: %+v", hooks)
+	}
+	if !slices.Equal(hooks[0].Events, hookEvents) {
+		t.Fatalf("installed %v, hookCmd takes %v", hooks[0].Events, hookEvents)
 	}
 }
 
