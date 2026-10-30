@@ -39,7 +39,12 @@ func hookCmd(args []string) error {
 	if t := os.Getenv("CODEX_THREAD_ID"); t != "" && in.Session != "" && t != in.Session {
 		return nil // a Codex run by another agent in this pane, not the pane's
 	}
-	c, err := client.Connect(true)
+	// One deadline, taken here, covers the hook's whole talk with kerod:
+	// the connect and every call, so a daemon that hangs anywhere in it
+	// leaves the hook silent well within the timeout of its entry in the
+	// agent's settings.
+	until := time.Now().Add(hookDeadline)
+	c, err := hookConnect(until)
 	if err != nil {
 		return nil
 	}
@@ -50,18 +55,24 @@ func hookCmd(args []string) error {
 	// of another, as when Codex's app server, which panes share, runs
 	// the hook.
 	var r proto.AgentEventResult
-	if hookCall(c, "pane.agentEvent", p, &r) != nil {
+	if hookCall(c, until, "pane.agentEvent", p, &r) != nil {
 		return nil
 	}
 	if in.Event != "SessionStart" {
 		return nil
 	}
 	if in.Source != "resume" && in.Source != "compact" {
-		forgetAgentName(c, r.Pane, r.Session)
+		if !forgetAgentName(c, until, r.Pane, r.Session) {
+			return nil
+		}
+	}
+	say, ok := hookContext(c, until, r.Pane, r.Session, r.Away)
+	if !ok {
+		return nil
 	}
 	out := map[string]any{"hookSpecificOutput": map[string]string{
 		"hookEventName":     "SessionStart",
-		"additionalContext": hookContext(c, r.Pane, r.Session, r.Away),
+		"additionalContext": say,
 	}}
 	return json.NewEncoder(os.Stdout).Encode(out)
 }
@@ -98,24 +109,56 @@ func agentEventParams(in hookInput, agent, pane, tmux, tty string) proto.AgentEv
 	}
 }
 
-// hookDeadline bounds a hook's calls to kerod, so a daemon that hangs
-// can't hold the hook past the timeout of its entry in the agent's
-// settings.
+// hookDeadline bounds a hook's whole talk with kerod — its connect and
+// every call, together — so a daemon that hangs anywhere in it can't
+// hold the hook past the timeout of its entry in the agent's settings.
 var hookDeadline = 2 * time.Second
 
-// hookCall calls a method of kerod as a hook does, under hookDeadline:
-// a timeout is an error like any other, silence to the hook. Closing
-// the client unbinds the call's goroutine from a socket that will
-// never answer.
-func hookCall(c *client.Client, method string, params, out any) error {
+// errHookLate is the hook's budget run out, whatever the talk was in the
+// middle of: the hook goes silent, as it does on any trouble with kerod.
+var errHookLate = errors.New("kerod did not answer in time")
+
+// hookConnect opens kerod as a hook does, within the time left of the
+// hook's budget: a daemon whose Welcome waits past that is one that
+// hangs, the same silence as one that never answers. The connect the
+// budget outran is closed as it ends, on the client's own deadline —
+// the hook is on its way out.
+func hookConnect(until time.Time) (*client.Client, error) {
+	type opened struct {
+		c   *client.Client
+		err error
+	}
+	ch := make(chan opened, 1)
+	go func() {
+		c, err := client.Connect(true)
+		ch <- opened{c, err}
+	}()
+	select {
+	case got := <-ch:
+		return got.c, got.err
+	case <-time.After(time.Until(until)):
+		go func() { // a late Welcome is a connection to close, not to use
+			if got := <-ch; got.c != nil {
+				got.c.Close()
+			}
+		}()
+		return nil, errHookLate
+	}
+}
+
+// hookCall calls a method of kerod as a hook does, within the time left
+// of the hook's budget: a timeout is an error like any other, silence to
+// the hook. Closing the client unbinds the call's goroutine from a
+// socket that will never answer.
+func hookCall(c *client.Client, until time.Time, method string, params, out any) error {
 	ch := make(chan error, 1)
 	go func() { ch <- c.Call(method, params, out) }()
 	select {
 	case err := <-ch:
 		return err
-	case <-time.After(hookDeadline):
+	case <-time.After(time.Until(until)):
 		c.Close()
-		return errors.New("kerod did not answer in time")
+		return errHookLate
 	}
 }
 
@@ -134,17 +177,20 @@ func controllingTTY() string {
 
 // forgetAgentName drops the name an agent gave session sid, as a new
 // conversation starts in its first pane, the one the name came from: the
-// session shows the pane's title again.
-func forgetAgentName(c *client.Client, pane, sid string) {
+// session shows the pane's title again. False tells the hook's budget
+// ran out — the talk is over, silence; a call that merely fails it
+// swallows, the name a nicety.
+func forgetAgentName(c *client.Client, until time.Time, pane, sid string) bool {
 	var st proto.State
-	if c.Call("state", nil, &st) != nil {
-		return
+	if err := hookCall(c, until, "state", nil, &st); err != nil {
+		return !errors.Is(err, errHookLate)
 	}
 	for _, s := range st.Sessions {
 		if s.ID == sid && s.AgentNamed && len(s.Panes) > 0 && s.Panes[0].ID == pane {
-			c.Call("rename", proto.RenameParams{ID: sid}, nil)
+			hookCall(c, until, "rename", proto.RenameParams{ID: sid}, nil)
 		}
 	}
+	return true
 }
 
 // contextCmd prints what to tell the agent of an agent's session, for an
@@ -166,7 +212,9 @@ func contextCmd(agent, session string, wait bool) error {
 		for _, s := range st.Sessions {
 			for _, p := range s.Panes {
 				if a := p.AgentSession; a != nil && a.Agent == agent && a.ID == session {
-					fmt.Println(hookContext(c, p.ID, s.ID, true))
+					if say, ok := hookContext(c, deadline, p.ID, s.ID, true); ok {
+						fmt.Println(say)
+					}
 					return nil
 				}
 				pending = pending || p.Agent == agent && (p.AgentSession == nil || p.AgentSession.ID != session)
@@ -180,8 +228,10 @@ func contextCmd(agent, session string, wait bool) error {
 
 // hookContext is what the hook tells an agent in pane, of session sid;
 // c is kerod, nil when it is unreachable. away tells an agent whose
-// commands don't run in its pane, and don't have its variables.
-func hookContext(c *client.Client, pane, sid string, away bool) string {
+// commands don't run in its pane, and don't have its variables. ok is
+// false when the hook's budget ran out — the talk is over, silence; a
+// state call that merely fails leaves the words it has.
+func hookContext(c *client.Client, until time.Time, pane, sid string, away bool) (string, bool) {
 	var b strings.Builder
 	if away {
 		fmt.Fprintf(&b, "You are running in Kero, a terminal for coding agents: session %s, pane %s. "+
@@ -194,11 +244,14 @@ func hookContext(c *client.Client, pane, sid string, away bool) string {
 			"and tells the user what you are doing.", sid, pane)
 	}
 	if c == nil {
-		return b.String()
+		return b.String(), true
 	}
 	var st proto.State
-	if c.Call("state", nil, &st) != nil {
-		return b.String()
+	if err := hookCall(c, until, "state", nil, &st); err != nil {
+		if errors.Is(err, errHookLate) {
+			return "", false
+		}
+		return b.String(), true
 	}
 	for _, s := range st.Sessions {
 		if s.ID != sid || len(s.Panes) == 0 {
@@ -211,7 +264,7 @@ func hookContext(c *client.Client, pane, sid string, away bool) string {
 			fmt.Fprintf(&b, " The user knows this session as %q: leave its name alone.", s.Name)
 		}
 	}
-	return b.String()
+	return b.String(), true
 }
 
 // integration is what kero installs in an agent, beside its skill, to

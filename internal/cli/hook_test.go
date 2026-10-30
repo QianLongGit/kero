@@ -149,10 +149,11 @@ func TestHooksSkillMarker(t *testing.T) {
 	}
 }
 
-// hungDaemon listens on KERO_SOCKET, welcomes the client, and never
-// answers its calls: a daemon that hangs, as one whose socket a hook's
-// call would wait on forever.
-func hungDaemon(t *testing.T) {
+// hungDaemon listens on KERO_SOCKET, welcomes the client when welcome is
+// set, and never answers its calls: a daemon that hangs — on its Welcome,
+// or past it on every answer — as one whose socket a hook's connect or
+// call would wait on far longer than the agent allows.
+func hungDaemon(t *testing.T, welcome bool) {
 	t.Helper()
 	sock := filepath.Join(t.TempDir(), "kerod.sock")
 	t.Setenv("KERO_SOCKET", sock)
@@ -173,8 +174,10 @@ func hungDaemon(t *testing.T) {
 				if _, err := r.ReadString('\n'); err != nil { // the Hello
 					return
 				}
-				fmt.Fprintf(c, "{\"version\":%d}\n", proto.Version) // the Welcome
-				io.Copy(io.Discard, r)                              // then nothing
+				if welcome {
+					fmt.Fprintf(c, "{\"version\":%d}\n", proto.Version) // the Welcome
+				}
+				io.Copy(io.Discard, r) // then nothing
 			}(conn)
 		}
 	}()
@@ -184,7 +187,7 @@ func hungDaemon(t *testing.T) {
 // answers is an error, so the hook goes silent instead of hanging the
 // agent that runs it.
 func TestHookCallDeadline(t *testing.T) {
-	hungDaemon(t)
+	hungDaemon(t, true)
 	c, err := client.Connect(true)
 	if err != nil {
 		t.Fatal(err)
@@ -194,9 +197,36 @@ func TestHookCallDeadline(t *testing.T) {
 	hookDeadline = 50 * time.Millisecond
 	defer func() { hookDeadline = old }()
 	start := time.Now()
-	if err := hookCall(c, "pane.agentEvent", proto.AgentEventParams{Event: "Stop"}, nil); err == nil {
+	if err := hookCall(c, time.Now().Add(hookDeadline), "pane.agentEvent", proto.AgentEventParams{Event: "Stop"}, nil); err == nil {
 		t.Fatal("a daemon that never answers was no error")
 	} else if d := time.Since(start); d > time.Second {
 		t.Fatalf("the call took %s, past its deadline", d)
+	}
+}
+
+// The hook's whole talk with kerod runs under one deadline, its connect
+// first of all: a daemon that accepts but never welcomes — where the
+// connect alone would wait on the client's own far longer deadline —
+// leaves the hook silent well within the budget.
+func TestHookConnectDeadline(t *testing.T) {
+	hungDaemon(t, false)
+	old := hookDeadline
+	hookDeadline = 50 * time.Millisecond
+	defer func() { hookDeadline = old }()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprint(w, `{"hook_event_name":"Stop","session_id":"cc81"}`)
+	w.Close()
+	oldStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+	start := time.Now()
+	if err := hookCmd([]string{"claude"}); err != nil {
+		t.Fatalf("hookCmd: %v", err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("the hook took %s, past its deadline", d)
 	}
 }
