@@ -9,13 +9,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
 
+	"kero/internal/agenthooks"
 	"kero/internal/client"
-	"kero/internal/clilink"
 	"kero/internal/proto"
 )
 
@@ -225,182 +224,18 @@ type integration interface {
 	remove() error
 }
 
-// agentHook is a hook kero installs in an agent's settings: a SessionStart
-// command running `kero hook <agent>`.
-type agentHook struct {
-	agent string // as `kero hook` takes it: "claude", "codex"
-	file  string // the JSON file holding the agent's hooks
+// hookIntegration is the cli's handle on package agenthooks — where the
+// machinery for kero's hooks in agents' settings lives, shared with the
+// daemon — as the integration the skill commands drive.
+type hookIntegration struct {
+	hook agenthooks.Hook
 }
 
-func (h agentHook) name() string { return h.agent }
-func (h agentHook) path() string { return h.file }
-
-// kero is the kero command of Kero's own directory (package clilink),
-// which stays where it is as Kero updates.
-func kero() string {
-	exe := filepath.Join(proto.Dir(), "bin", "kero")
-	if runtime.GOOS == "windows" {
-		exe += ".exe"
-	}
-	return exe
-}
-
-// command is the hook's command line: the kero command of Kero's own
-// directory (package clilink), which stays where it is as Kero updates.
-func (h agentHook) command() string {
-	if runtime.GOOS == "windows" {
-		return `"` + kero() + `" hook ` + h.agent
-	}
-	return "'" + strings.ReplaceAll(kero(), "'", `'\''`) + "' hook " + h.agent
-}
-
-// ours tells kero's hook commands, of this kero or another's.
-func (h agentHook) ours(command string) bool {
-	return strings.Contains(command, "kero") && strings.HasSuffix(command, " hook "+h.agent)
-}
-
-// state is "current", "outdated" (kero's hook, of another command line)
-// or "missing".
-func (h agentHook) state() string {
-	b, err := os.ReadFile(h.file)
-	if err != nil {
-		return "missing"
-	}
-	settings, err := parseObject(b)
-	if err != nil {
-		return "missing"
-	}
-	state := "missing"
-	h.each(settings, func(command string) {
-		if command == h.command() {
-			state = "current"
-		} else if state == "missing" {
-			state = "outdated"
-		}
-	})
-	return state
-}
-
-// each calls fn with the command of each of kero's SessionStart hooks.
-func (h agentHook) each(settings object, fn func(command string)) {
-	hooks, _ := parseObject(settings.get("hooks"))
-	var groups []object
-	json.Unmarshal(hooks.get("SessionStart"), &groups)
-	for _, g := range groups {
-		var handlers []struct{ Type, Command string }
-		json.Unmarshal(g.get("hooks"), &handlers)
-		for _, hd := range handlers {
-			if hd.Type == "command" && h.ours(hd.Command) {
-				fn(hd.Command)
-			}
-		}
-	}
-}
-
-// install puts the hook in the agent's settings, in place of kero's
-// others, keeping the rest of the file as it is.
-func (h agentHook) install() error {
-	linkCLI()
-	return h.edit(true)
-}
-
-// linkCLI makes the kero command that hooks and plugins run, should kerod
-// not have made it yet.
-func linkCLI() {
-	if exe, err := os.Executable(); err == nil {
-		if real, err := filepath.EvalSymlinks(exe); err == nil {
-			exe = real
-		}
-		bin := filepath.Join(proto.Dir(), "bin")
-		if clilink.Target(bin) == "" {
-			clilink.Link(exe, bin)
-		}
-	}
-}
-
-// remove takes kero's hooks out of the agent's settings.
-func (h agentHook) remove() error {
-	if _, err := os.Stat(h.file); errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	return h.edit(false)
-}
-
-func (h agentHook) edit(add bool) error {
-	b, err := os.ReadFile(h.file)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	settings := object{}
-	if len(bytes.TrimSpace(b)) > 0 {
-		if settings, err = parseObject(b); err != nil {
-			return fmt.Errorf("%s: %w", proto.ShortDir(h.file), err)
-		}
-	}
-	hooks, err := parseObject(settings.get("hooks"))
-	if err != nil {
-		return fmt.Errorf("%s: hooks: %w", proto.ShortDir(h.file), err)
-	}
-	var groups []object
-	if raw := hooks.get("SessionStart"); raw != nil {
-		if err := json.Unmarshal(raw, &groups); err != nil {
-			return fmt.Errorf("%s: hooks.SessionStart: %w", proto.ShortDir(h.file), err)
-		}
-	}
-	// Already there, alone: nothing to do. Else drop kero's handlers, and
-	// the groups they leave empty.
-	n, exact := 0, false
-	h.each(settings, func(command string) {
-		n++
-		exact = exact || command == h.command()
-	})
-	if add && n == 1 && exact || !add && n == 0 {
-		return nil
-	}
-	kept := groups[:0]
-	for _, g := range groups {
-		var handlers []json.RawMessage
-		json.Unmarshal(g.get("hooks"), &handlers)
-		n := len(handlers)
-		handlers = slices.DeleteFunc(handlers, func(raw json.RawMessage) bool {
-			var hd struct{ Type, Command string }
-			json.Unmarshal(raw, &hd)
-			return hd.Type == "command" && h.ours(hd.Command)
-		})
-		if n > 0 && len(handlers) == 0 {
-			continue
-		}
-		if len(handlers) != n {
-			g = g.set("hooks", marshal(handlers))
-		}
-		kept = append(kept, g)
-	}
-	groups = kept
-	if add {
-		handler := object{{"type", marshal("command")}, {"command", marshal(h.command())}, {"timeout", marshal(10)}}
-		groups = append(groups, object{{"hooks", marshal([]object{handler})}})
-	}
-	if len(groups) > 0 {
-		hooks = hooks.set("SessionStart", marshal(groups))
-	} else {
-		hooks = hooks.del("SessionStart")
-	}
-	if len(hooks) > 0 {
-		settings = settings.set("hooks", hooks.marshal())
-	} else {
-		settings = settings.del("hooks")
-	}
-	out := settings.marshal()
-	var pretty bytes.Buffer
-	if err := json.Indent(&pretty, out, "", "  "); err != nil {
-		return err
-	}
-	pretty.WriteByte('\n')
-	if bytes.Equal(pretty.Bytes(), b) {
-		return nil
-	}
-	return writeFileAtomic(h.file, pretty.Bytes())
-}
+func (h hookIntegration) name() string    { return h.hook.Agent }
+func (h hookIntegration) path() string    { return h.hook.File }
+func (h hookIntegration) state() string   { return h.hook.State() }
+func (h hookIntegration) install() error  { return h.hook.Install() }
+func (h hookIntegration) remove() error   { return h.hook.Remove() }
 
 // agentPlugin is a plugin kero installs for an agent: files of its own,
 // in a directory the agent loads plugins from.
@@ -430,7 +265,7 @@ func (p agentPlugin) path() string {
 // it runs.
 func (p agentPlugin) content(asset string) []byte {
 	b, _ := agentAssets.ReadFile(asset)
-	return bytes.ReplaceAll(b, []byte("__KERO__"), marshal(kero()))
+	return bytes.ReplaceAll(b, []byte("__KERO__"), agenthooks.Marshal(agenthooks.Kero()))
 }
 
 func (p agentPlugin) state() string {
@@ -455,12 +290,12 @@ func (p agentPlugin) state() string {
 }
 
 func (p agentPlugin) install() error {
-	linkCLI()
+	agenthooks.LinkCLI()
 	if err := os.MkdirAll(p.dir, 0o755); err != nil {
 		return err
 	}
 	for name, asset := range p.files {
-		if err := writeFileAtomic(filepath.Join(p.dir, name), p.content(asset)); err != nil {
+		if err := agenthooks.WriteFileAtomic(filepath.Join(p.dir, name), p.content(asset)); err != nil {
 			return err
 		}
 	}
@@ -481,8 +316,13 @@ func (p agentPlugin) remove() error {
 
 // agentHooks returns what kero installs to hook agents into Kero: for
 // Claude Code, and for Codex, Pi and OpenCode when they are installed (or
-// named).
+// named). The hooks of the settings files are package agenthooks', shared
+// with the daemon; the plugins of Pi and OpenCode are the cli's own.
 func agentHooks(agent string) []integration {
+	var out []integration
+	for _, h := range agenthooks.Hooks(agent) {
+		out = append(out, hookIntegration{h})
+	}
 	home := proto.Home()
 	dirOf := func(env string, def ...string) string {
 		if d := os.Getenv(env); d != "" {
@@ -490,8 +330,6 @@ func agentHooks(agent string) []integration {
 		}
 		return filepath.Join(append([]string{home}, def...)...)
 	}
-	claude := dirOf("CLAUDE_CONFIG_DIR", ".claude")
-	codex := dirOf("CODEX_HOME", ".codex")
 	pi := dirOf("PI_CODING_AGENT_DIR", ".pi", "agent")
 	opencode := filepath.Join(dirOf("XDG_CONFIG_HOME", ".config"), "opencode")
 	installed := func(dir string) bool {
@@ -502,140 +340,17 @@ func agentHooks(agent string) []integration {
 		agent, dir string
 		it         integration
 	}{
-		{"claude", claude, agentHook{"claude", filepath.Join(claude, "settings.json")}},
-		{"codex", codex, agentHook{"codex", filepath.Join(codex, "hooks.json")}},
 		{"pi", pi, agentPlugin{agent: "pi", dir: filepath.Join(pi, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"opencode", opencode, agentPlugin{agent: "opencode", dir: filepath.Join(opencode, "plugins", "kero"), own: true, files: map[string]string{
 			"package.json": "agents/opencode/package.json", "index.js": "agents/opencode/index.js", "tui.js": "agents/opencode/tui.js",
 		}}},
 	}
-	var out []integration
 	for _, a := range all {
 		switch {
 		case agent == a.agent,
-			a.agent == "claude" && agent == "",
-			a.agent != "claude" && (agent == "" || agent == "agents") && installed(a.dir):
+			(agent == "" || agent == "agents") && installed(a.dir):
 			out = append(out, a.it)
 		}
 	}
 	return out
-}
-
-// object is a JSON object that keeps its keys' order, so that editing a
-// settings file leaves the rest of it as it was.
-type object []member
-
-type member struct {
-	Key string
-	Val json.RawMessage
-}
-
-func parseObject(b []byte) (object, error) {
-	if len(bytes.TrimSpace(b)) == 0 {
-		return object{}, nil
-	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
-		return nil, errors.New("not a JSON object")
-	}
-	var o object
-	for dec.More() {
-		t, err := dec.Token()
-		if err != nil {
-			return nil, err
-		}
-		var v json.RawMessage
-		if err := dec.Decode(&v); err != nil {
-			return nil, err
-		}
-		o = o.set(t.(string), v)
-	}
-	if _, err := dec.Token(); err != nil {
-		return nil, err
-	}
-	if _, err := dec.Token(); err != io.EOF {
-		return nil, errors.New("more than one JSON value")
-	}
-	return o, nil
-}
-
-func (o *object) UnmarshalJSON(b []byte) error {
-	p, err := parseObject(b)
-	*o = p
-	return err
-}
-
-func (o object) get(key string) json.RawMessage {
-	for _, m := range o {
-		if m.Key == key {
-			return m.Val
-		}
-	}
-	return nil
-}
-
-func (o object) set(key string, v json.RawMessage) object {
-	for i, m := range o {
-		if m.Key == key {
-			o[i].Val = v
-			return o
-		}
-	}
-	return append(o, member{key, v})
-}
-
-func (o object) del(key string) object {
-	return slices.DeleteFunc(o, func(m member) bool { return m.Key == key })
-}
-
-func (o object) marshal() json.RawMessage {
-	var b bytes.Buffer
-	b.WriteByte('{')
-	for i, m := range o {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.Write(marshal(m.Key))
-		b.WriteByte(':')
-		b.Write(m.Val)
-	}
-	b.WriteByte('}')
-	return b.Bytes()
-}
-
-func (o object) MarshalJSON() ([]byte, error) { return o.marshal(), nil }
-
-func marshal(v any) json.RawMessage {
-	var b bytes.Buffer
-	enc := json.NewEncoder(&b)
-	enc.SetEscapeHTML(false)
-	enc.Encode(v)
-	return bytes.TrimSpace(b.Bytes())
-}
-
-// writeFileAtomic replaces a file whole, keeping its mode.
-func writeFileAtomic(path string, b []byte) error {
-	mode := os.FileMode(0o644)
-	if st, err := os.Stat(path); err == nil {
-		mode = st.Mode().Perm()
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmp.Name(), mode); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }
