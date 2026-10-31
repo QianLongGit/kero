@@ -126,12 +126,14 @@ func TestHookEventsMatchInstalled(t *testing.T) {
 func TestHooksSkillMarker(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	kero := filepath.Join(home, "kero")
+	os.MkdirAll(kero, 0o755)
+	t.Setenv("KERO_HOME", kero)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 	for _, env := range []string{"CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME"} {
 		t.Setenv(env, "")
 	}
-	marker := filepath.Join(proto.Home(), "no-agent-hooks")
+	marker := filepath.Join(proto.Dir(), "no-agent-hooks")
 	if err := skillCmd([]string{"remove", "--agent", "claude"}); err != nil {
 		t.Fatal(err)
 	}

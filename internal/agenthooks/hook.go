@@ -328,11 +328,12 @@ func State(agent string) string {
 }
 
 // marker is the file an explicit removal — `kero skill remove`, the
-// hooks.remove RPC — leaves in the user's home: kero's hooks, once
-// taken out on purpose, stay out. One marker tells of kero's hooks as a
-// whole, not one agent's, so any removal is the user refusing them.
+// hooks.remove RPC — leaves in kero's own directory, beside its socket
+// and state: kero's hooks, once taken out on purpose, stay out. One
+// marker tells of kero's hooks as a whole, not one agent's, so any
+// removal is the user refusing them.
 func marker() string {
-	return filepath.Join(proto.Home(), "no-agent-hooks")
+	return filepath.Join(proto.Dir(), "no-agent-hooks")
 }
 
 // removed tells whether the marker is there.

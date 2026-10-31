@@ -57,8 +57,10 @@ func sessionByID(t *testing.T, d *Daemon, id string) proto.Session {
 // the marker, for it is the user asking for the hooks.
 func TestHooksRPC(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home) // the marker goes there
-	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("HOME", home)
+	kero := filepath.Join(home, "kero")
+	os.MkdirAll(kero, 0o755) // the removal marker goes there
+	t.Setenv("KERO_HOME", kero)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "codex"))
 	d := testDaemon(t)
@@ -87,13 +89,13 @@ func TestHooksRPC(t *testing.T) {
 	if got := call("hooks.remove").State; got != "missing" {
 		t.Fatalf("state %s after remove", got)
 	}
-	if _, err := os.Stat(filepath.Join(home, "no-agent-hooks")); err != nil {
+	if _, err := os.Stat(filepath.Join(proto.Dir(), "no-agent-hooks")); err != nil {
 		t.Fatal("remove left no marker")
 	}
 	if got := call("hooks.setup").State; got != "current" {
 		t.Fatalf("state %s after setup over the marker", got)
 	}
-	if _, err := os.Stat(filepath.Join(home, "no-agent-hooks")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(proto.Dir(), "no-agent-hooks")); !os.IsNotExist(err) {
 		t.Fatal("setup left the removal marker")
 	}
 }

@@ -304,7 +304,7 @@ test the cli wiring) still pass.
 
 **Interfaces:**
 - Consumes: Task 5's `agenthooks` package (`Ensure(agent) error`, `Remove(agent) error`, `State(agent) string`).
-- Produces: `func EnsureAgentHooks() error` semantics live in `agenthooks.Ensure`; RPC methods `"hooks.setup"`, `"hooks.remove"` and `"hooks.state"`, each taking `{agent string}` and returning `{state string}`; marker file `proto.Home()/no-agent-hooks`.
+- Produces: `func EnsureAgentHooks() error` semantics live in `agenthooks.Ensure`; RPC methods `"hooks.setup"`, `"hooks.remove"` and `"hooks.state"`, each taking `{agent string}` and returning `{state string}`; marker file `proto.Dir()/no-agent-hooks`.
 
 - [ ] **Step 1: Write the failing tests**
 

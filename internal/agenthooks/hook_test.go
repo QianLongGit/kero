@@ -12,10 +12,19 @@ import (
 	"kero/internal/proto"
 )
 
+// keroHome isolates kero's own directory — where the removal marker
+// goes — beside a home of the test's own, both empty.
+func keroHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	d := filepath.Join(t.TempDir(), "kero home")
+	os.MkdirAll(d, 0o755)
+	t.Setenv("KERO_HOME", d)
+}
+
 func testHook(t *testing.T, settings string) Hook {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir()) // the marker goes there
-	t.Setenv("KERO_HOME", filepath.Join(t.TempDir(), "kero home"))
+	keroHome(t)
 	h := Hook{Agent: "claude", Events: claudeEvents, File: filepath.Join(t.TempDir(), "settings.json")}
 	if settings != "" {
 		if err := os.WriteFile(h.File, []byte(settings), 0o600); err != nil {
@@ -289,8 +298,7 @@ func TestHooksForAgents(t *testing.T) {
 // nothing when they are kero's own already; Remove and State speak for
 // the package as a whole.
 func TestEnsureAgent(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // the marker goes there
-	t.Setenv("KERO_HOME", filepath.Join(t.TempDir(), "kero home"))
+	keroHome(t)
 	dir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", dir)
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "codex"))
@@ -324,13 +332,11 @@ func TestEnsureAgent(t *testing.T) {
 // back: a removal stays until a setup takes the marker away. The marker
 // is one for every agent: it tells of kero's hooks, not one agent's.
 func TestEnsureMarker(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home) // the marker goes there
-	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	keroHome(t)
 	dir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", dir)
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "codex"))
-	marker := filepath.Join(proto.Home(), "no-agent-hooks")
+	marker := filepath.Join(proto.Dir(), "no-agent-hooks")
 	settings := filepath.Join(dir, "settings.json")
 
 	if err := os.WriteFile(marker, nil, 0o644); err != nil {
