@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.24
+
+- Sessions come back whole after kerod restarts — an update, a reboot,
+  a crash. A pane that had attached a tmux session attaches it again
+  (Settings › General › **Re-attach tmux sessions after a restart**),
+  and what a pane ran runs again, not only its shell.
+- The restore waits for a kero to watch it: a headless daemon restart
+  no longer re-attaches tmux sessions nobody is at, which would disturb
+  the same session attached from elsewhere, as a phone. The moment a
+  kero app connects, everything returns.
+
 ## 2.3.23
 
 - The changes panel shows the changed files' tree beside their diffs, a
