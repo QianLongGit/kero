@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.23
+
+- The changes panel shows the changed files' tree beside their diffs, a
+  button in its row of controls: a click on a file scrolls the diffs to
+  it, one on a folder folds it, and the file whose diff is at the top
+  shows as the one there. The button keeps the tree as you left it.
+- **Collapse All**, beside it, folds every file's diff, keeping the file
+  at the top there, and **Expand All**, in its place once all are
+  folded, unfolds them.
+- `scrollback-limit` now sets the scrollback the app's copy of a pane
+  keeps too: before, it kept the terminal's default of 10 MB whatever
+  the setting said, even 0.
+- A quick tap in the settings sidebar is no longer missed.
+
 ## 2.3.22
 
 - A tmux client names itself "tmux: client" once it attaches, and the
