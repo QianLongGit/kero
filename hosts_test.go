@@ -630,8 +630,14 @@ func TestRemoveHostAsksInSettings(t *testing.T) {
 		t.Fatalf("Settings shows no question; texts %q", tt.Texts())
 	}
 	shot(t, tt, "settings-remove-host")
+	// The removal runs off the frame, its host's hooks call before it:
+	// the test's own marshalling stands in for the thread it lands on.
+	a.updateFn = func(fn func()) { fn() }
 	if err := tt.Click(locales.CommonRemove()); err != nil {
 		t.Fatal(err)
+	}
+	for i := 0; len(a.set.Hosts) != 0 && i < 100; i++ {
+		time.Sleep(10 * time.Millisecond)
 	}
 	tt.Frame()
 	if a.ss.confirm != nil || len(a.set.Hosts) != 0 {

@@ -297,7 +297,8 @@ func (a *App) reconnectHost(h *host) {
 }
 
 // removeHostConfirmation asks to remove a host from Settings › Hosts,
-// which leaves its sessions running there.
+// which leaves its sessions running there — after asking its kerod to
+// take kero's agent hooks back, off the app thread this runs on.
 func (a *App) removeHostConfirmation(h *host) *confirmation {
 	name := h.name
 	return &confirmation{
@@ -306,7 +307,7 @@ func (a *App) removeHostConfirmation(h *host) *confirmation {
 		detail:  locales.HostRemoveDetail(name),
 		action:  locales.CommonRemove(),
 		destroy: true,
-		run:     func() { a.removeHost(name) },
+		run:     func() { go a.removeHostAfterHooks(h, name) },
 	}
 }
 

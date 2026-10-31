@@ -76,6 +76,33 @@ func (a *App) refreshHostHooks(h *host) {
 	}()
 }
 
+// hostRemoveWait bounds how long removing a host waits for its kerod to
+// take kero's hooks back: a kerod slow to answer must not hold the host.
+var hostRemoveWait = 2 * time.Second
+
+// removeHostAfterHooks takes a host out of kero's settings after asking
+// its kerod, best-effort, to take kero's agent hooks back: a host gone
+// from kero would otherwise keep them alive by its startup ensure
+// forever. A host the app can't reach, one that errs or never answers,
+// goes all the same. It runs off the app thread, as the confirmation
+// that asks for it runs on it, and lands the removal back on it.
+func (a *App) removeHostAfterHooks(h *host, name string) {
+	if cl := h.cl; cl != nil {
+		// Call waits on the daemon with no deadline of its own: bound the
+		// wait, leaving the call's goroutine to end as the connection
+		// does. The client stays — the app shares it.
+		ch := make(chan error, 1)
+		go func() {
+			ch <- cl.Call("hooks.remove", proto.HooksParams{Agent: "claude"}, nil)
+		}()
+		select {
+		case <-ch:
+		case <-time.After(hostRemoveWait):
+		}
+	}
+	a.update(func() { a.removeHost(name) })
+}
+
 // hostHooksAction installs or removes a host's agent hooks, as its row's
 // buttons or its menu ask, then asks their state again. A host the app
 // can't reach says so, without a call.

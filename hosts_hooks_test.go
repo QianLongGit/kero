@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -117,6 +118,65 @@ func TestHostsHooksRow(t *testing.T) {
 		t.Fatalf("toast %q after an update", a.pendingToast)
 	}
 	shot(t, tt, "settings-host-hooks")
+}
+
+// Removing a host first asks its kerod to take kero's agent hooks back —
+// a host gone from kero would keep them alive by its startup ensure
+// forever. A host the app can't reach goes at once, without a call, and
+// one slow to answer holds its removal no longer than the bounded wait.
+func TestRemoveHostAfterHooks(t *testing.T) {
+	a := testApp(t)
+	h := withHost(t, a, "build")
+	a.updateFn = func(fn func()) { fn() }
+	old := hostRemoveWait
+	hostRemoveWait = 50 * time.Millisecond
+	defer func() { hostRemoveWait = old }()
+
+	// Unreached: no one to ask, the host goes at once.
+	a.removeHostAfterHooks(h, "build")
+	if len(a.set.Hosts) != 0 {
+		t.Fatalf("an unreached host stayed: %+v", a.set.Hosts)
+	}
+
+	// Reached: the hooks call goes before the host does.
+	called := make(chan string, 1)
+	h = withHost(t, a, "build")
+	h.cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		var p proto.HooksParams
+		if err := json.Unmarshal(raw, &p); err != nil || p.Agent != "claude" {
+			t.Errorf("%s: agent %+v, %v", method, p, err)
+		}
+		called <- method
+		return proto.HooksResult{State: "missing"}, nil
+	})
+	a.removeHostAfterHooks(h, "build")
+	select {
+	case got := <-called:
+		if got != "hooks.remove" {
+			t.Errorf("the removal called %s", got)
+		}
+	default:
+		t.Fatal("the host went before its kerod was asked for the hooks")
+	}
+	if len(a.set.Hosts) != 0 {
+		t.Fatalf("the host stayed: %+v", a.set.Hosts)
+	}
+
+	// A kerod that answers too late: the host goes within the wait, the
+	// call's goroutine ending as the connection does.
+	h = withHost(t, a, "build")
+	h.cl, _ = projectClient(t, func(method string, _ json.RawMessage) (any, error) {
+		time.Sleep(10 * hostRemoveWait)
+		return proto.HooksResult{State: "missing"}, nil
+	})
+	start := time.Now()
+	a.removeHostAfterHooks(h, "build")
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("a slow kerod held the removal %s", d)
+	}
+	if len(a.set.Hosts) != 0 {
+		t.Fatal("the host of a slow kerod stayed")
+	}
 }
 
 // A host's tag carries its menu in the sidebar, as its header does in
