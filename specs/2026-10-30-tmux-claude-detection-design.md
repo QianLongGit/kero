@@ -193,16 +193,22 @@ broken, and must never damage the user's settings.
   current/outdated/missing) run the shared machinery on whichever kerod
   receives them; the GUI drives them per host. `remove` writes the marker,
   `setup` clears it.
-- `kero skill remove --agent claude` writes a marker (a `no-hooks` file under
-  `proto.Home()`) that the auto-ensure respects; re-enabling is
-  `kero skill setup`. [my call — self-healing must not fight an explicit
-  removal]
+- `kero skill remove --agent claude` and the RPC both write a marker (a
+  `no-agent-hooks` file under `proto.Dir()` — kero's own directory, beside
+  its socket and state, never a new file in the user's home) that the
+  auto-ensure respects; re-enabling is an explicit install (setup clears the
+  marker). [my call — self-healing must not fight an explicit removal]
 - GUI (root package): Settings›Hosts (`hosts_settings.go` `hostRow`) gains a
   hooks state row (Install/Remove buttons, state fetched per host over
   `hooks.state` when the page opens, refreshService pattern), and the
   sidebar host context menu (`hostMenu`) gains the same two actions; the
   menu also becomes reachable in the normal state by attaching it to
   `hostTag` (today it exists only on the trouble-state host header).
+- Removing a host (`removeHostConfirmation` → `removeHost`) first uninstalls
+  that host's hooks (best-effort `hooks.remove`, bounded wait, never blocks
+  or cancels the removal — the host leaves kero's management, so its hooks
+  must not stay behind under the daemon's auto-ensure), then removes the
+  host.
 
 ## Tests
 
