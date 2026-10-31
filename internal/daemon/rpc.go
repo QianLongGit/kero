@@ -38,6 +38,13 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		// A watcher, as kero events, hears what an app does but is no app
 		// (Daemon.watchers). The first state goes out under the lock the
 		// later ones do, so none of them comes before it.
+		if method == "subscribe" {
+			// An app subscribing shows the panes: wake them before the
+			// lock, so the first state it gets tells of them started —
+			// materialize under d.mu would deadlock. A watch wakes none:
+			// kero events only listens.
+			d.wakeDormant()
+		}
 		d.mu.Lock()
 		if method == "watch" {
 			d.watchers[c] = struct{}{}
@@ -207,6 +214,9 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if pn.term == nil {
 			return nil, fmt.Errorf("pane %s is a browser, which takes no input", pn.info.ID)
 		}
+		// The input must reach a shell as it always did: wake the pane it
+		// addresses — it alone, for the rest are not being driven.
+		d.wakePane(pn)
 		pn.input([]byte(p.Data))
 		return true, nil
 
@@ -372,6 +382,10 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if err != nil {
 			return nil, err
 		}
+		// The wait watches the pane work: wake it — it alone, for the
+		// rest are not being driven — so the command it waits on reaches
+		// a shell.
+		d.wakePane(pn)
 		return d.wait(c, pn, p)
 
 	case "pane.agentSession":

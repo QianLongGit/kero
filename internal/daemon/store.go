@@ -40,6 +40,15 @@ type savedPane struct {
 	ID      string   `json:"id"`
 	Dir     string   `json:"dir,omitempty"`
 	Command []string `json:"command,omitempty"`
+	// RestoreCmd is what a materialize runs again: the argv of the program
+	// that ran in the pane, RestoreDir the directory it ran in when not
+	// the pane's own, Tmux that it was a tmux client, whose server holds
+	// what it showed. On macOS argv[0] comes as a full path, kept as
+	// recorded: a binary that moved degrades to the shell, never to a
+	// wrong command.
+	RestoreCmd []string `json:"restoreCmd,omitempty"`
+	RestoreDir string   `json:"restoreDir,omitempty"`
+	Tmux       bool     `json:"tmux,omitempty"`
 	// URL and Title are a browser pane's page; File a file pane's path.
 	URL   string `json:"url,omitempty"`
 	Title string `json:"title,omitempty"`
@@ -89,6 +98,21 @@ func (d *Daemon) saveState() {
 				Agent: p.info.AgentSession, Turn: p.info.Turn, Created: p.info.Created, Cols: p.info.Cols, Rows: p.info.Rows}
 			if p.info.Browser() {
 				sp.Title = p.info.Title
+			}
+			// What a materialize runs again. A pane with a program in the
+			// foreground tells it from that program; any other — dormant,
+			// or the shell alone — keeps what it was restored with, which
+			// a save must not blank before the pane runs anything again.
+			if p.fgPGID != 0 && p.fgPGID != p.shellPID {
+				sp.RestoreCmd = procArgs(p.fgPGID)
+				sp.Tmux = tmuxProc(procName(p.fgPGID))
+				// Where the program runs, when it left the pane's own
+				// directory, as an agent in a worktree did.
+				if dir := procCwd(p.fgPGID); dir != "" && dir != p.info.Dir {
+					sp.RestoreDir = dir
+				}
+			} else {
+				sp.RestoreCmd, sp.RestoreDir, sp.Tmux = p.restoreCmd, p.restoreDir, p.restoreTmux
 			}
 			ss.Panes = append(ss.Panes, sp)
 			p.mu.Unlock()
@@ -170,14 +194,23 @@ func (d *Daemon) restore() {
 			}
 		}
 		d.sessions = append(d.sessions, s)
+		// A session holding a terminal pane came back dormant, its
+		// programs waiting for a client; a browser's or a file's pane has
+		// no process to wait for, and is whole as it is.
+		for _, p := range s.panes {
+			if p.term != nil {
+				d.dormant = append(d.dormant, s)
+				break
+			}
+		}
 		d.log.Printf("session %s restored, %d panes", s.id, len(s.panes))
 	}
 }
 
-// restorePane starts a pane of the last daemon again, under its
-// scrollback, in its directory, with the agent it ran resumed; a browser
-// pane comes back on its page, and a file pane on its file, which the app
-// shows.
+// restorePane brings a pane of the last daemon back, under its
+// scrollback, in its directory, without its process: what it ran is kept
+// on it, to run again when a client comes. A browser pane comes back on
+// its page, and a file pane on its file, which the app shows.
 func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 	now := time.Now().UnixMilli()
 	if sp.URL != "" || sp.File != "" {
@@ -195,21 +228,18 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 		d.log.Printf("restoring %s: %v", sp.ID, err)
 		return nil
 	}
-	// What the session showed, down to where its cursor was, with the
-	// new shell under it: what a program drew below the cursor, as an
+	// What the session showed, down to where its cursor was, with what
+	// starts again under it: what a program drew below the cursor, as an
 	// agent's status bar, goes, rather than show under the new shell's
 	// prompt. History carries no modes and no cursor to undo.
 	if h, err := os.ReadFile(d.historyPath(sp.ID)); err == nil && len(h) > 0 {
 		p.term.Feed(h)
 		p.term.Feed([]byte("\x1b[2m── restored · session ended " + when + " ──\x1b[0m\r\n"))
 	}
-	// The shell alone: what ran in it may not want to run again unasked.
-	// But an agent's conversation, which only waits for the user.
-	if err := p.start(resumeCommand(sp.Agent), nil); err != nil {
-		d.log.Printf("restoring %s: %v", sp.ID, err)
-		p.term.Close()
-		return nil
-	}
+	// Dormant: what ran in it may not want to run again unasked, so
+	// nothing starts until a client comes for it — and what it ran stays
+	// on the pane, so that a save before then keeps it.
+	p.restoreCmd, p.restoreDir, p.restoreTmux = sp.RestoreCmd, sp.RestoreDir, sp.Tmux
 	p.dirty = true
 	return p
 }
@@ -227,6 +257,29 @@ func resumeCommand(a *proto.AgentSession) []string {
 		return []string{"codex", "resume", a.ID}
 	case "pi", "opencode":
 		return []string{a.Agent, "--session", a.ID}
+	}
+	return nil
+}
+
+// materializeCommand is what a dormant pane runs again when a client
+// comes for it: its agent's conversation first — resume-agents read here,
+// not remembered from the restore, for the user may flip it between the
+// daemon's boot and the pane's wake — then the tmux client the pane ran,
+// whose own server holds what it showed, then any recorded command when
+// the user asked for all of them, and else nothing: the pane comes back
+// at its shell, as a restore always left it. A browser's or a file's
+// pane runs nothing at all.
+func materializeCommand(set settings.Settings, sp savedPane) []string {
+	if sp.URL != "" || sp.File != "" {
+		return nil
+	}
+	if set.ResumeAgents {
+		if cmd := resumeCommand(sp.Agent); cmd != nil {
+			return cmd
+		}
+	}
+	if sp.Tmux && set.RestoreMultiplexer || len(sp.RestoreCmd) > 0 && set.RestoreRerun == "all" {
+		return sp.RestoreCmd
 	}
 	return nil
 }

@@ -41,6 +41,7 @@ type pane struct {
 	// that last resized the pane, 0 until one did.
 	cellW, cellH int
 	proc         *ptyProc
+	starting     bool // claimed for a start in flight, until it publishes its process
 	term         *terminal.Terminal
 	clients      map[*attachment]struct{}
 	// claimer is the client the user claimed the pane in last (claim), nil
@@ -50,6 +51,15 @@ type pane struct {
 	shellPID int
 	fgPGID   int
 	cwdAt    time.Time
+
+	// restoreCmd, restoreDir and restoreTmux are what the pane was
+	// restored with, of the re-run record it was saved under (store.go's
+	// savedPane): they wait for a materialize to run them, and a save
+	// writes them back while no program runs, so that the record outlives
+	// a daemon that restarts before one does.
+	restoreCmd  []string
+	restoreDir  string
+	restoreTmux bool
 
 	dirty bool // output since the history on disk
 	// seen is what the screen showed when the status last came from it,
@@ -169,6 +179,7 @@ func (s *pane) start(command []string, env []string) error {
 	s.info.Shell = name
 	s.info.CommandExit = nil
 	s.awaiting = len(command) > 0 && marksExit(shell)
+	s.starting = false // the process is the pane's guard now
 	s.mu.Unlock()
 	go s.pump(proc)
 	return nil
@@ -725,13 +736,16 @@ func (s *pane) exited(proc *ptyProc) {
 	s.d.changed()
 }
 
-// restart starts a shell again in a session that exited.
+// restart starts a shell again in a session that exited. It claims the
+// pane as materialize does — starting, under the lock — so a restart
+// racing another leaves the pane to it.
 func (s *pane) restart() error {
 	s.mu.Lock()
-	if s.proc != nil || s.term == nil {
+	if s.proc != nil || s.starting || s.term == nil {
 		s.mu.Unlock()
 		return fmt.Errorf("session %s is running", s.info.ID)
 	}
+	s.starting = true
 	banner := "\r\n\x1b[0;2m[Restarted]\x1b[0m\r\n"
 	s.term.Feed([]byte(banner))
 	s.frame()
@@ -739,10 +753,47 @@ func (s *pane) restart() error {
 	s.info.Unread, s.info.Message, s.info.ExitCode = false, "", 0
 	s.mu.Unlock()
 	if err := s.start(nil, nil); err != nil {
+		s.mu.Lock()
+		s.starting = false
+		s.mu.Unlock()
 		return err
 	}
 	s.d.changed()
 	return nil
+}
+
+// materialize starts what a dormant pane was restored holding, when a
+// client comes for it: what that is, materializeCommand tells from the
+// settings as they stand now, for the user may have flipped them since
+// the daemon booted. pane.start itself guards no double start, so the
+// pane is claimed the moment materialize decides to start it — starting,
+// under the lock, which start clears as it publishes the process — and
+// a second materialize, a drive command's wake racing the wake of the
+// rest, finds the pane claimed and leaves it be; the restart RPC claims
+// its starts the same way. A start that fails gives the claim back and
+// returns false: the pane is registered, unlike one a restore could not
+// bring back, so the caller drops it.
+func (s *pane) materialize() bool {
+	s.mu.Lock()
+	if s.proc != nil || s.starting || s.closed || s.term == nil {
+		// A pane with no terminal — a browser's, a file's — starts nothing;
+		// it is whole as it was restored.
+		s.mu.Unlock()
+		return true
+	}
+	if s.restoreDir != "" {
+		s.info.Dir = s.restoreDir
+	}
+	sp := savedPane{Agent: s.info.AgentSession, RestoreCmd: s.restoreCmd, Tmux: s.restoreTmux}
+	s.starting = true
+	s.mu.Unlock()
+	if err := s.start(materializeCommand(settings.Load(), sp), nil); err != nil {
+		s.mu.Lock()
+		s.starting = false
+		s.mu.Unlock()
+		return false
+	}
+	return true
 }
 
 // close hangs up the shell and frees the session.

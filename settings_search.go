@@ -30,6 +30,8 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
 		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
+		{"general", locales.SetRestoreMultiplexer(), "restore-multiplexer tmux attach client multiplexer 重连"},
+		{"general", locales.SetRestoreRerun(), "restore-rerun rerun command 重新运行"},
 		{"general", locales.SetSessionHistory(), "session-history ended sessions archived resume claude codex conversation"},
 		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},
 		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},

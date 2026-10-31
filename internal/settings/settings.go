@@ -22,17 +22,19 @@ import (
 // choice of its own: Load fills defaults in.
 type Settings struct {
 	// General
-	NewSessionDir     string `json:"newSessionDir"`      // "current", "project" or "home"
-	SessionName       string `json:"sessionName"`        // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
-	SidebarRows       string `json:"sidebarRows"`        // "detailed", two lines a session, or "compact", one
-	FocusFollowsMouse bool   `json:"focusFollowsMouse"`  // a pane the pointer enters takes the focus
-	ConfirmClose      bool   `json:"confirmClose"`       // before closing a pane a program runs in
-	RestoreSessions   bool   `json:"restoreSessions"`    // after kerod restarts, as after a reboot
-	ResumeAgents      bool   `json:"resumeAgents"`       // as it restores sessions: the agents' own
-	SessionHistory    bool   `json:"sessionHistory"`     // the sidebar lists the agents' ended conversations
-	QuitConfirm       bool   `json:"quitConfirm"`        // tell, the first time, that quitting keeps sessions
-	AppIcon           string `json:"appIcon"`            // macOS: AppIcons; elsewhere the icon is always in the notification area
-	FileOpen          string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system" or "pane"
+	NewSessionDir      string `json:"newSessionDir"`      // "current", "project" or "home"
+	SessionName        string `json:"sessionName"`        // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
+	SidebarRows        string `json:"sidebarRows"`        // "detailed", two lines a session, or "compact", one
+	FocusFollowsMouse  bool   `json:"focusFollowsMouse"`  // a pane the pointer enters takes the focus
+	ConfirmClose       bool   `json:"confirmClose"`       // before closing a pane a program runs in
+	RestoreSessions    bool   `json:"restoreSessions"`    // after kerod restarts, as after a reboot
+	ResumeAgents       bool   `json:"resumeAgents"`       // as it restores sessions: the agents' own
+	RestoreMultiplexer bool   `json:"restoreMultiplexer"` // as sessions start again, a pane in tmux runs its tmux client again
+	RestoreRerun       string `json:"restoreRerun"`       // what a pane that starts again re-runs: "off" nothing, "all" the command it last ran
+	SessionHistory     bool   `json:"sessionHistory"`     // the sidebar lists the agents' ended conversations
+	QuitConfirm        bool   `json:"quitConfirm"`        // tell, the first time, that quitting keeps sessions
+	AppIcon            string `json:"appIcon"`            // macOS: AppIcons; elsewhere the icon is always in the notification area
+	FileOpen           string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system" or "pane"
 
 	// Appearance
 	Appearance     string `json:"appearance"`     // "system", "light" or "dark"
@@ -143,46 +145,48 @@ func (s *Settings) Host(name string) *Host {
 // Default returns the settings of a new install.
 func Default() Settings {
 	return Settings{
-		NewSessionDir:   "current",
-		SessionName:     proto.NameFocused,
-		SidebarRows:     "detailed",
-		ConfirmClose:    true,
-		RestoreSessions: true,
-		ResumeAgents:    true,
-		QuitConfirm:     true,
-		AppIcon:         "dock-and-menubar",
-		FileOpen:        "pane",
-		Appearance:      "system",
-		Language:        "system",
-		Vibrancy:        true,
-		SidebarDensity:  "compact",
-		DimUnfocused:    true,
-		FontSize:        13,
-		LineHeight:      1.22,
-		FontWeight:      400,
-		Ligatures:       true,
-		MinContrast:     3,
-		Cursor:          "block",
-		CursorBlink:     true,
-		LightTheme:      "paper",
-		DarkTheme:       "paper",
-		Clipboard:       "ask",
-		RightClick:      "menu",
-		ScrollPrecision: 1,
-		ScrollDiscrete:  3,
-		Scrollback:      4,
-		NotifyWaiting:   true,
-		NotifyDone:      true,
-		NotifyFailed:    true,
-		DockBadge:       true,
-		RemoteControl:   true,
-		GitStatus:       true,
-		SidebarBranch:   true,
-		SidebarPath:     true,
-		DiffLayout:      "auto",
-		WorktreeBase:    "default",
-		BlockAds:        true,
-		AdLists:         slices.Clone(adblock.DefaultLists),
+		NewSessionDir:      "current",
+		SessionName:        proto.NameFocused,
+		SidebarRows:        "detailed",
+		ConfirmClose:       true,
+		RestoreSessions:    true,
+		ResumeAgents:       true,
+		RestoreMultiplexer: true,
+		RestoreRerun:       "off",
+		QuitConfirm:        true,
+		AppIcon:            "dock-and-menubar",
+		FileOpen:           "pane",
+		Appearance:         "system",
+		Language:           "system",
+		Vibrancy:           true,
+		SidebarDensity:     "compact",
+		DimUnfocused:       true,
+		FontSize:           13,
+		LineHeight:         1.22,
+		FontWeight:         400,
+		Ligatures:          true,
+		MinContrast:        3,
+		Cursor:             "block",
+		CursorBlink:        true,
+		LightTheme:         "paper",
+		DarkTheme:          "paper",
+		Clipboard:          "ask",
+		RightClick:         "menu",
+		ScrollPrecision:    1,
+		ScrollDiscrete:     3,
+		Scrollback:         4,
+		NotifyWaiting:      true,
+		NotifyDone:         true,
+		NotifyFailed:       true,
+		DockBadge:          true,
+		RemoteControl:      true,
+		GitStatus:          true,
+		SidebarBranch:      true,
+		SidebarPath:        true,
+		DiffLayout:         "auto",
+		WorktreeBase:       "default",
+		BlockAds:           true,
+		AdLists:            slices.Clone(adblock.DefaultLists),
 	}
 }
 

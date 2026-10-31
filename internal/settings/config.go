@@ -116,6 +116,8 @@ var keys = []key{
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),
 	boolKey("resume-agents", "as sessions start again, resume the conversation of the coding agent each pane ran", func(s *Settings) *bool { return &s.ResumeAgents }),
+	boolKey("restore-multiplexer", "as sessions start again, a pane in tmux runs its tmux client again, which reattaches to its session", func(s *Settings) *bool { return &s.RestoreMultiplexer }),
+	choiceKey("restore-rerun", "what a pane that starts again re-runs besides its agent's conversation: nothing, or the command it last ran", func(s *Settings) *string { return &s.RestoreRerun }, "off", "all"),
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),

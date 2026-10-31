@@ -35,6 +35,14 @@ func TestSettingsPages(t *testing.T) {
 		if !tt.HasText(want[p.id]) {
 			t.Errorf("page %s: no %q; texts %q", p.id, want[p.id], tt.Texts())
 		}
+		if p.id == "general" {
+			// The restore rows sleep unless sessions restore.
+			for _, title := range []string{"Re-attach tmux sessions after a restart", "Re-run commands after a restart"} {
+				if !tt.HasText(title) {
+					t.Errorf("page general: no %q; texts %q", title, tt.Texts())
+				}
+			}
+		}
 		if p.id != "hosts" && tt.HasText("Experimental") {
 			t.Errorf("page %s is tagged experimental", p.id)
 		}
@@ -113,7 +121,7 @@ func TestFileOpenSetting(t *testing.T) {
 	a.ss.page = "general"
 	// The page's rows run past a window's height; a tall one reaches the
 	// file-open row without scrolling.
-	tt := ui.NewTester(a.settingsView, 820, 1300)
+	tt := ui.NewTester(a.settingsView, 820, 1440)
 	tt.Frame()
 	if err := tt.Click("System default"); err != nil {
 		t.Fatal(err)
@@ -123,6 +131,37 @@ func TestFileOpenSetting(t *testing.T) {
 	}
 	if a.set.FileOpen != "system" || settings.Load().FileOpen != "system" {
 		t.Fatalf("file open %q, saved %q, after choosing System default", a.set.FileOpen, settings.Load().FileOpen)
+	}
+}
+
+// The restore choices, made on the General page, stay and are saved: the
+// rerun segments, and the multiplexer's switch.
+func TestRestoreRerunChoiceSticks(t *testing.T) {
+	a := testApp(t)
+	a.ss.page = "general"
+	// The page's rows run past a window's height; a tall one reaches the
+	// restore rows without scrolling.
+	tt := ui.NewTester(a.settingsView, 820, 1300)
+	tt.Frame()
+	if err := tt.Click("All commands"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tt.Frame()
+	}
+	if a.set.RestoreRerun != "all" || settings.Load().RestoreRerun != "all" {
+		t.Fatalf("rerun %q, saved %q, after choosing All commands", a.set.RestoreRerun, settings.Load().RestoreRerun)
+	}
+	// The multiplexer's switch, at its row's end.
+	r, ok := tt.Find("Re-attach tmux sessions after a restart")
+	if !ok {
+		t.Fatalf("no multiplexer row; texts %q", tt.Texts())
+	}
+	tt.ClickAt(752, r.Y+r.H/2)
+	tt.Frame()
+	tt.Frame()
+	if a.set.RestoreMultiplexer || settings.Load().RestoreMultiplexer {
+		t.Fatalf("multiplexer %v, saved %v, after its switch", a.set.RestoreMultiplexer, settings.Load().RestoreMultiplexer)
 	}
 }
 

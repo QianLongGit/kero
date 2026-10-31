@@ -266,6 +266,45 @@ func TestSidebarSmart(t *testing.T) {
 	}
 }
 
+// A pane that starts again after kerod restarts runs its tmux client
+// again, which reattaches to its session, while the commands it ran
+// besides come back only as the user takes them; what is saved reads back.
+func TestRestoreSettings(t *testing.T) {
+	if d := Default(); !d.RestoreMultiplexer || d.RestoreRerun != "off" {
+		t.Errorf("defaults: multiplexer %v, rerun %q", d.RestoreMultiplexer, d.RestoreRerun)
+	}
+	s, probs := parse("restore-multiplexer = false\nrestore-rerun = all\n")
+	if s.RestoreMultiplexer || s.RestoreRerun != "all" || len(probs) != 0 {
+		t.Errorf("multiplexer %v, rerun %q, problems %q", s.RestoreMultiplexer, s.RestoreRerun, probs)
+	}
+	// A value the file got wrong keeps the default.
+	bad, probs := parse("restore-rerun = sometimes\n")
+	if bad.RestoreRerun != "off" || len(probs) != 1 {
+		t.Errorf("unknown rerun %q, problems %q", bad.RestoreRerun, probs)
+	}
+	// What is saved reads back the same, and the defaults write nothing.
+	out := format(s, "")
+	if !strings.Contains(out, "restore-multiplexer = false\n") || !strings.Contains(out, "restore-rerun = all\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	n := 0
+	for _, l := range strings.Split(out, "\n") {
+		if l != "" && !strings.HasPrefix(l, "#") {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("%d settings written, want 2:\n%s", n, out)
+	}
+	back, _ := parse(out)
+	if back.RestoreMultiplexer || back.RestoreRerun != "all" {
+		t.Errorf("read back %v, %q", back.RestoreMultiplexer, back.RestoreRerun)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "restore-multiplexer") || strings.Contains(out, "restore-rerun") {
+		t.Errorf("the defaults were written:\n%s", out)
+	}
+}
+
 // background, which chose kero's theme before theme took kero's themes
 // by name, still does, for theme = kero too; saving writes theme in its
 // place.

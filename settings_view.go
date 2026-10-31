@@ -510,6 +510,13 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 			settingRow(c, pal, locales.SetResumeAgents(), locales.SetResumeAgentsDetail(), func() {
 				toggle(c.Key("resume"), &s.ResumeAgents, pal)
 			})
+			settingRow(c, pal, locales.SetRestoreMultiplexer(), locales.SetRestoreMultiplexerDetail(), func() {
+				toggle(c.Key("multiplexer"), &s.RestoreMultiplexer, pal)
+			})
+			settingRow(c, pal, locales.SetRestoreRerun(), locales.SetRestoreRerunDetail(), func() {
+				segmented(c, "restore-rerun", &s.RestoreRerun, []string{"off", "all"},
+					[]string{locales.SetRerunOff(), locales.SetRerunAll()})
+			})
 		}
 		settingRow(c, pal, locales.SetSessionHistory(), locales.SetSessionHistoryDetail(), func() {
 			toggle(c.Key("session-history"), &s.SessionHistory, pal)

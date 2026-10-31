@@ -434,13 +434,16 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 	return info, nil
 }
 
-// removePane closes a pane; its session goes with its last pane.
-func (d *Daemon) removePane(id string) error {
+// takePane takes a pane out of the daemon's memory — its session goes
+// with its last pane — and hands it to the caller to close; what the
+// pane keeps on disk is the caller's to take or leave. nil when the
+// daemon knows no such pane.
+func (d *Daemon) takePane(id string) *pane {
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	p := d.panes[id]
 	if p == nil {
-		d.mu.Unlock()
-		return fmt.Errorf("no pane %s", id)
+		return nil
 	}
 	delete(d.panes, id)
 	s := d.sessionOfLocked(p)
@@ -470,7 +473,16 @@ func (d *Daemon) removePane(id string) error {
 			s.focus = s.panes[0].info.ID
 		}
 	}
-	d.mu.Unlock()
+	return p
+}
+
+// removePane closes a pane; its session goes with its last pane, and
+// its history with it.
+func (d *Daemon) removePane(id string) error {
+	p := d.takePane(id)
+	if p == nil {
+		return fmt.Errorf("no pane %s", id)
+	}
 	p.close()
 	os.Remove(d.historyPath(id))
 	d.changed()

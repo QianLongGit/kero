@@ -47,8 +47,12 @@ type Daemon struct {
 	mu       sync.Mutex
 	projects []proto.Project
 	sessions []*session
-	panes    map[string]*pane
-	subs     map[*controlConn]struct{}
+	// dormant are the sessions a restore brought back without starting
+	// their panes' programs: they wait, as the last daemon left them,
+	// until a client connects and wakes them.
+	dormant []*session
+	panes   map[string]*pane
+	subs    map[*controlConn]struct{}
 	// watchers are the connections that follow the state and notices,
 	// as kero events does, but are no app: no action, select or browser
 	// call goes to them, nor do they count as an app being open.
@@ -705,6 +709,10 @@ func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id iden
 	}()
 	switch hello.Kind {
 	case "attach":
+		// A client that shows the panes wakes them, and only one that
+		// does: a listing or a passive watch starting them would attach
+		// the user's tmux sessions unseen.
+		d.wakeDormant()
 		d.serveAttach(conn, r, hello, welcome)
 	case proto.KindTransfer:
 		d.serveTransfer(conn, r, id)
@@ -724,6 +732,61 @@ func (d *Daemon) clientList() []proto.ClientInfo {
 	}
 	slices.SortFunc(out, func(a, b proto.ClientInfo) int { return int(a.Since - b.Since) })
 	return out
+}
+
+// wakeDormant starts what the dormant sessions' panes were restored
+// holding, as a client that shows them comes. The panes claim themselves
+// under their own locks (materialize), so a drive command that woke one
+// pane first (wakePane) leaves this drain nothing to start twice. It runs
+// outside d.mu — it starts programs — and one changed() at its end tells
+// the subscribers of all of it.
+func (d *Daemon) wakeDormant() {
+	d.mu.Lock()
+	dormant := d.dormant
+	d.dormant = nil
+	d.mu.Unlock()
+	if len(dormant) == 0 {
+		return
+	}
+	for _, s := range dormant {
+		// s.panes is d.mu's — a split appends to it, a failed pane's
+		// removal deletes from it — so take the panes under the lock,
+		// over a copy that the removal's shifting cannot touch, and
+		// materialize outside it: materialize starts programs, which no
+		// lock of the daemon's may hold.
+		d.mu.Lock()
+		panes := slices.Clone(s.panes)
+		d.mu.Unlock()
+		for _, p := range panes {
+			if !p.materialize() {
+				d.dropUnstarted(p)
+			}
+		}
+	}
+	d.changed()
+}
+
+// wakePane starts what a dormant pane was restored holding, as a drive
+// command (send, wait) addresses it: the command must reach a shell as it
+// always did. Only the pane addressed wakes — the rest wait for a client
+// that shows them — and one whose start fails goes as wakeDormant's would.
+func (d *Daemon) wakePane(p *pane) {
+	if !p.materialize() {
+		d.dropUnstarted(p)
+	}
+}
+
+// dropUnstarted takes a pane whose wake could not start it out of the
+// daemon, leaving its history on disk: a wake that fails is a retry,
+// not an end, so what the pane showed stays for a daemon that can run
+// it; the file goes only with a pane the user closes (removePane).
+func (d *Daemon) dropUnstarted(p *pane) {
+	if d.takePane(p.info.ID) == nil {
+		return
+	}
+	p.close()
+	d.changed()
+	d.log.Printf("pane %s dropped, its wake failed", p.info.ID)
 }
 
 func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, welcome proto.Welcome) {

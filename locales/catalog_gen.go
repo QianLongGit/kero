@@ -2240,6 +2240,66 @@ func (msgs Messages) SetResumeAgentsDetail() string {
 	return Catalog.Format(msgs.locale, "setResumeAgentsDetail", nil)
 }
 
+// SetRestoreMultiplexer says "Re-attach tmux sessions after a restart"
+// in the language the app shows.
+func SetRestoreMultiplexer() string { return In(i18n.Locale()).SetRestoreMultiplexer() }
+
+// SetRestoreMultiplexer says "Re-attach tmux sessions after a restart"
+// in the language of msgs.
+func (msgs Messages) SetRestoreMultiplexer() string {
+	return Catalog.Format(msgs.locale, "setRestoreMultiplexer", nil)
+}
+
+// SetRestoreMultiplexerDetail says "A restored pane runs its tmux client again, attaching the session it had"
+// in the language the app shows.
+func SetRestoreMultiplexerDetail() string { return In(i18n.Locale()).SetRestoreMultiplexerDetail() }
+
+// SetRestoreMultiplexerDetail says "A restored pane runs its tmux client again, attaching the session it had"
+// in the language of msgs.
+func (msgs Messages) SetRestoreMultiplexerDetail() string {
+	return Catalog.Format(msgs.locale, "setRestoreMultiplexerDetail", nil)
+}
+
+// SetRestoreRerun says "Re-run commands after a restart"
+// in the language the app shows.
+func SetRestoreRerun() string { return In(i18n.Locale()).SetRestoreRerun() }
+
+// SetRestoreRerun says "Re-run commands after a restart"
+// in the language of msgs.
+func (msgs Messages) SetRestoreRerun() string {
+	return Catalog.Format(msgs.locale, "setRestoreRerun", nil)
+}
+
+// SetRestoreRerunDetail says "A restored pane runs the command it ended with; an agent resumes its conversation instead"
+// in the language the app shows.
+func SetRestoreRerunDetail() string { return In(i18n.Locale()).SetRestoreRerunDetail() }
+
+// SetRestoreRerunDetail says "A restored pane runs the command it ended with; an agent resumes its conversation instead"
+// in the language of msgs.
+func (msgs Messages) SetRestoreRerunDetail() string {
+	return Catalog.Format(msgs.locale, "setRestoreRerunDetail", nil)
+}
+
+// SetRerunOff says "Off"
+// in the language the app shows.
+func SetRerunOff() string { return In(i18n.Locale()).SetRerunOff() }
+
+// SetRerunOff says "Off"
+// in the language of msgs.
+func (msgs Messages) SetRerunOff() string {
+	return Catalog.Format(msgs.locale, "setRerunOff", nil)
+}
+
+// SetRerunAll says "All commands"
+// in the language the app shows.
+func SetRerunAll() string { return In(i18n.Locale()).SetRerunAll() }
+
+// SetRerunAll says "All commands"
+// in the language of msgs.
+func (msgs Messages) SetRerunAll() string {
+	return Catalog.Format(msgs.locale, "setRerunAll", nil)
+}
+
 // SetStartup says "Startup"
 // in the language the app shows.
 func SetStartup() string { return In(i18n.Locale()).SetStartup() }
