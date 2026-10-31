@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.3.21
+
+- Claude Code running inside tmux is seen now: a pane whose foreground
+  is a tmux client takes the agent from the tmux session's own panes,
+  so the sidebar's status, the Needs-you notifications and the changes
+  panel work there as they do in any other pane.
+- Claude Code's hooks report to kerod over its socket, attributed
+  through tmux's topology when the pane sits behind its client. kerod
+  installs them into Claude Code's settings itself — additively,
+  idempotently, touching nothing of the user's own — and stays silent
+  when kero is broken, so Claude Code never notices. Settings › Hosts
+  and a host's menu carry the hooks' Install and Uninstall.
+
 ## 2.3.20
 
 - The Files view's tree has a **Reload** button, beside the Preview
