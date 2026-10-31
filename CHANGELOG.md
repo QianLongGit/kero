@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.22
+
+- A tmux client names itself "tmux: client" once it attaches, and the
+  pane's foreground check knows the form now: the detection 2.3.21
+  brought kept working only until the client attached.
+
 ## 2.3.21
 
 - Claude Code running inside tmux is seen now: a pane whose foreground
