@@ -80,6 +80,17 @@ type changesState struct {
 	focus     *sideFile
 	// places are the lists' places, by scope.
 	places map[string]*ui.ListState
+	// tree is the tree of the files of treeOf, the list it was made of
+	// (changes_tree.go); treeClosed the folders the user folded in it, by
+	// scope and path; treePlaces its places, by scope. picked is the file
+	// last chosen in it, and current the one it showed as there, which it
+	// scrolls to as that changes.
+	tree       []*treeNode
+	treeOf     *proto.GitChanges
+	treeClosed map[string]bool
+	treePlaces map[string]*ui.ListState
+	picked     string
+	current    string
 }
 
 // sideFile is a changed file's diff since a base.
@@ -393,6 +404,12 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 		list = nil
 	}
 
+	// The tree of the files, beside their diffs, takes of their room.
+	diffW := width
+	if a.prefs.SideTree && list != nil && len(list.Files) > 0 {
+		diffW -= treeWidth(width)
+	}
+
 	ui.Column(c.Key("bases")).Shrink(0).Padding(2, 12, 6, 12).Gap(6).AlignItems(ui.Stretch).Children(func() {
 		if len(bases) > 1 {
 			ui.Row(c).Children(func() { segmented(c, "base", &ch.base, bases, labels) })
@@ -413,7 +430,11 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 				ui.Text(c, tips[i]).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0)
 			}
 			ui.Spacer(c)
-			split := a.diffSplit(width)
+			if list != nil && len(list.Files) > 0 {
+				a.foldAllButton(c, pal, scope, list.Files)
+			}
+			a.treeToggle(c, pal)
+			split := a.diffSplit(diffW)
 			layoutIcon, layoutTip := splitRightIcon, locales.ChangesSplit()
 			if split {
 				layoutIcon, layoutTip = splitDownIcon, locales.ChangesUnified()
@@ -467,7 +488,9 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 		// until the next file's header pushes it out, as the files of a
 		// pull request do.
 		var rows []changeRow
-		for _, f := range res.Files {
+		heads := make([]int, len(res.Files)) // the row of each file's header
+		for i, f := range res.Files {
+			heads[i] = len(rows)
 			rows = append(rows, changeRow{f: f})
 			if ch.files[scope+"|"+f.Path] != nil && !a.fileCollapsed(scope, f) {
 				rows = append(rows, changeRow{f: f, diff: true})
@@ -475,15 +498,18 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 		}
 		ls.Header = func(i int) bool { return !rows[i].diff }
 		ls.Key = func(i int) any { return changeKey{rows[i].f.Path, rows[i].diff} }
-		box := ui.Column(c.Key("files-" + scope)).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
+		box := ui.Row(c.Key("files-" + scope)).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
 		box.Opacity(box.Animate("held", 1-0.45*b2f(held), 120*time.Millisecond))
 		box.Children(func() {
+			if diffW < width {
+				a.changesTree(c, pal, scope, res, width-diffW, ls, rows, heads)
+			}
 			// The scroll bar runs below the header pinned at the top, not
 			// under it.
 			ui.List(c.Key("rows"), ls, len(rows), func(i int) {
 				r := rows[i]
 				if r.diff {
-					a.fileDiff(c, pal, s, scope, r.f, width)
+					a.fileDiff(c, pal, s, scope, r.f, diffW)
 					return
 				}
 				// Opaque, over the diff scrolling under it; a folded file's
@@ -493,13 +519,13 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 					gap = 0
 				}
 				ui.Column(c).FillWidth().AlignItems(ui.Stretch).Padding(0, 0, gap, 0).Background(pal.card).Children(func() {
-					a.fileHeader(c, pal, scope, res.Root, r.f, func() {
+					a.fileHeader(c, pal, scope, res.Root, r.f, diffW < width, func() {
 						// Folding it as the list pins it brings it back where
 						// it stays: at the top.
 						ls.ScrollIntoView(i)
 					})
 				})
-			}).Grow(1).MinHeight(0).Padding(0, 0, 16, 0).ScrollbarInsets(stickyH, 0, 0, 0)
+			}).Grow(1).MinWidth(0).MinHeight(0).Padding(0, 0, 16, 0).ScrollbarInsets(stickyH, 0, 0, 0)
 		})
 	}
 }
@@ -578,6 +604,42 @@ func (a *App) fileCollapsed(scope string, f proto.GitFile) bool {
 	return f.Binary || f.Added+f.Removed > 600
 }
 
+// foldAllButton folds every file's diff while any shows, else unfolds
+// them all, keeping the file at the top of the list there.
+func (a *App) foldAllButton(c *ui.Context, pal *palette, scope string, files []proto.GitFile) {
+	ch := &a.side.changes
+	fold := slices.ContainsFunc(files, func(f proto.GitFile) bool { return !a.fileCollapsed(scope, f) })
+	svg, label := collapseIcon, locales.ChangesCollapseFiles()
+	if !fold {
+		svg, label = expandIcon, locales.ChangesExpandFiles()
+	}
+	iconButton(c, "fold-all", svg, label, pal, func() {
+		// The file at the top, whose header stays there: folded, each
+		// file is a row, its header.
+		top := -1
+		if ls := ch.places[scope]; ls != nil && fold {
+			if first, _ := ls.Visible(); first >= 0 {
+				for i, n := 0, 0; i < len(files) && n <= first; i++ {
+					top = i
+					n++
+					if ch.files[scope+"|"+files[i].Path] != nil && !a.fileCollapsed(scope, files[i]) {
+						n++
+					}
+				}
+			}
+		}
+		if ch.collapsed == nil {
+			ch.collapsed = map[string]bool{}
+		}
+		for _, f := range files {
+			ch.collapsed[scope+"|"+f.Path] = fold
+		}
+		if top >= 0 {
+			ch.places[scope].ScrollTo(top, ui.Start)
+		}
+	})
+}
+
 // fileDiff is a changed file's diff, under its header, or why it shows
 // none.
 func (a *App) fileDiff(c *ui.Context, pal *palette, s *proto.Session, scope string, f proto.GitFile, width float32) {
@@ -605,13 +667,17 @@ func (a *App) fileDiff(c *ui.Context, pal *palette, s *proto.Session, scope stri
 
 // fileHeader is a changed file's header: its change, its name and folder
 // and the lines it adds and removes, which a click folds or unfolds,
-// running folding first when set.
-func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f proto.GitFile, folding func()) {
+// running folding first when set. Beside the tree, its left corners are
+// rounded, so that it stands apart from it.
+func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f proto.GitFile, besideTree bool, folding func()) {
 	ch := &a.side.changes
 	key := scope + "|" + f.Path
 	collapsed := a.fileCollapsed(scope, f)
 	// Across the panel, edge to edge, its content in line with the bases'.
 	hdr := ui.Row(c.Key("hdr")).Height(stickyH).Padding(0, 10, 0, 12).Gap(8).AlignItems(ui.Center).Background(pal.chip)
+	if besideTree {
+		hdr.Radius(8, 0, 0, 8)
+	}
 	if hdr.Hovered() {
 		hdr.Background(pal.rowHover.Mix(pal.chip, 0.5))
 	}
@@ -692,21 +758,26 @@ func (a *App) fetchChanges(scope, stamp, pane, base string) {
 // statusBadge is a file's change as a letter in its color: A added, M
 // modified, D deleted, R renamed, T a change of type.
 func (a *App) statusBadge(c *ui.Context, pal *palette, status string) {
-	added, removed, modified := a.diffColors(pal)
-	letter, col := "M", modified
-	switch status {
-	case "added":
-		letter, col = "A", added
-	case "deleted":
-		letter, col = "D", removed
-	case "renamed":
-		letter, col = "R", modified
-	case "type":
-		letter = "T"
-	}
+	letter, col := a.statusLetter(pal, status)
 	ui.Box(c).Size(18, 18).Radius(5).Shrink(0).Center().Background(col.Alpha(0.14)).Children(func() {
 		ui.Text(c, letter).FontSize(11).FontWeight(650).TextColor(col).SingleLine()
 	})
+}
+
+// statusLetter is a file's change as a letter, and its color.
+func (a *App) statusLetter(pal *palette, status string) (string, ui.Color) {
+	added, removed, modified := a.diffColors(pal)
+	switch status {
+	case "added":
+		return "A", added
+	case "deleted":
+		return "D", removed
+	case "renamed":
+		return "R", modified
+	case "type":
+		return "T", modified
+	}
+	return "M", modified
 }
 
 // lineCounts shows lines added and removed, as +12 −3, in the diffs'

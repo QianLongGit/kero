@@ -56,10 +56,12 @@ type prefs struct {
 	// SidebarOrder is the sidebar's order: "created" or "updated".
 	SidebarOrder string  `json:"sidebarOrder,omitempty"`
 	FontSize     float32 `json:"fontSize,omitempty"`
-	// Side is the view the side panel shows, "" while it is hidden, and
-	// SideWidth its width.
+	// Side is the view the side panel shows, "" while it is hidden,
+	// SideWidth its width, and SideTree that Changes shows its files' tree
+	// beside their diffs.
 	Side      string  `json:"side,omitempty"`
 	SideWidth float32 `json:"sideWidth,omitempty"`
+	SideTree  bool    `json:"sideTree,omitempty"`
 	// FilesPreview turns the Files view's inline preview off when false:
 	// nil, the file shows under the tree as it always did, and a click
 	// only chooses it. What a double click opens is the file-open
@@ -995,6 +997,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// theme's light grays on a light one, stays legible.
 		MinimumContrast:  a.set.MinContrast,
 		ScrollMultiplier: terminal.ScrollMultiplier{Precision: a.set.ScrollPrecision, Discrete: a.set.ScrollDiscrete},
+		// The scrollback-limit kerod's copy keeps, never the terminal's
+		// default, 10 MB, which would keep more here than there.
+		Scrollback: a.set.ScrollbackBytes(),
 		// Every terminal zooms together, and the size is remembered.
 		OnZoom: func(z terminal.Zoom) bool {
 			a.zoom(z.Steps, z.Reset)

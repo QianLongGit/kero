@@ -4208,6 +4208,46 @@ func (msgs Messages) ChangesSplit() string {
 	return Catalog.Format(msgs.locale, "changesSplit", nil)
 }
 
+// ChangesShowTree says "Show File Tree"
+// in the language the app shows.
+func ChangesShowTree() string { return In(i18n.Locale()).ChangesShowTree() }
+
+// ChangesShowTree says "Show File Tree"
+// in the language of msgs.
+func (msgs Messages) ChangesShowTree() string {
+	return Catalog.Format(msgs.locale, "changesShowTree", nil)
+}
+
+// ChangesHideTree says "Hide File Tree"
+// in the language the app shows.
+func ChangesHideTree() string { return In(i18n.Locale()).ChangesHideTree() }
+
+// ChangesHideTree says "Hide File Tree"
+// in the language of msgs.
+func (msgs Messages) ChangesHideTree() string {
+	return Catalog.Format(msgs.locale, "changesHideTree", nil)
+}
+
+// ChangesCollapseFiles says "Collapse All"
+// in the language the app shows.
+func ChangesCollapseFiles() string { return In(i18n.Locale()).ChangesCollapseFiles() }
+
+// ChangesCollapseFiles says "Collapse All"
+// in the language of msgs.
+func (msgs Messages) ChangesCollapseFiles() string {
+	return Catalog.Format(msgs.locale, "changesCollapseFiles", nil)
+}
+
+// ChangesExpandFiles says "Expand All"
+// in the language the app shows.
+func ChangesExpandFiles() string { return In(i18n.Locale()).ChangesExpandFiles() }
+
+// ChangesExpandFiles says "Expand All"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandFiles() string {
+	return Catalog.Format(msgs.locale, "changesExpandFiles", nil)
+}
+
 // ChangesBinary says "Binary file"
 // in the language the app shows.
 func ChangesBinary() string { return In(i18n.Locale()).ChangesBinary() }
