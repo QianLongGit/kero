@@ -47,10 +47,12 @@ type prefs struct {
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
 	FontSize      float32         `json:"fontSize,omitempty"`
-	// Side is the view the side panel shows, "" while it is hidden, and
-	// SideWidth its width.
+	// Side is the view the side panel shows, "" while it is hidden,
+	// SideWidth its width, and SideTree that Changes shows its files' tree
+	// beside their diffs.
 	Side      string  `json:"side,omitempty"`
 	SideWidth float32 `json:"sideWidth,omitempty"`
+	SideTree  bool    `json:"sideTree,omitempty"`
 	// EndedOpen and ArchivedOpen tell the sidebar's sections of the
 	// agents' ended conversations unfolded (session-history).
 	EndedOpen    bool `json:"endedOpen,omitempty"`

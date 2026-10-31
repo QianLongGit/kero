@@ -388,3 +388,144 @@ func TestStickyHeaderAsFoldShortensList(t *testing.T) {
 		t.Errorf("folded, %q pinned at the top, want b.go", f)
 	}
 }
+
+// The tree of the files: their folders, a folder alone in another as
+// one, in the diffs' order.
+func TestFileTree(t *testing.T) {
+	files := []proto.GitFile{
+		{Path: "docs/old.md"},
+		{Path: "internal/auth/login.go"},
+		{Path: "internal/auth/login_test.go"},
+		{Path: "main.go"},
+	}
+	var got []string
+	for _, it := range treeItems(fileTree(files), func(string) bool { return false }) {
+		got = append(got, strings.Repeat("  ", it.depth)+it.name)
+	}
+	want := []string{"docs", "  old.md", "internal/auth", "  login.go", "  login_test.go", "main.go"}
+	if !slices.Equal(got, want) {
+		t.Errorf("the tree is %q, want %q", got, want)
+	}
+	items := treeItems(fileTree(files), func(dir string) bool { return dir == "internal/auth" })
+	if len(items) != 4 || items[2].open {
+		t.Errorf("a closed folder shows its files: %v", items)
+	}
+}
+
+// The tree button shows the files' tree beside their diffs: a click on a
+// file scrolls the diffs to it, which the tree shows as the one there,
+// and one on a folder folds it.
+func TestChangesTree(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 40, Added: 400}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideChanges
+	ch := &a.side.changes
+	scope := changesScope(&s.Panes[0], git.BaseHead)
+	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp/demo"}
+	for i := range 40 {
+		ch.res.Files = append(ch.res.Files, proto.GitFile{Path: fmt.Sprintf("pkg/d%d/f%02d.go", i/10, i), Status: "modified", Added: 10})
+	}
+	ch.fetched = time.Now()
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	if err := tt.Click("Show File Tree"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("d0"); !a.prefs.SideTree || !ok {
+		t.Fatalf("the tree didn't show; texts %q", tt.Texts())
+	}
+	shot(t, tt, "side-tree")
+
+	if ch.current != "pkg/d0/f00.go" {
+		t.Errorf("the tree shows %q as the file there, not the first", ch.current)
+	}
+	if err := tt.Click("f12.go"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tt.Frame()
+	}
+	if first, _ := ch.places[scope].Visible(); first == 0 {
+		t.Error("a click on a file in the tree didn't scroll the diffs")
+	}
+	if ch.current != "pkg/d1/f12.go" {
+		t.Errorf("after a click on f12.go the tree shows %q as the file there", ch.current)
+	}
+
+	if err := tt.Click("d2"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !ch.treeClosed[scope+"|pkg/d2"] {
+		t.Error("a click on a folder didn't fold it")
+	}
+	if err := tt.Click("Hide File Tree"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("d0"); a.prefs.SideTree || ok {
+		t.Error("the tree stayed after hiding it")
+	}
+}
+
+// Collapse All folds every file's diff, keeping the file at the top
+// there, and Expand All, which takes its place, unfolds them all.
+func TestFoldAllFiles(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 40, Added: 400}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideChanges
+	ch := &a.side.changes
+	scope := changesScope(&s.Panes[0], git.BaseHead)
+	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp/demo"}
+	for i := range 40 {
+		ch.res.Files = append(ch.res.Files, proto.GitFile{Path: fmt.Sprintf("f%02d.go", i), Status: "modified", Added: 10})
+	}
+	ch.fetched = time.Now()
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Frame()
+	r, _ := tt.Find("f00.go")
+	tt.Scroll(r.X, r.Y, 0, 600)
+	tt.Frame()
+	first, _ := ch.places[scope].Visible()
+	top := ch.res.Files[first/2].Path
+
+	if err := tt.Click("Collapse All"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tt.Frame()
+	}
+	for _, f := range ch.res.Files {
+		if !a.fileCollapsed(scope, f) {
+			t.Fatalf("%s stayed unfolded", f.Path)
+		}
+	}
+	if first, _ := ch.places[scope].Visible(); ch.res.Files[first].Path != top {
+		t.Errorf("folding all put %s at the top, not %s", ch.res.Files[first].Path, top)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "side-folded")
+
+	if err := tt.Click("Expand All"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, f := range ch.res.Files {
+		if a.fileCollapsed(scope, f) {
+			t.Fatalf("%s stayed folded", f.Path)
+		}
+	}
+	if _, ok := tt.Find("Collapse All"); !ok {
+		t.Error("Collapse All didn't come back with the diffs unfolded")
+	}
+}
