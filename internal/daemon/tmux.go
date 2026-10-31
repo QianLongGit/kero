@@ -107,6 +107,13 @@ func (s *tmuxSnapshot) sessionName(id string) string {
 	return ""
 }
 
+// tmuxClient tells a process name as read from /proc — tmux names its
+// client "tmux: client" once attached, not "tmux" — so a prefix match on
+// the colon form is what the pane's foreground check needs.
+func tmuxProc(proc string) bool {
+	return proc == "tmux" || strings.HasPrefix(proc, "tmux: ")
+}
+
 // tmuxAgent names the agent working in the tmux session the client on
 // paneTTY watches, "" for none. The session's panes answer in the order a
 // user looks at them, so the pane in front wins over one in a window no

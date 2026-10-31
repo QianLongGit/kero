@@ -332,7 +332,7 @@ func (s *pane) tick(now time.Time) bool {
 				proc = strings.TrimSuffix(filepath.Base(args[1]), filepath.Ext(args[1]))
 			}
 		}
-		if proc == "tmux" && agent == "" {
+		if tmuxProc(proc) && agent == "" {
 			if a := tmuxAgent(s.d.tmux.get(now), s.info.TTY); a != "" {
 				agent, proc = a, a
 			}
