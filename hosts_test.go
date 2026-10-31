@@ -631,13 +631,20 @@ func TestRemoveHostAsksInSettings(t *testing.T) {
 	}
 	shot(t, tt, "settings-remove-host")
 	// The removal runs off the frame, its host's hooks call before it:
-	// the test's own marshalling stands in for the thread it lands on.
-	a.updateFn = func(fn func()) { fn() }
+	// its updates queue for here, where they run one at a time, as a
+	// window would marshal them onto its thread.
+	updates := make(chan func(), 4)
+	a.updateFn = func(fn func()) { updates <- fn }
 	if err := tt.Click(locales.CommonRemove()); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; len(a.set.Hosts) != 0 && i < 100; i++ {
-		time.Sleep(10 * time.Millisecond)
+	for len(a.set.Hosts) != 0 {
+		select {
+		case fn := <-updates:
+			fn()
+		case <-time.After(time.Second):
+			t.Fatalf("the removal never landed: hosts %+v", a.set.Hosts)
+		}
 	}
 	tt.Frame()
 	if a.ss.confirm != nil || len(a.set.Hosts) != 0 {

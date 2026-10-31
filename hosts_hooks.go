@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"kero/internal/client"
 	"kero/internal/proto"
 
 	"kero/locales"
@@ -85,9 +86,11 @@ var hostRemoveWait = 2 * time.Second
 // from kero would otherwise keep them alive by its startup ensure
 // forever. A host the app can't reach, one that errs or never answers,
 // goes all the same. It runs off the app thread, as the confirmation
-// that asks for it runs on it, and lands the removal back on it.
-func (a *App) removeHostAfterHooks(h *host, name string) {
-	if cl := h.cl; cl != nil {
+// that asks for it runs on it — cl is the host's client as that thread
+// read it, for a reconnect replaces it there — and lands the removal
+// back on it.
+func (a *App) removeHostAfterHooks(cl *client.Client, name string) {
+	if cl != nil {
 		// Call waits on the daemon with no deadline of its own: bound the
 		// wait, leaving the call's goroutine to end as the connection
 		// does. The client stays — the app shares it.

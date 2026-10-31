@@ -133,7 +133,7 @@ func TestRemoveHostAfterHooks(t *testing.T) {
 	defer func() { hostRemoveWait = old }()
 
 	// Unreached: no one to ask, the host goes at once.
-	a.removeHostAfterHooks(h, "build")
+	a.removeHostAfterHooks(h.cl, "build")
 	if len(a.set.Hosts) != 0 {
 		t.Fatalf("an unreached host stayed: %+v", a.set.Hosts)
 	}
@@ -149,7 +149,7 @@ func TestRemoveHostAfterHooks(t *testing.T) {
 		called <- method
 		return proto.HooksResult{State: "missing"}, nil
 	})
-	a.removeHostAfterHooks(h, "build")
+	a.removeHostAfterHooks(h.cl, "build")
 	select {
 	case got := <-called:
 		if got != "hooks.remove" {
@@ -165,12 +165,13 @@ func TestRemoveHostAfterHooks(t *testing.T) {
 	// A kerod that answers too late: the host goes within the wait, the
 	// call's goroutine ending as the connection does.
 	h = withHost(t, a, "build")
+	slow := 10 * hostRemoveWait // read here: the handler runs past the test
 	h.cl, _ = projectClient(t, func(method string, _ json.RawMessage) (any, error) {
-		time.Sleep(10 * hostRemoveWait)
+		time.Sleep(slow)
 		return proto.HooksResult{State: "missing"}, nil
 	})
 	start := time.Now()
-	a.removeHostAfterHooks(h, "build")
+	a.removeHostAfterHooks(h.cl, "build")
 	if d := time.Since(start); d > time.Second {
 		t.Fatalf("a slow kerod held the removal %s", d)
 	}

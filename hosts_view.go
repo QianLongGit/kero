@@ -307,7 +307,7 @@ func (a *App) removeHostConfirmation(h *host) *confirmation {
 		detail:  locales.HostRemoveDetail(name),
 		action:  locales.CommonRemove(),
 		destroy: true,
-		run:     func() { go a.removeHostAfterHooks(h, name) },
+		run:     func() { go a.removeHostAfterHooks(h.cl, name) },
 	}
 }
 
