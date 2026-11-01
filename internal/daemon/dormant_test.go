@@ -256,10 +256,11 @@ func dormantDaemon(t *testing.T, st savedState) (*Daemon, *pane) {
 	return d, p
 }
 
-// What a pane runs again when a client comes for it: its agent's
-// conversation first, then its tmux client, then any recorded command
-// when the user asked for all of them — and nothing a state file could
-// slip in past that order.
+// What a pane runs again when a client comes for it: its tmux client
+// first — reattaching reaches the agent still running in it, where a
+// resume would run a second one over its session — then its agent's
+// conversation, then any recorded command when the user asked for all of
+// them — and nothing a state file could slip in past that order.
 func TestMaterializeCommand(t *testing.T) {
 	const id = "13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787"
 	rerun := []string{"tmux", "attach", "-t", "dev"}
@@ -269,6 +270,15 @@ func TestMaterializeCommand(t *testing.T) {
 		sp   savedPane
 		want []string
 	}{
+		{"the tmux client over the agent's conversation", settings.Settings{ResumeAgents: true, RestoreMultiplexer: true},
+			savedPane{Agent: &proto.AgentSession{Agent: "claude", ID: id}, RestoreCmd: rerun, Tmux: true},
+			rerun},
+		{"a tmux pane with nothing recorded runs nothing", settings.Settings{ResumeAgents: true, RestoreMultiplexer: true},
+			savedPane{Agent: &proto.AgentSession{Agent: "claude", ID: id}, Tmux: true},
+			nil},
+		{"tmux off the setting, the agent's conversation again", settings.Settings{ResumeAgents: true},
+			savedPane{Agent: &proto.AgentSession{Agent: "claude", ID: id}, RestoreCmd: rerun, Tmux: true},
+			[]string{"claude", "--resume", id}},
 		{"the agent's conversation over anything recorded", settings.Settings{ResumeAgents: true},
 			savedPane{Agent: &proto.AgentSession{Agent: "claude", ID: id}, RestoreCmd: rerun},
 			[]string{"claude", "--resume", id}},

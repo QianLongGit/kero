@@ -262,23 +262,28 @@ func resumeCommand(a *proto.AgentSession) []string {
 }
 
 // materializeCommand is what a dormant pane runs again when a client
-// comes for it: its agent's conversation first — resume-agents read here,
-// not remembered from the restore, for the user may flip it between the
-// daemon's boot and the pane's wake — then the tmux client the pane ran,
-// whose own server holds what it showed, then any recorded command when
-// the user asked for all of them, and else nothing: the pane comes back
-// at its shell, as a restore always left it. A browser's or a file's
-// pane runs nothing at all.
+// comes for it: the tmux client the pane ran first — a daemon's restart
+// leaves the tmux server alone, so reattaching reaches the agent still
+// running in it, where a resume would run a second one over its session
+// — then the agent's conversation, its resume-agents read here, not
+// remembered from the restore, for the user may flip it between the
+// daemon's boot and the pane's wake, then any recorded command when the
+// user asked for all of them, and else nothing: the pane comes back at
+// its shell, as a restore always left it. A browser's or a file's pane
+// runs nothing at all.
 func materializeCommand(set settings.Settings, sp savedPane) []string {
 	if sp.URL != "" || sp.File != "" {
 		return nil
+	}
+	if sp.Tmux && set.RestoreMultiplexer {
+		return sp.RestoreCmd
 	}
 	if set.ResumeAgents {
 		if cmd := resumeCommand(sp.Agent); cmd != nil {
 			return cmd
 		}
 	}
-	if sp.Tmux && set.RestoreMultiplexer || len(sp.RestoreCmd) > 0 && set.RestoreRerun == "all" {
+	if len(sp.RestoreCmd) > 0 && set.RestoreRerun == "all" {
 		return sp.RestoreCmd
 	}
 	return nil
