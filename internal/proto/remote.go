@@ -110,6 +110,8 @@ type (
 	FSListParams struct {
 		Dir    string `json:"dir"`
 		Hidden bool   `json:"hidden,omitempty"` // dotfiles too
+		// Ignored marks the entries git ignores (FSEntry.Ignored).
+		Ignored bool `json:"ignored,omitempty"`
 	}
 	FSList struct {
 		Dir     string    `json:"dir"` // absolute, cleaned
@@ -122,6 +124,9 @@ type (
 		Dir  bool   `json:"dir,omitempty"`
 		// Repo tells a directory that holds a git repository.
 		Repo bool `json:"repo,omitempty"`
+		// Ignored tells an entry git ignores, as FSListParams.Ignored
+		// asks.
+		Ignored bool `json:"ignored,omitempty"`
 	}
 	// FSStatParams ask about a path printed in a pane: relative to Base,
 	// the pane's directory, unless absolute; ~ and ~/… are the home's.
@@ -143,16 +148,30 @@ type (
 	FSRead struct {
 		Data []byte `json:"data"` // base64 in JSON
 	}
-	// FSWriteParams write a file of the host back whole, as the app's
-	// cache edited it, when its content still hashes to Hash: one changed
-	// meanwhile is a conflict, not an overwrite.
+	// FSWriteParams write Text to a file of the host, as the user edited
+	// it, when its content still hashes to Hash (git.Hash), as it was
+	// read, or whatever it is with Force: the result is the hash of what
+	// was written.
 	FSWriteParams struct {
-		Path    string `json:"path"`
-		Content []byte `json:"content"`
-		Hash    string `json:"hash"` // sha256 hex of what was read; "" writes whatever is there
+		Path  string `json:"path"`
+		Hash  string `json:"hash"`
+		Text  string `json:"text"`
+		Force bool   `json:"force,omitempty"`
 	}
-	// FSDeleteParams delete a file of the host, or a folder and all
-	// that is in it.
+	// FSCreateParams make a file of the host, empty, or a folder (Dir),
+	// with the folders it is in; none that is there already.
+	FSCreateParams struct {
+		Path string `json:"path"`
+		Dir  bool   `json:"dir,omitempty"`
+	}
+	// FSRenameParams move a file or folder of the host to To, which must
+	// be free.
+	FSRenameParams struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	// FSDeleteParams delete a file or folder of the host, and what is in
+	// it, for good: the app moves its own machine's to the trash instead.
 	FSDeleteParams struct {
 		Path string `json:"path"`
 	}

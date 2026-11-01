@@ -69,10 +69,16 @@ func (a *App) run(id string, args map[string]string) {
 	case "session.close":
 		a.closeSession(a.selected, true)
 	case "find.open":
-		// In the changes panel, its diff's find bar.
-		if f := a.side.changes.focus; a.side.focused && f != nil && f.d != nil {
-			f.d.Find("")
-			break
+		// In the viewer, its file's find bar, or its diff's.
+		if v := a.viewOf(s); a.side.focused && v != nil {
+			if v.kind == sideFiles && v.file != nil && v.file.st != nil {
+				v.file.st.Find("")
+				break
+			}
+			if f := a.side.changes.focus; v.kind == sideChanges && f != nil && f.d != nil {
+				f.d.Find("")
+				break
+			}
 		}
 		a.openFind()
 	case "find.next":
@@ -105,6 +111,8 @@ func (a *App) run(id string, args map[string]string) {
 		a.toggleSide(sideChanges)
 	case "files.toggle":
 		a.toggleSide(sideFiles)
+	case "rightSidebar.toggle":
+		a.toggleRight()
 	case "text.bigger":
 		a.zoom(1, false)
 	case "text.smaller":
@@ -172,6 +180,7 @@ var actionTitles = map[string]func() string{
 	"sidebar.toggle":      locales.ActionToggleSidebar,
 	"changes.toggle":      locales.ActionToggleChanges,
 	"files.toggle":        locales.ActionToggleFiles,
+	"rightSidebar.toggle": locales.ActionToggleRightSidebar,
 	"text.bigger":         locales.ActionBigger,
 	"text.smaller":        locales.ActionSmaller,
 	"text.reset":          locales.ActionActualSize,
@@ -251,7 +260,7 @@ func (a *App) menu() *mygo.Menu {
 // the tests: the panel toggles, the text sizes, the quick terminal, and
 // the window's own.
 func (a *App) viewItems() []*mygo.MenuItem {
-	return append(a.items("View", []string{"sidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
+	return append(a.items("View", []string{"sidebar.toggle", "rightSidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 }
 
@@ -317,7 +326,7 @@ func (a *App) fromMay(id string, args map[string]string) bool {
 	case id == "session.new" || id == "session.newHome":
 		p := args["project"]
 		return p == "" || a.hostOf(p) == h
-	case strings.HasPrefix(id, "pane.") || id == "changes.toggle" || id == "files.toggle":
+	case strings.HasPrefix(id, "pane.") || id == "changes.toggle" || id == "files.toggle" || id == "rightSidebar.toggle":
 		return a.session(a.selected) != nil && a.selectedHost() == h
 	case id == quickAction:
 		return false // this machine's screen is no other's to drop on

@@ -1089,8 +1089,10 @@ func TestDownloadDirToClampedProgress(t *testing.T) {
 // what the host holds, not what it held.
 func TestUploadToRefreshesTree(t *testing.T) {
 	f := newFilesHost(t)
-	tree := &fileTree{pane: "p1", root: "/srv", dirs: map[string]*fileDir{}, isDir: map[string]bool{"/srv": true}}
-	f.a.side.files.trees = map[string]*fileTree{"remote\x00/srv": tree}
+	// The folder's listing as the tree shows it, of the tab's own count
+	// (gen): stale only as the upload's landing makes it.
+	fs := &f.a.side.files
+	fs.dirs = map[string]*dirList{filesKey(f.h, "/srv"): {entries: []proto.FSEntry{{Name: "old.txt"}}}}
 	src := filepath.Join(t.TempDir(), "up.txt")
 	if err := os.WriteFile(src, []byte("an upload's worth"), 0o600); err != nil {
 		t.Fatal(err)
@@ -1109,7 +1111,7 @@ func TestUploadToRefreshesTree(t *testing.T) {
 		if f.a.side.files.xfer != nil {
 			return errors.New("the transfer never ended")
 		}
-		if d := tree.dirs["/srv"]; d == nil || d.paths == nil {
+		if l := fs.dirs[filesKey(f.h, "/srv")]; l == nil || l.gen == fs.gen {
 			return errors.New("the folder did not list again")
 		}
 		if f.a.pendingToast != locales.FilesUploadDone(1, "remote") {
@@ -1249,14 +1251,14 @@ func TestTransferLabel(t *testing.T) {
 	}
 }
 
-// The menu's shape: a file's Download… past its Open With and before
-// its Copy; a folder's Download… and Upload Here… before its Paste — a
-// remote host's only, for this machine has its files already.
+// The menu's shape: a file's Download… before its Copy; a folder's
+// Download… and Upload Here… before its Paste — a remote host's only,
+// for this machine has its files already.
 func TestFileMenuEntries(t *testing.T) {
 	remote := &host{name: "r"}
 	file := fileMenuEntries(remote, "x.txt", false)
-	open, dl, cp := slices.Index(file, locales.FilesOpenVSCode()), slices.Index(file, locales.FilesDownload()), slices.Index(file, locales.FilesCopy())
-	if open < 0 || cp < 0 || dl <= open || dl >= cp {
+	dl, cp := slices.Index(file, locales.FilesDownload()), slices.Index(file, locales.FilesCopy())
+	if dl < 0 || cp < 0 || dl >= cp {
 		t.Fatalf("a remote file's menu %v: Download… at %d", file, dl)
 	}
 	folder := fileMenuEntries(remote, "d", true)
@@ -1272,18 +1274,21 @@ func TestFileMenuEntries(t *testing.T) {
 	}
 }
 
-// The transfer's row rides at the top of the Files view and the panel
-// header carries its arc beside the folder: one state, two places, and
-// the ✕ of either closes the stream.
+// The transfer's row rides below the root of the Files tab and the
+// sidebar's tab bar carries its arc: one state, two places, and the ✕ of
+// either closes the stream.
 func TestTransferRow(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
 	a.prefs.Side = sideFiles
 	a.local().cl = &client.Client{}
 	s.Panes[0].ProcessDir = "/tmp/demo"
-	pane, root := a.filesRoot(s)
-	tree := a.tree(pane, root)
-	tree.dirs[root] = &fileDir{paths: []string{"/tmp/demo/main.go"}}
+	// The tree's folder listed, counted as the tab's own (gen): the
+	// listing sits as it is, asked of no one.
+	h := a.hostOf(s.Panes[0].ID)
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "main.go"}}, gen: 1},
+	}
 	closed := false
 	a.side.files.xfer = &transferState{
 		kind: xferDownload, name: "main.go", host: "remote",
@@ -1298,7 +1303,7 @@ func TestTransferRow(t *testing.T) {
 		}
 	}
 	if !tt.HasText(locales.FilesTransferBusy()) {
-		t.Fatalf("no arc of the transfer in the header; texts %q", tt.Texts())
+		t.Fatalf("no arc of the transfer in the tab bar; texts %q", tt.Texts())
 	}
 	shot(t, tt, "files-transfer-row")
 	// The ✕ of it closes the stream.

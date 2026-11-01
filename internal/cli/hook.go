@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -284,11 +285,11 @@ type hookIntegration struct {
 	hook agenthooks.Hook
 }
 
-func (h hookIntegration) name() string    { return h.hook.Agent }
-func (h hookIntegration) path() string    { return h.hook.File }
-func (h hookIntegration) state() string   { return h.hook.State() }
-func (h hookIntegration) install() error  { return h.hook.Install() }
-func (h hookIntegration) remove() error   { return h.hook.Remove() }
+func (h hookIntegration) name() string   { return h.hook.Agent }
+func (h hookIntegration) path() string   { return h.hook.File }
+func (h hookIntegration) state() string  { return h.hook.State() }
+func (h hookIntegration) install() error { return h.hook.Install() }
+func (h hookIntegration) remove() error  { return h.hook.Remove() }
 
 // agentPlugin is a plugin kero installs for an agent: files of its own,
 // in a directory the agent loads plugins from.
@@ -340,6 +341,17 @@ func (p agentPlugin) state() string {
 		return "missing"
 	}
 	return "outdated"
+}
+
+// ours tells a plugin written to run this Kero's kero command, of this
+// kero or an older one: not another Kero's, as a development build's.
+func (p agentPlugin) ours() bool {
+	for name := range p.files {
+		if b, err := os.ReadFile(filepath.Join(p.dir, name)); err == nil && bytes.Contains(b, marshal(kero())) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p agentPlugin) install() error {
@@ -406,4 +418,49 @@ func agentHooks(agent string) []integration {
 		}
 	}
 	return out
+}
+
+// kero is the kero command of Kero's own directory (package clilink),
+// which stays where it is as Kero updates.
+func kero() string {
+	exe := filepath.Join(proto.Dir(), "bin", "kero")
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	return exe
+}
+
+func marshal(v any) json.RawMessage {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	enc.Encode(v)
+	return bytes.TrimSpace(b.Bytes())
+}
+
+// writeFileAtomic replaces a file whole, keeping its mode.
+func writeFileAtomic(path string, b []byte) error {
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), mode); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

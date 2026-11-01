@@ -180,15 +180,19 @@ func TestFilesOpenWithMenu(t *testing.T) {
 	a.prefs.Side = sideFiles
 	a.local().cl = &client.Client{}
 	s.Panes[0].ProcessDir = "/tmp/demo"
-	pane, root := a.filesRoot(s)
-	a.tree(pane, root).dirs[root] = &fileDir{paths: []string{"/tmp/demo/main.go"}}
+	// The tree's folder listed, counted as the tab's own (gen): the
+	// listing sits as it is, asked of no one.
+	h := a.hostOf(s.Panes[0].ID)
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "main.go"}}, gen: 1},
+	}
 	tt := ui.NewTester(a.view, 1280, 720)
 	tt.Frame()
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesChooseApp(),
-		"-", locales.FilesCopy(), locales.FilesPaste(), "-", locales.FilesDelete()}
+		"-", locales.FilesCopy(), locales.FilesPaste(), "-", locales.FilesNewFile(), locales.FilesNewFolder(), "-", locales.FilesRename(), locales.FilesDeleteItem()}
 	if got := tt.Menu(); !slices.Equal(got, want) {
 		t.Fatalf("the file's menu is %q, want %q", got, want)
 	}

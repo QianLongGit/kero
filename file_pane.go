@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,17 @@ import (
 
 // A file pane shows a file of its host in MyGo's editor, colored by its
 // language, as a terminal shows a program's cells: the daemon keeps the
-// path, and the app reads the file through fs.read as the Files view does.
+// path, and the app reads the file through fs.read as the Files tab does.
+
+// errFilesGone is a file read that is no longer there.
+var errFilesGone = errors.New("no such file")
+
+const (
+	// maxText bounds a file shown as text, and maxImage one shown as an
+	// image.
+	maxText  = 4 << 20
+	maxImage = 32 << 20
+)
 
 // cacheTitle is a cached file's own name, as a pane of it is titled: the
 // cache writes its files as "<hash>-<name>", and the hash is where they

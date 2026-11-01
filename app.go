@@ -56,17 +56,14 @@ type prefs struct {
 	// SidebarOrder is the sidebar's order: "created" or "updated".
 	SidebarOrder string  `json:"sidebarOrder,omitempty"`
 	FontSize     float32 `json:"fontSize,omitempty"`
-	// Side is the view the side panel shows, "" while it is hidden,
-	// SideWidth its width, and SideTree that Changes shows its files' tree
-	// beside their diffs.
-	Side      string  `json:"side,omitempty"`
-	SideWidth float32 `json:"sideWidth,omitempty"`
-	SideTree  bool    `json:"sideTree,omitempty"`
-	// FilesPreview turns the Files view's inline preview off when false:
-	// nil, the file shows under the tree as it always did, and a click
-	// only chooses it. What a double click opens is the file-open
-	// setting's to say.
-	FilesPreview *bool `json:"filesPreview,omitempty"`
+	// Side is the tab the right sidebar shows, "" while it is hidden, and
+	// SideTab the one it shows again; RightWidth is its width, and
+	// SideWidth the width of the card beside the panes that opens a file
+	// of it: the diffs of Changes, a file's text of Files.
+	Side       string  `json:"side,omitempty"`
+	SideTab    string  `json:"sideTab,omitempty"`
+	RightWidth float32 `json:"rightWidth,omitempty"`
+	SideWidth  float32 `json:"sideWidth,omitempty"`
 	// EndedOpen and ArchivedOpen tell the sidebar's sections of the
 	// agents' ended conversations unfolded (session-history).
 	EndedOpen    bool `json:"endedOpen,omitempty"`
@@ -221,6 +218,9 @@ func newApp() *App {
 	a := &App{terms: map[string]*termEntry{}, webs: map[string]*webEntry{}, statuses: map[string]proto.Status{}, active: true, focused: true,
 		refs: map[string]*ui.Handle{}, focus: map[string]string{}, arrived: map[string]bool{}}
 	a.loadPrefs()
+	a.loadBackup()
+	// Selected back before migrateFileOpen's savePrefs writes the prefs:
+	// the rest of what the last run held stays.
 	a.selected = a.prefs.Selected
 	a.set = settings.Load()
 	a.migrateFileOpen()
@@ -245,6 +245,9 @@ func (a *App) loadPrefs() {
 		a.prefs.SidebarWidth = defaultSidebar
 	}
 	a.prefs.SidebarWidth = min(max(a.prefs.SidebarWidth, minSidebar), maxSidebar)
+	if a.prefs.RightWidth != 0 {
+		a.prefs.RightWidth = min(max(a.prefs.RightWidth, minSidebar), maxSidebar)
+	}
 	if a.prefs.FontSize == 0 {
 		a.prefs.FontSize = defaultFont
 	}

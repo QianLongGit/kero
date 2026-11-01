@@ -14,6 +14,70 @@
   the setting said, even 0.
 - A quick tap in the settings sidebar is no longer missed.
 
+## 2.1.31
+
+- The terminal's scroll bar looks as the lists' and the viewer's do: as
+  wide, as faint, showing while the pointer is over the terminal rather
+  than as it scrolls. The viewer's and the diffs' scroll bars take the
+  lists' color too.
+- Lines of a diff wider than the viewer come with a scroll bar at the
+  bottom of the part of the diff in view, on each side of a split diff.
+
+## 2.1.30
+
+- In a window too narrow for the right sidebar beside the cards, the
+  sidebar gets out of their way and comes back as you widen the window,
+  and its button at the top right stays to show it when you want it. A
+  viewer in a window that narrow shares the room with the panes instead
+  of running under the sidebar.
+- The viewer kept the last frame's width as the window resized, shaking
+  its edge and its text: it takes this frame's now.
+
+## 2.1.29
+
+- The right sidebar has a **Files** tab beside Changes: the pane's
+  worktree, or its folder outside a git repository, with what git
+  ignores faded and `.git` hidden, and a click opens the file beside
+  the panes. **Toggle Files** (⌥⌘E) shows it.
+- Files open in the viewer to edit, and <kbd>⌘</kbd> <kbd>S</kbd> saves
+  them. A dot in place of the close button marks edits not saved yet,
+  which closing the viewer or opening another file asks about first, as
+  does saving a file that changed on disk since it was read. Unsaved
+  edits and the files open in the viewer come back after a quit.
+- **New File…** and **New Folder…** above the tree, and **Rename…** and
+  **Delete…** in a file's or a folder's menu. A name with slashes makes
+  the folders in it. Deleting asks first, and moves this machine's files
+  to the Trash; a host has no trash, so its files go for good.
+- Files and folders in the Files and Changes trees show their icons,
+  and a changed file its letter at the right of its row.
+- The file viewer's scroll bar shows only while the pointer is over the
+  text or dragging it.
+- A file copied in Finder, or an image copied with its file, pastes as
+  its path, as a drop of it sends, instead of nothing.
+- On Windows and Linux, the minimize, maximize and close buttons stay in
+  the window's corner as the right sidebar comes and goes, instead of
+  sliding off the window's edge with it.
+- The right sidebar's edge takes the pointer on either side of it, so it
+  drags as it did not. A window opened with the sidebar shown shows it
+  at once, rather than sliding it in from nothing.
+- Editing, making, renaming and deleting files needs the newer host,
+  which comes with the app on this machine: hosts get it with their next
+  update.
+
+## 2.1.28
+
+- The changes panel shows the changed files' tree beside their diffs, a
+  button in its row of controls: a click on a file scrolls the diffs to
+  it, one on a folder folds it, and the file whose diff is at the top
+  shows as the one there. The button keeps the tree as you left it.
+- **Collapse All**, beside it, folds every file's diff, keeping the file
+  at the top there, and **Expand All**, in its place once all are
+  folded, unfolds them.
+- `scrollback-limit` now sets the scrollback the app's copy of a pane
+  keeps too: before, it kept the terminal's default of 10 MB whatever
+  the setting said, even 0.
+- A quick tap in the settings sidebar is no longer missed.
+
 ## 2.3.22
 
 - A tmux client names itself "tmux: client" once it attaches, and the

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/client"
+	"kero/internal/git"
 	"kero/internal/proto"
 
 	"kero/locales"
@@ -105,8 +107,8 @@ func (f *filesHost) handle(method string, raw json.RawMessage) (any, error) {
 		if err := f.writeErr; err != nil {
 			return nil, err
 		}
-		f.files[p.Path] = p.Content
-		return fileSHA(p.Content), nil
+		f.files[p.Path] = []byte(p.Text)
+		return fileSHA([]byte(p.Text)), nil
 	case "fs.delete":
 		var p proto.FSDeleteParams
 		if err := json.Unmarshal(raw, &p); err != nil {
@@ -296,8 +298,8 @@ func TestFilesOpenWatcherUpload(t *testing.T) {
 	}
 	f.waitsFor(t, func() error {
 		if w := f.writesOf(); len(w) >= 1 {
-			if string(w[0].Content) != "two" {
-				return fmt.Errorf("the upload was %q, want two", w[0].Content)
+			if w[0].Text != "two" {
+				return fmt.Errorf("the upload was %q, want two", w[0].Text)
 			}
 			if w[0].Hash != fileSHA([]byte("one")) {
 				return fmt.Errorf("the upload's hash was %s, want the read's", w[0].Hash)
@@ -326,8 +328,8 @@ func TestFilesOpenWatcherUpload(t *testing.T) {
 		if len(w) < 2 {
 			return fmt.Errorf("only %d uploads came", len(w))
 		}
-		if last := w[len(w)-1]; string(last.Content) != "three" || last.Hash != fileSHA([]byte("two")) {
-			return fmt.Errorf("the upload was %q under %s, want three under two's hash", last.Content, last.Hash)
+		if last := w[len(w)-1]; last.Text != "three" || last.Hash != fileSHA([]byte("two")) {
+			return fmt.Errorf("the upload was %q under %s, want three under two's hash", last.Text, last.Hash)
 		}
 		return nil
 	})
@@ -360,8 +362,8 @@ func TestFilesOpenWatcherAtomicSave(t *testing.T) {
 		if len(w) == 0 {
 			return errors.New("no upload came")
 		}
-		if string(w[len(w)-1].Content) != "saved whole" {
-			return fmt.Errorf("the upload was %q", w[len(w)-1].Content)
+		if w[len(w)-1].Text != "saved whole" {
+			return fmt.Errorf("the upload was %q", w[len(w)-1].Text)
 		}
 		return nil
 	})
@@ -432,7 +434,7 @@ func TestFilesOpenOfflineQuiet(t *testing.T) {
 	f.h.cl = old
 	f.ui.Unlock()
 	f.waitsFor(t, func() error {
-		if w := f.writesOf(); len(w) == 1 && string(w[0].Content) == "two" && w[0].Hash == fileSHA([]byte("one")) {
+		if w := f.writesOf(); len(w) == 1 && w[0].Text == "two" && w[0].Hash == fileSHA([]byte("one")) {
 			return nil
 		}
 		return errors.New("the waiting edit never wrote")
@@ -452,7 +454,7 @@ func TestFilesOpenConflict(t *testing.T) {
 	if err := os.WriteFile(local, []byte("mine"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("conflict: /srv/demo/main.go changed since it was read"))
+	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("/srv/demo/main.go: "+git.ErrChanged.Error()))
 	cf := f.a.confirm
 	if cf == nil || cf.title != locales.FilesConflictTitle() {
 		t.Fatalf("no dialog of the conflict: %+v", f.a.confirm)
@@ -474,8 +476,8 @@ func TestFilesOpenConflict(t *testing.T) {
 		if len(w) != 1 {
 			return fmt.Errorf("%d writes came", len(w))
 		}
-		if string(w[0].Content) != "mine" || w[0].Hash != "" {
-			return fmt.Errorf("the overwrite was %q under %q", w[0].Content, w[0].Hash)
+		if w[0].Text != "mine" || w[0].Hash != "" {
+			return fmt.Errorf("the overwrite was %q under %q", w[0].Text, w[0].Hash)
 		}
 		return nil
 	})
@@ -499,7 +501,7 @@ func TestFilesOpenConflictRedownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("conflict: /srv/demo/main.go changed since it was read"))
+	f.a.cacheUploaded(f.uploadOf(local), "", errors.New("/srv/demo/main.go: "+git.ErrChanged.Error()))
 	f.files["/srv/demo/main.go"] = []byte("the host's own")
 	if cf := f.a.confirm; cf == nil || cf.altRun == nil {
 		t.Fatalf("no dialog with another answer: %+v", f.a.confirm)
@@ -577,7 +579,7 @@ func TestFilesOpenUploadedAnotherRecord(t *testing.T) {
 func TestFilesOpenConflictPendingEdit(t *testing.T) {
 	f := newFilesHost(t)
 	f.mu.Lock()
-	f.writeErr = errors.New("conflict: /srv/demo/main.go changed since it was read")
+	f.writeErr = errors.New("/srv/demo/main.go: " + git.ErrChanged.Error())
 	f.mu.Unlock()
 	f.files["/srv/demo/main.go"] = []byte("one")
 	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
@@ -605,8 +607,8 @@ func TestFilesOpenConflictPendingEdit(t *testing.T) {
 		if len(w) != 2 {
 			return fmt.Errorf("%d writes came", len(w))
 		}
-		if u := w[1]; string(u.Content) != "more" || u.Hash != fileSHA([]byte("one")) {
-			return fmt.Errorf("the second write was %q under %s", u.Content, u.Hash)
+		if u := w[1]; u.Text != "more" || u.Hash != fileSHA([]byte("one")) {
+			return fmt.Errorf("the second write was %q under %s", u.Text, u.Hash)
 		}
 		return nil
 	})
@@ -667,107 +669,64 @@ func TestFilesOpenWithRemoteMenu(t *testing.T) {
 	a.hosts = append(a.hosts, h)
 	a.owner = map[string]*host{"s1": h, "p1": h, "a": h, "b": h}
 	s.Panes[0].ProcessDir = "/srv/demo"
-	pane, root := a.filesRoot(s)
-	a.tree(pane, root).dirs[root] = &fileDir{paths: []string{"/srv/demo/main.go"}}
+	// The tree's folder listed, as the tab's first showing counted it
+	// (gen): the listing sits as it is, asked of no one.
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(h, "/srv/demo"): {entries: []proto.FSEntry{{Name: "main.go"}}, gen: 1},
+	}
 	tt := ui.NewTester(a.view, 1280, 720)
 	tt.Frame()
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesChooseApp(),
-		"-", locales.FilesDownload(), locales.FilesCopy(), locales.FilesPaste(), "-", locales.FilesDelete()}
-	if got := tt.Menu(); len(got) < 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
-		t.Fatalf("a remote file's menu is %q, want %q", got, want)
+	// The Open With group first (the apps of it macOS alone offers), then
+	// the transfers a remote host's rows carry, then the tree's own items
+	// and the row's rename and delete.
+	got := tt.Menu()
+	if len(got) < 3 || got[0] != locales.CommonOpen() || got[1] != locales.FilesOpenVSCode() {
+		t.Fatalf("a remote file's menu is %q", got)
+	}
+	for _, want := range []string{locales.FilesDownload(), locales.FilesCopy(), locales.FilesPaste(), locales.FilesDeleteItem()} {
+		if !slices.Contains(got, want) {
+			t.Fatalf("a remote file's menu is %q, want %q in it", got, want)
+		}
 	}
 	tt.CloseMenu()
 }
 
-// The tree's Reload button reads its folders anew: a listing sits as
-// it came, and a file the host gained since the tree opened shows only
-// after it.
-func TestFilesRefresh(t *testing.T) {
-	f := newFilesHost(t)
-	f.listing = map[string][]proto.FSEntry{
-		"/srv/demo": {{Name: "main.go"}},
-	}
-	a := f.a
-	a.prefs.Side = sideFiles
-	s := &a.st.Sessions[0]
-	s.Panes[0].ProcessDir = "/srv/demo"
-	pane, root := a.filesRoot(s)
-	tt := ui.NewTester(a.view, 1280, 720)
-	tt.Frame()
-	// The tree read its folder as it opened.
-	f.waitsFor(t, func() error {
-		if d := a.tree(pane, root).dirs[root]; d == nil || d.paths == nil {
-			return errors.New("no listing")
-		}
-		return nil
-	})
-	tt.Frame()
-	if !tt.HasText("main.go") {
-		t.Fatalf("the tree shows no main.go; texts %q", tt.Texts())
-	}
-	// The host gains a file; the listing sits as it read until the
-	// button reads it anew.
-	f.mu.Lock()
-	f.listing["/srv/demo"] = append(f.listing["/srv/demo"], proto.FSEntry{Name: "added.go"})
-	f.mu.Unlock()
-	tt.Frame()
-	if tt.HasText("added.go") {
-		t.Fatal("added.go shows before any reload")
-	}
-	if err := tt.Click(locales.FilesRefresh()); err != nil {
-		t.Fatal(err)
-	}
-	f.waitsFor(t, func() error {
-		d := a.tree(pane, root).dirs[root]
-		if d == nil || d.paths == nil {
-			return errors.New("the reload left no listing")
-		}
-		for _, p := range d.paths {
-			if strings.HasSuffix(p, "added.go") {
-				return nil
-			}
-		}
-		return errors.New("the reload kept the old listing")
-	})
-	tt.Frame()
-	if !tt.HasText("added.go") {
-		t.Errorf("the reloaded tree shows no added.go; texts %q", tt.Texts())
-	}
-}
-
-// What a click on a remote file opens is the file of the cache: the
-// preview reads the copy here, and its title stays the host's own path.
+// What opens a remote file as this machine's own — the Open With of its
+// menu, a Quick Look, a drag — comes by the cache: the file reads down
+// once, and the open that follows reads the copy here.
 func TestFilesOpenRemotePreview(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("package main\n")
-	s := &f.a.st.Sessions[0]
-	pane, root := f.a.filesRoot(s)
-	tree := f.a.tree(pane, root)
-	a := f.a
-	a.openFile(tree, "/srv/demo/main.go")
-	if tree.shown != "/srv/demo/main.go" {
-		t.Fatalf("the tree shows %q open", tree.shown)
+	var local string
+	opened := make(chan string, 1)
+	f.a.withLocalFile(f.h, "/srv/demo/main.go", func(l string) {
+		local = l
+		opened <- l
+	})
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no file came")
 	}
+	if !strings.HasPrefix(local, filepath.Join(proto.Dir(), "files")) {
+		t.Fatalf("the file opened is %q, want the cache's", local)
+	}
+	// The open again reads the cache's copy, not the host: fs.read
+	// answered it once, when it materialized.
+	var again string
+	f.a.withLocalFile(f.h, "/srv/demo/main.go", func(l string) { again = l })
 	f.waitsFor(t, func() error {
-		if tree.file == nil || tree.file.path == "" {
+		if again == "" {
 			return errors.New("no file came")
-		}
-		if !strings.HasPrefix(tree.file.path, filepath.Join(proto.Dir(), "files")) {
-			return fmt.Errorf("the file opened is %q, want the cache's", tree.file.path)
-		}
-		if tree.file.src != "/srv/demo/main.go" {
-			return fmt.Errorf("the file's own path is %q", tree.file.src)
-		}
-		if tree.file.st == nil || tree.file.st.Buffer == nil || tree.file.st.Buffer.String() != "package main\n" {
-			return errors.New("the preview did not read the cache")
 		}
 		return nil
 	})
-	// The read came from the cache: fs.read answered it once, when it
-	// materialized, and not again for the preview.
+	if again != local {
+		t.Errorf("the second open is %q, want the cache's %q", again, local)
+	}
 	if n := func() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads["/srv/demo/main.go"] }(); n != 1 {
 		t.Errorf("fs.read came %d times, want the materialize's one", n)
 	}
@@ -872,15 +831,14 @@ func TestFilesOpenIndex(t *testing.T) {
 	}
 }
 
-// A file pane a click on a remote file makes opens the cache's copy: the
-// pane's own host could not read a path of this machine.
+// A file pane a double click on a remote file makes opens the cache's
+// copy: the pane's own host could not read a path of this machine.
 func TestFilesOpenRemotePane(t *testing.T) {
 	f := newFilesHost(t)
 	f.files["/srv/demo/main.go"] = []byte("package main\n")
 	a, s := f.a, &f.a.st.Sessions[0]
-	pane, root := a.filesRoot(s)
-	tree := a.tree(pane, root)
-	a.openBySetting(tree, "/srv/demo/main.go")
+	pane, _ := a.filesRoot(s)
+	a.openBySetting(pane.ID, "/srv/demo/main.go")
 	f.waitsFor(t, func() error {
 		f.mu.Lock()
 		p := f.split
@@ -891,8 +849,8 @@ func TestFilesOpenRemotePane(t *testing.T) {
 		if !strings.HasPrefix(p.File, filepath.Join(proto.Dir(), "files")) {
 			return fmt.Errorf("the pane shows %q, want the cache's copy", p.File)
 		}
-		if p.Split != tree.pane {
-			return fmt.Errorf("the pane split %q, want beside %s", p.Split, tree.pane)
+		if p.Split != pane.ID {
+			return fmt.Errorf("the pane split %q, want beside %s", p.Split, pane.ID)
 		}
 		return nil
 	})

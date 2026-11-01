@@ -2,8 +2,10 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -79,75 +81,10 @@ func TestFSListAndStat(t *testing.T) {
 	}
 }
 
-// fsWrite writes what fsRead read back: whole, under the hash of what was
-// read, so a file changed meanwhile on the host is a conflict, not an
-// overwrite.
-func TestFSWrite(t *testing.T) {
-	dir := t.TempDir()
-	file := filepath.Join(dir, "a.txt")
-	os.WriteFile(file, []byte("one"), 0o600)
-
-	// Round trip: the content goes back whole, keeping the file's mode.
-	if _, err := fsWrite(proto.FSWriteParams{Path: file, Content: []byte("two"), Hash: git.Hash([]byte("one"))}); err != nil {
-		t.Fatal(err)
-	}
-	if r, err := fsRead(proto.FSReadParams{Path: file}); err != nil || string(r.Data) != "two" {
-		t.Errorf("read %q, %v", r.Data, err)
-	}
-	if st, _ := os.Stat(file); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
-		t.Errorf("the mode is %v", st.Mode().Perm())
-	}
-
-	// A stale hash conflicts, and the file keeps what it has.
-	if _, err := fsWrite(proto.FSWriteParams{Path: file, Content: []byte("three"), Hash: git.Hash([]byte("one"))}); err == nil || !strings.Contains(err.Error(), "conflict") {
-		t.Errorf("wrote over a change: %v", err)
-	}
-	if r, _ := fsRead(proto.FSReadParams{Path: file}); string(r.Data) != "two" {
-		t.Errorf("after the conflict, the file holds %q", r.Data)
-	}
-
-	// An empty hash forces, whatever the file holds.
-	if _, err := fsWrite(proto.FSWriteParams{Path: file, Content: []byte("three")}); err != nil {
-		t.Fatal(err)
-	}
-
-	// A file that is none takes only the empty hash: one deleted since it
-	// was read conflicts as one changed does.
-	fresh := filepath.Join(dir, "new.txt")
-	if _, err := fsWrite(proto.FSWriteParams{Path: fresh, Content: []byte("n"), Hash: git.Hash([]byte("n"))}); err == nil || !strings.Contains(err.Error(), "conflict") {
-		t.Errorf("made a file under a hash: %v", err)
-	}
-	if _, err := fsWrite(proto.FSWriteParams{Path: fresh, Content: []byte("n")}); err != nil {
-		t.Fatal(err)
-	}
-	if r, err := fsRead(proto.FSReadParams{Path: fresh}); err != nil || string(r.Data) != "n" {
-		t.Errorf("read %q, %v", r.Data, err)
-	}
-	if st, _ := os.Stat(fresh); runtime.GOOS != "windows" && st.Mode().Perm() != 0o644 {
-		t.Errorf("a new file's mode is %v", st.Mode().Perm())
-	}
-
-	// A file past what fs.read reads is refused.
-	if _, err := fsWrite(proto.FSWriteParams{Path: file, Content: make([]byte, maxRead+1)}); err == nil {
-		t.Error("wrote past the limit")
-	}
-
-	// A directory for the file that is none.
-	if _, err := fsWrite(proto.FSWriteParams{Path: filepath.Join(dir, "none", "x"), Content: []byte("x")}); err == nil {
-		t.Error("wrote into a directory that is none")
-	}
-
-	// A link the rename would break, to write its target instead: neither.
-	link := filepath.Join(dir, "link.txt")
-	os.Symlink(file, link)
-	if _, err := fsWrite(proto.FSWriteParams{Path: link, Content: []byte("x")}); err == nil {
-		t.Error("wrote a link")
-	}
-}
-
-// fsDelete takes a file, and a folder with all that is in it; no empty
-// path, which would be the home itself.
+// fsDelete takes a file, and a folder with all that is in it; what is not
+// there is no file to delete, an error as any other.
 func TestFSDelete(t *testing.T) {
+	d := testDaemon(t)
 	dir := t.TempDir()
 	file := filepath.Join(dir, "a.txt")
 	sub := filepath.Join(dir, "sub")
@@ -156,23 +93,20 @@ func TestFSDelete(t *testing.T) {
 	os.MkdirAll(sub, 0o755)
 	os.WriteFile(inner, []byte("b"), 0o600)
 
-	if err := fsDelete(proto.FSDeleteParams{Path: file}); err != nil {
+	if err := d.fsDelete(proto.FSDeleteParams{Path: file}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(file); !os.IsNotExist(err) {
 		t.Errorf("the file is still there: %v", err)
 	}
-	if err := fsDelete(proto.FSDeleteParams{Path: sub}); err != nil {
+	if err := d.fsDelete(proto.FSDeleteParams{Path: sub}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(inner); !os.IsNotExist(err) {
 		t.Error("a folder's files outlived it")
 	}
-	if err := fsDelete(proto.FSDeleteParams{Path: filepath.Join(dir, "none")}); err != nil {
-		t.Errorf("what is not there is no error: %v", err)
-	}
-	if err := fsDelete(proto.FSDeleteParams{Path: "  "}); err == nil {
-		t.Error("an empty path would be the home, whole")
+	if err := d.fsDelete(proto.FSDeleteParams{Path: filepath.Join(dir, "none")}); err == nil {
+		t.Error("deleted what is not there")
 	}
 }
 
@@ -181,7 +115,7 @@ func TestFSWriteCall(t *testing.T) {
 	d := testDaemon(t)
 	file := filepath.Join(t.TempDir(), "a.txt")
 	os.WriteFile(file, []byte("one"), 0o644)
-	raw, err := json.Marshal(proto.FSWriteParams{Path: file, Content: []byte("two"), Hash: git.Hash([]byte("one"))})
+	raw, err := json.Marshal(proto.FSWriteParams{Path: file, Text: "two", Hash: git.Hash([]byte("one"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,5 +189,126 @@ func TestPasteDirPrivate(t *testing.T) {
 	os.Symlink(t.TempDir(), base)
 	if _, err := pasteDir(); err == nil {
 		t.Error("pasted through a link")
+	}
+}
+
+// Asked, fs.list marks what git ignores in a worktree, and nothing
+// outside one.
+func TestFSListIgnored(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules/\n*.log\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "node_modules", "x"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "src"), 0o755)
+	os.WriteFile(filepath.Join(dir, "debug.log"), nil, 0o644)
+	os.WriteFile(filepath.Join(dir, "main.go"), nil, 0o644)
+	l, err := fsList(proto.FSListParams{Dir: dir, Hidden: true, Ignored: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ignored []string
+	for _, e := range l.Entries {
+		if e.Ignored {
+			ignored = append(ignored, e.Name)
+		}
+	}
+	if got := strings.Join(ignored, ","); got != "node_modules,debug.log" {
+		t.Errorf("ignored %q, want node_modules,debug.log", got)
+	}
+	if l, err := fsList(proto.FSListParams{Dir: t.TempDir(), Ignored: true}); err != nil || len(l.Entries) != 0 {
+		t.Errorf("outside a worktree: %v, %v", l.Entries, err)
+	}
+}
+
+// fs.write writes a file as it was read, keeping its mode, but not one
+// changed meanwhile, unless forced.
+func TestFSWrite(t *testing.T) {
+	p := testPane(t)
+	d := p.d
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a.sh")
+	os.WriteFile(file, []byte("echo a\n"), 0o755)
+	d.panes = map[string]*pane{"p": p}
+	p.info.Dir = dir
+
+	h, err := d.fsWrite(proto.FSWriteParams{Path: file, Hash: git.Hash([]byte("echo a\n")), Text: "echo b\n"})
+	if b, _ := os.ReadFile(file); err != nil || string(b) != "echo b\n" || h != git.Hash(b) {
+		t.Fatalf("wrote %q, %q, %v", b, h, err)
+	}
+	if st, _ := os.Stat(file); st.Mode().Perm() != 0o755 {
+		t.Errorf("the mode is %v", st.Mode().Perm())
+	}
+	if _, err := d.fsWrite(proto.FSWriteParams{Path: file, Hash: git.Hash([]byte("echo a\n")), Text: "echo c\n"}); !errors.Is(err, git.ErrChanged) {
+		t.Errorf("wrote over a file changed meanwhile: %v", err)
+	}
+	if b, _ := os.ReadFile(file); string(b) != "echo b\n" {
+		t.Errorf("the file is %q", b)
+	}
+	if _, err := d.fsWrite(proto.FSWriteParams{Path: file, Hash: "stale", Text: "echo c\n", Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(file); string(b) != "echo c\n" {
+		t.Errorf("forced, the file is %q", b)
+	}
+	_ = h
+}
+
+// fs.create makes a file or a folder, with the folders it is in, but none
+// there already; fs.rename moves one where nothing is, or to another case
+// of its name; fs.delete deletes one and what is in it; none of the three
+// touches a volume's root or the home.
+func TestFSCreateRenameDelete(t *testing.T) {
+	d := testPane(t).d
+	dir := t.TempDir()
+	file := filepath.Join(dir, "src", "a.go")
+	if err := d.fsCreate(proto.FSCreateParams{Path: file}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Stat(file); err != nil || st.Size() != 0 || st.IsDir() {
+		t.Fatalf("made %v, %v", st, err)
+	}
+	if err := d.fsCreate(proto.FSCreateParams{Path: file}); err == nil {
+		t.Error("made a file over one there")
+	}
+	if err := d.fsCreate(proto.FSCreateParams{Path: filepath.Join(dir, "docs"), Dir: true}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Stat(filepath.Join(dir, "docs")); err != nil || !st.IsDir() {
+		t.Errorf("made %v, %v", st, err)
+	}
+
+	os.WriteFile(filepath.Join(dir, "b.go"), []byte("b"), 0o644)
+	if err := d.fsRename(proto.FSRenameParams{From: file, To: filepath.Join(dir, "b.go")}); err == nil {
+		t.Error("renamed over a file there")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "b.go")); string(b) != "b" {
+		t.Error("renaming over b.go changed it")
+	}
+	moved := filepath.Join(dir, "docs", "c.go")
+	if err := d.fsRename(proto.FSRenameParams{From: file, To: moved}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(moved); err != nil {
+		t.Error(err)
+	}
+	if err := d.fsRename(proto.FSRenameParams{From: moved, To: filepath.Join(dir, "docs", "C.go")}); err != nil {
+		t.Errorf("renaming to another case: %v", err)
+	}
+
+	if err := d.fsDelete(proto.FSDeleteParams{Path: filepath.Join(dir, "docs")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "docs")); !os.IsNotExist(err) {
+		t.Error("the folder stayed")
+	}
+	for _, p := range []string{"/", proto.Home(), "relative/x"} {
+		if err := d.fsDelete(proto.FSDeleteParams{Path: p}); err == nil {
+			t.Errorf("deleted %q", p)
+		}
 	}
 }

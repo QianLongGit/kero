@@ -4038,11 +4038,11 @@ func (msgs Messages) SideChanges() string {
 	return Catalog.Format(msgs.locale, "sideChanges", nil)
 }
 
-// SideClose says "Close Panel"
+// SideClose says "Close"
 // in the language the app shows.
 func SideClose() string { return In(i18n.Locale()).SideClose() }
 
-// SideClose says "Close Panel"
+// SideClose says "Close"
 // in the language of msgs.
 func (msgs Messages) SideClose() string {
 	return Catalog.Format(msgs.locale, "sideClose", nil)
@@ -4066,6 +4066,222 @@ func SideShow() string { return In(i18n.Locale()).SideShow() }
 // in the language of msgs.
 func (msgs Messages) SideShow() string {
 	return Catalog.Format(msgs.locale, "sideShow", nil)
+}
+
+// ActionToggleRightSidebar says "Toggle Right Sidebar"
+// in the language the app shows.
+func ActionToggleRightSidebar() string { return In(i18n.Locale()).ActionToggleRightSidebar() }
+
+// ActionToggleRightSidebar says "Toggle Right Sidebar"
+// in the language of msgs.
+func (msgs Messages) ActionToggleRightSidebar() string {
+	return Catalog.Format(msgs.locale, "actionToggleRightSidebar", nil)
+}
+
+// RightSidebarHide says "Hide Right Sidebar"
+// in the language the app shows.
+func RightSidebarHide() string { return In(i18n.Locale()).RightSidebarHide() }
+
+// RightSidebarHide says "Hide Right Sidebar"
+// in the language of msgs.
+func (msgs Messages) RightSidebarHide() string {
+	return Catalog.Format(msgs.locale, "rightSidebarHide", nil)
+}
+
+// RightSidebarShow says "Show Right Sidebar"
+// in the language the app shows.
+func RightSidebarShow() string { return In(i18n.Locale()).RightSidebarShow() }
+
+// RightSidebarShow says "Show Right Sidebar"
+// in the language of msgs.
+func (msgs Messages) RightSidebarShow() string {
+	return Catalog.Format(msgs.locale, "rightSidebarShow", nil)
+}
+
+// ChangesShowDiffs says "Show Diffs"
+// in the language the app shows.
+func ChangesShowDiffs() string { return In(i18n.Locale()).ChangesShowDiffs() }
+
+// ChangesShowDiffs says "Show Diffs"
+// in the language of msgs.
+func (msgs Messages) ChangesShowDiffs() string {
+	return Catalog.Format(msgs.locale, "changesShowDiffs", nil)
+}
+
+// FilesCollapseFolders says "Collapse Folders"
+// in the language the app shows.
+func FilesCollapseFolders() string { return In(i18n.Locale()).FilesCollapseFolders() }
+
+// FilesCollapseFolders says "Collapse Folders"
+// in the language of msgs.
+func (msgs Messages) FilesCollapseFolders() string {
+	return Catalog.Format(msgs.locale, "filesCollapseFolders", nil)
+}
+
+// FilesCantReadFolder says "Can't read the folder"
+// in the language the app shows.
+func FilesCantReadFolder() string { return In(i18n.Locale()).FilesCantReadFolder() }
+
+// FilesCantReadFolder says "Can't read the folder"
+// in the language of msgs.
+func (msgs Messages) FilesCantReadFolder() string {
+	return Catalog.Format(msgs.locale, "filesCantReadFolder", nil)
+}
+
+// FilesCantReadFile says "Can't read the file"
+// in the language the app shows.
+func FilesCantReadFile() string { return In(i18n.Locale()).FilesCantReadFile() }
+
+// FilesCantReadFile says "Can't read the file"
+// in the language of msgs.
+func (msgs Messages) FilesCantReadFile() string {
+	return Catalog.Format(msgs.locale, "filesCantReadFile", nil)
+}
+
+// FilesGone says "The file is gone"
+// in the language the app shows.
+func FilesGone() string { return In(i18n.Locale()).FilesGone() }
+
+// FilesGone says "The file is gone"
+// in the language of msgs.
+func (msgs Messages) FilesGone() string {
+	return Catalog.Format(msgs.locale, "filesGone", nil)
+}
+
+// FilesNewFile says "New File…"
+// in the language the app shows.
+func FilesNewFile() string { return In(i18n.Locale()).FilesNewFile() }
+
+// FilesNewFile says "New File…"
+// in the language of msgs.
+func (msgs Messages) FilesNewFile() string {
+	return Catalog.Format(msgs.locale, "filesNewFile", nil)
+}
+
+// FilesNewFolder says "New Folder…"
+// in the language the app shows.
+func FilesNewFolder() string { return In(i18n.Locale()).FilesNewFolder() }
+
+// FilesNewFolder says "New Folder…"
+// in the language of msgs.
+func (msgs Messages) FilesNewFolder() string {
+	return Catalog.Format(msgs.locale, "filesNewFolder", nil)
+}
+
+// FilesRename says "Rename…"
+// in the language the app shows.
+func FilesRename() string { return In(i18n.Locale()).FilesRename() }
+
+// FilesRename says "Rename…"
+// in the language of msgs.
+func (msgs Messages) FilesRename() string {
+	return Catalog.Format(msgs.locale, "filesRename", nil)
+}
+
+// FilesDeleteItem says "Delete…"
+// in the language the app shows.
+func FilesDeleteItem() string { return In(i18n.Locale()).FilesDeleteItem() }
+
+// FilesDeleteItem says "Delete…"
+// in the language of msgs.
+func (msgs Messages) FilesDeleteItem() string {
+	return Catalog.Format(msgs.locale, "filesDeleteItem", nil)
+}
+
+// FilesDeleteTrashDetail says "You can restore it from the Trash."
+// in the language the app shows.
+func FilesDeleteTrashDetail() string { return In(i18n.Locale()).FilesDeleteTrashDetail() }
+
+// FilesDeleteTrashDetail says "You can restore it from the Trash."
+// in the language of msgs.
+func (msgs Messages) FilesDeleteTrashDetail() string {
+	return Catalog.Format(msgs.locale, "filesDeleteTrashDetail", nil)
+}
+
+// FilesDeleteRecycleDetail says "You can restore it from the Recycle Bin."
+// in the language the app shows.
+func FilesDeleteRecycleDetail() string { return In(i18n.Locale()).FilesDeleteRecycleDetail() }
+
+// FilesDeleteRecycleDetail says "You can restore it from the Recycle Bin."
+// in the language of msgs.
+func (msgs Messages) FilesDeleteRecycleDetail() string {
+	return Catalog.Format(msgs.locale, "filesDeleteRecycleDetail", nil)
+}
+
+// FilesDeleteForGoodDetail says "It's deleted for good: this host has no trash to move it to."
+// in the language the app shows.
+func FilesDeleteForGoodDetail() string { return In(i18n.Locale()).FilesDeleteForGoodDetail() }
+
+// FilesDeleteForGoodDetail says "It's deleted for good: this host has no trash to move it to."
+// in the language of msgs.
+func (msgs Messages) FilesDeleteForGoodDetail() string {
+	return Catalog.Format(msgs.locale, "filesDeleteForGoodDetail", nil)
+}
+
+// FilesMoveToTrash says "Move to Trash"
+// in the language the app shows.
+func FilesMoveToTrash() string { return In(i18n.Locale()).FilesMoveToTrash() }
+
+// FilesMoveToTrash says "Move to Trash"
+// in the language of msgs.
+func (msgs Messages) FilesMoveToTrash() string {
+	return Catalog.Format(msgs.locale, "filesMoveToTrash", nil)
+}
+
+// FilesMoveToRecycleBin says "Move to Recycle Bin"
+// in the language the app shows.
+func FilesMoveToRecycleBin() string { return In(i18n.Locale()).FilesMoveToRecycleBin() }
+
+// FilesMoveToRecycleBin says "Move to Recycle Bin"
+// in the language of msgs.
+func (msgs Messages) FilesMoveToRecycleBin() string {
+	return Catalog.Format(msgs.locale, "filesMoveToRecycleBin", nil)
+}
+
+// FilesDeleteFailed says "Couldn't delete “{name}”: {error}"
+// in the language the app shows.
+func FilesDeleteFailed(name string, error string) string {
+	return In(i18n.Locale()).FilesDeleteFailed(name, error)
+}
+
+// FilesDeleteFailed says "Couldn't delete “{name}”: {error}"
+// in the language of msgs.
+func (msgs Messages) FilesDeleteFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "filesDeleteFailed", map[string]any{"name": name, "error": error})
+}
+
+// FilesCreateFailed says "Couldn't create “{name}”: {error}"
+// in the language the app shows.
+func FilesCreateFailed(name string, error string) string {
+	return In(i18n.Locale()).FilesCreateFailed(name, error)
+}
+
+// FilesCreateFailed says "Couldn't create “{name}”: {error}"
+// in the language of msgs.
+func (msgs Messages) FilesCreateFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "filesCreateFailed", map[string]any{"name": name, "error": error})
+}
+
+// FilesRenameFailed says "Couldn't rename “{name}”: {error}"
+// in the language the app shows.
+func FilesRenameFailed(name string, error string) string {
+	return In(i18n.Locale()).FilesRenameFailed(name, error)
+}
+
+// FilesRenameFailed says "Couldn't rename “{name}”: {error}"
+// in the language of msgs.
+func (msgs Messages) FilesRenameFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "filesRenameFailed", map[string]any{"name": name, "error": error})
+}
+
+// FilesBadName says "“{name}” can't be a name here"
+// in the language the app shows.
+func FilesBadName(name string) string { return In(i18n.Locale()).FilesBadName(name) }
+
+// FilesBadName says "“{name}” can't be a name here"
+// in the language of msgs.
+func (msgs Messages) FilesBadName(name string) string {
+	return Catalog.Format(msgs.locale, "filesBadName", map[string]any{"name": name})
 }
 
 // ChangesTurn says "Last Turn"
@@ -4338,11 +4554,11 @@ func (msgs Messages) SideFiles() string {
 	return Catalog.Format(msgs.locale, "sideFiles", nil)
 }
 
-// FilesNoFolder says "No folder"
+// FilesNoFolder says "No folder to show"
 // in the language the app shows.
 func FilesNoFolder() string { return In(i18n.Locale()).FilesNoFolder() }
 
-// FilesNoFolder says "No folder"
+// FilesNoFolder says "No folder to show"
 // in the language of msgs.
 func (msgs Messages) FilesNoFolder() string {
 	return Catalog.Format(msgs.locale, "filesNoFolder", nil)
@@ -4598,13 +4814,13 @@ func (msgs Messages) FilesDeleteFileDetail() string {
 	return Catalog.Format(msgs.locale, "filesDeleteFileDetail", nil)
 }
 
-// FilesDeleteFolderTitle says "Delete “{name}”?"
+// FilesDeleteFolderTitle says "Delete the folder “{name}” and everything in it?"
 // in the language the app shows.
 func FilesDeleteFolderTitle(name string) string {
 	return In(i18n.Locale()).FilesDeleteFolderTitle(name)
 }
 
-// FilesDeleteFolderTitle says "Delete “{name}”?"
+// FilesDeleteFolderTitle says "Delete the folder “{name}” and everything in it?"
 // in the language of msgs.
 func (msgs Messages) FilesDeleteFolderTitle(name string) string {
 	return Catalog.Format(msgs.locale, "filesDeleteFolderTitle", map[string]any{"name": name})
@@ -4802,6 +5018,118 @@ func (msgs Messages) ChangesRevertFailed(error string) string {
 	return Catalog.Format(msgs.locale, "changesRevertFailed", map[string]any{"error": error})
 }
 
+// ViewerSaveFailed says "Couldn't save “{name}”: {error}"
+// in the language the app shows.
+func ViewerSaveFailed(name string, error string) string {
+	return In(i18n.Locale()).ViewerSaveFailed(name, error)
+}
+
+// ViewerSaveFailed says "Couldn't save “{name}”: {error}"
+// in the language of msgs.
+func (msgs Messages) ViewerSaveFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "viewerSaveFailed", map[string]any{"name": name, "error": error})
+}
+
+// ViewerUnsaved says "Unsaved changes"
+// in the language the app shows.
+func ViewerUnsaved() string { return In(i18n.Locale()).ViewerUnsaved() }
+
+// ViewerUnsaved says "Unsaved changes"
+// in the language of msgs.
+func (msgs Messages) ViewerUnsaved() string {
+	return Catalog.Format(msgs.locale, "viewerUnsaved", nil)
+}
+
+// ViewerSaveOne says "Do you want to save the changes you made to “{name}”?"
+// in the language the app shows.
+func ViewerSaveOne(name string) string { return In(i18n.Locale()).ViewerSaveOne(name) }
+
+// ViewerSaveOne says "Do you want to save the changes you made to “{name}”?"
+// in the language of msgs.
+func (msgs Messages) ViewerSaveOne(name string) string {
+	return Catalog.Format(msgs.locale, "viewerSaveOne", map[string]any{"name": name})
+}
+
+// ViewerSaveMany says "{count, plural, one {Do you want to save the changes you made to # file?} other {Do you want to save the changes you …"
+// in the language the app shows.
+func ViewerSaveMany(count int) string { return In(i18n.Locale()).ViewerSaveMany(count) }
+
+// ViewerSaveMany says "{count, plural, one {Do you want to save the changes you made to # file?} other {Do you want to save the changes you …"
+// in the language of msgs.
+func (msgs Messages) ViewerSaveMany(count int) string {
+	return Catalog.Format(msgs.locale, "viewerSaveMany", map[string]any{"count": count})
+}
+
+// ViewerSaveDetail says "Your changes will be lost if you don't save them."
+// in the language the app shows.
+func ViewerSaveDetail() string { return In(i18n.Locale()).ViewerSaveDetail() }
+
+// ViewerSaveDetail says "Your changes will be lost if you don't save them."
+// in the language of msgs.
+func (msgs Messages) ViewerSaveDetail() string {
+	return Catalog.Format(msgs.locale, "viewerSaveDetail", nil)
+}
+
+// ViewerSave says "Save"
+// in the language the app shows.
+func ViewerSave() string { return In(i18n.Locale()).ViewerSave() }
+
+// ViewerSave says "Save"
+// in the language of msgs.
+func (msgs Messages) ViewerSave() string {
+	return Catalog.Format(msgs.locale, "viewerSave", nil)
+}
+
+// ViewerDontSave says "Don't Save"
+// in the language the app shows.
+func ViewerDontSave() string { return In(i18n.Locale()).ViewerDontSave() }
+
+// ViewerDontSave says "Don't Save"
+// in the language of msgs.
+func (msgs Messages) ViewerDontSave() string {
+	return Catalog.Format(msgs.locale, "viewerDontSave", nil)
+}
+
+// ViewerConflictTitle says "“{name}” changed on disk"
+// in the language the app shows.
+func ViewerConflictTitle(name string) string { return In(i18n.Locale()).ViewerConflictTitle(name) }
+
+// ViewerConflictTitle says "“{name}” changed on disk"
+// in the language of msgs.
+func (msgs Messages) ViewerConflictTitle(name string) string {
+	return Catalog.Format(msgs.locale, "viewerConflictTitle", map[string]any{"name": name})
+}
+
+// ViewerConflictDetail says "It changed since you opened it. Overwrite it with your version, or discard your changes for the file as it is now."
+// in the language the app shows.
+func ViewerConflictDetail() string { return In(i18n.Locale()).ViewerConflictDetail() }
+
+// ViewerConflictDetail says "It changed since you opened it. Overwrite it with your version, or discard your changes for the file as it is now."
+// in the language of msgs.
+func (msgs Messages) ViewerConflictDetail() string {
+	return Catalog.Format(msgs.locale, "viewerConflictDetail", nil)
+}
+
+// ViewerOverwrite says "Overwrite"
+// in the language the app shows.
+func ViewerOverwrite() string { return In(i18n.Locale()).ViewerOverwrite() }
+
+// ViewerOverwrite says "Overwrite"
+// in the language of msgs.
+func (msgs Messages) ViewerOverwrite() string {
+	return Catalog.Format(msgs.locale, "viewerOverwrite", nil)
+}
+
+// ViewerDiscard says "Discard Changes"
+// in the language the app shows.
+func ViewerDiscard() string { return In(i18n.Locale()).ViewerDiscard() }
+
+// ViewerDiscard says "Discard Changes"
+// in the language of msgs.
+func (msgs Messages) ViewerDiscard() string {
+	return Catalog.Format(msgs.locale, "viewerDiscard", nil)
+}
+
 // GitShowChanges says "Show Changes"
 // in the language the app shows.
 func GitShowChanges() string { return In(i18n.Locale()).GitShowChanges() }
@@ -4902,11 +5230,11 @@ func (msgs Messages) SetDiffLayout() string {
 	return Catalog.Format(msgs.locale, "setDiffLayout", nil)
 }
 
-// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// SetDiffLayoutDetail says "Auto shows diffs unified while their card is narrow, and side by side once it's wide."
 // in the language the app shows.
 func SetDiffLayoutDetail() string { return In(i18n.Locale()).SetDiffLayoutDetail() }
 
-// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// SetDiffLayoutDetail says "Auto shows diffs unified while their card is narrow, and side by side once it's wide."
 // in the language of msgs.
 func (msgs Messages) SetDiffLayoutDetail() string {
 	return Catalog.Format(msgs.locale, "setDiffLayoutDetail", nil)

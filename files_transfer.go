@@ -579,9 +579,7 @@ func (a *App) uploadTo(h *host, dir string) {
 			a.toast(locales.FilesUploadDone(len(paths), h.name))
 			// The folder that took them lists again, in whatever tree
 			// shows it, as a paste's landing does.
-			if t := a.xferTreeOf(h, dir); t != nil {
-				a.fetchDir(t, dir)
-			}
+			a.relistDir(h, dir)
 		})
 	}()
 }
@@ -621,19 +619,6 @@ func (a *App) xferRelease(x *transferState) {
 	if a.side.files.xfer == x {
 		a.side.files.xfer = nil
 	}
-}
-
-// xferTreeOf is the tree that shows a folder of a host — the folder as
-// its root, or one open under the tree's — for the listing a transfer's
-// landing asks of it again; nil when none does, for the folder an
-// upload filled may be nowhere on screen.
-func (a *App) xferTreeOf(h *host, dir string) *fileTree {
-	for _, t := range a.side.files.trees {
-		if a.hostOf(t.pane) == h && (t.root == dir || t.isDir[dir]) {
-			return t
-		}
-	}
-	return nil
 }
 
 // defaultXferDial opens a transfer stream as the app does: through the
@@ -712,10 +697,9 @@ func (a *App) xferRow(c *ui.Context, pal *palette) {
 	})
 }
 
-// xferHeader is the panel header's word of a transfer under way, beside
-// the folder the panel shows: the arc and the ✕ alone, for the Changes
-// tab and other trees have no row to carry them. Nothing while none
-// runs.
+// xferHeader is the sidebar's tab bar's word of a transfer under way:
+// the arc and the ✕ alone, for the tabs have no row to carry them.
+// Nothing while none runs.
 func (a *App) xferHeader(c *ui.Context, pal *palette) {
 	x := a.side.files.xfer
 	if x == nil {

@@ -6,15 +6,15 @@ import (
 )
 
 func TestFilesToggle(t *testing.T) {
-	if got := pcKeys["files.toggle"]; got != "Ctrl+Alt+F" {
-		t.Errorf(`pcKeys["files.toggle"] = %q, want "Ctrl+Alt+F"`, got)
+	if got := pcKeys["files.toggle"]; got != "Ctrl+Shift+E" {
+		t.Errorf(`pcKeys["files.toggle"] = %q, want "Ctrl+Shift+E"`, got)
 	}
 	files, ok := Find("files.toggle")
 	if !ok {
 		t.Fatal("no files.toggle action")
 	}
 	// init writes the PC keys over All on Windows and Linux.
-	want := "Cmd+Shift+F"
+	want := "CmdOrCtrl+Alt+E"
 	if runtime.GOOS != "darwin" {
 		want = pcKeys["files.toggle"]
 	}

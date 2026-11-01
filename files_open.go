@@ -5,7 +5,7 @@ package main
 // by fs.write after a second of quiet, under the hash of what was read,
 // and a file the host changed meanwhile asks before anything overwrites
 // it. This file is the whole of that; the opens that use it are routed
-// through materialize in files.go, file_pane.go and openwith.go.
+// through materialize in file_pane.go, files_drag.go and openwith.go.
 
 import (
 	"crypto/sha256"
@@ -385,7 +385,7 @@ func (a *App) uploadCache(cl *client.Client, u cacheUpload) {
 	content, err := os.ReadFile(u.local)
 	var sum string
 	if err == nil {
-		if err = cl.Call("fs.write", proto.FSWriteParams{Path: u.remote, Content: content, Hash: u.hash}, &sum); err != nil {
+		if err = cl.Call("fs.write", proto.FSWriteParams{Path: u.remote, Text: string(content), Hash: u.hash}, &sum); err != nil {
 			select {
 			case <-cl.Done():
 				err = errCacheOffline
@@ -421,7 +421,7 @@ func (a *App) cacheUploaded(u cacheUpload, sum string, err error) {
 		// The file went as it uploaded: its record goes with it.
 		delete(a.cache.entries, u.local)
 		a.saveCacheIndexLocked()
-	case strings.HasPrefix(err.Error(), "conflict:"):
+	case strings.Contains(err.Error(), git.ErrChanged.Error()):
 		e.uploading = false
 		e.changed = time.Time{}
 		tell = func() { a.conflictAsk(u.local, e) }
@@ -478,7 +478,9 @@ func (a *App) cacheOverwrite(local string) {
 		content, err := os.ReadFile(local)
 		var sum string
 		if err == nil {
-			err = cl.Call("fs.write", proto.FSWriteParams{Path: remote, Content: content}, &sum)
+			// The user chose the edit here over the host's change: the
+			// write is whatever the host holds, Force.
+			err = cl.Call("fs.write", proto.FSWriteParams{Path: remote, Text: string(content), Force: true}, &sum)
 		}
 		if err != nil {
 			a.update(func() { a.toast(locales.FilesCantWrite() + ": " + err.Error()) })

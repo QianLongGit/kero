@@ -638,19 +638,33 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return fsRead(p)
 
-	case "fs.write":
-		var p proto.FSWriteParams
+	case "fs.create":
+		var p proto.FSCreateParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		return fsWrite(p)
+		return true, d.fsCreate(p)
+
+	case "fs.rename":
+		var p proto.FSRenameParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return true, d.fsRename(p)
 
 	case "fs.delete":
 		var p proto.FSDeleteParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		return nil, fsDelete(p)
+		return true, d.fsDelete(p)
+
+	case "fs.write":
+		var p proto.FSWriteParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.fsWrite(p)
 
 	case "paste.file":
 		var p proto.PasteFileParams
