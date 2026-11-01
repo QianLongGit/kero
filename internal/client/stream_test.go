@@ -3,7 +3,9 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"io"
+	"net"
 	"testing"
 
 	"kero/internal/proto"
@@ -64,3 +66,37 @@ func TestStreamLargeOutput(t *testing.T) {
 		t.Errorf("read %d bytes, not the %d written", len(got), len(out))
 	}
 }
+
+// A raw attach asks for the program's original bytes in its Hello, and the
+// Welcome's echo tells it the daemon honors that.
+func TestAttachViaRawAsks(t *testing.T) {
+	here, there := net.Pipe()
+	defer here.Close()
+	go func() {
+		defer there.Close()
+		var h proto.Hello
+		if err := json.NewDecoder(there).Decode(&h); err != nil {
+			t.Errorf("hello: %v", err)
+			return
+		}
+		if h.Kind != "attach" || h.Session != "p1" || !h.Raw {
+			t.Errorf("hello %+v, want a raw attach on p1", h)
+		}
+		w, _ := json.Marshal(proto.Welcome{Version: proto.Version, Raw: true})
+		there.Write(append(w, '\n'))
+	}()
+	var d netDialer
+	d.c = here
+	st, err := AttachViaRaw(&d, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if !st.Welcome.Raw {
+		t.Error("the welcome does not echo raw")
+	}
+}
+
+type netDialer struct{ c net.Conn }
+
+func (d *netDialer) Dial() (net.Conn, error) { return d.c, nil }

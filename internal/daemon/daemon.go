@@ -797,6 +797,7 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 		return
 	}
 	a := newAttachment(conn)
+	a.raw = hello.Raw
 	first, cols, rows, ok := s.attach(a)
 	if !ok {
 		welcome.Error = "session closed"
@@ -806,6 +807,9 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 	defer s.detach(a)
 	defer a.finish()
 	welcome.Cols, welcome.Rows = cols, rows
+	if a.raw {
+		welcome.Raw = true
+	}
 	if err := json.NewEncoder(conn).Encode(welcome); err != nil {
 		return
 	}

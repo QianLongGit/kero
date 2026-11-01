@@ -221,6 +221,14 @@ func (s *pane) output(p []byte) {
 	}
 	s.osc.scan(p, s.handleOSC, s.fullReset)
 	s.term.Feed(p)
+	// Raw attachments take these bytes as they are: the same lock as the
+	// first-frame snapshot keeps them after it, with no gap and no
+	// reorder.
+	for c := range s.clients {
+		if c.raw {
+			c.send(proto.FrameOutput, p)
+		}
+	}
 	s.dirty = true
 	s.info.Activity = now.UnixMilli()
 	s.looked = false
@@ -687,6 +695,10 @@ func (s *pane) frameSoon() {
 func (s *pane) frame() {
 	due := false
 	for c := range s.clients {
+		// A raw attachment's bytes come from output(), as they happen.
+		if c.raw {
+			continue
+		}
 		f, later := c.mirror.Frame()
 		if len(f) > 0 {
 			c.send(proto.FrameOutput, f)
@@ -907,6 +919,11 @@ func (s *pane) readText(scrollback bool, lines int) string {
 type attachment struct {
 	conn   net.Conn
 	mirror *terminal.Mirror // what its terminal shows of the session's
+	// raw is an attachment that takes the program's original bytes, not
+	// the Mirror stream (`kero attach`): output() tees each write to it
+	// under the pane lock, frame() skips it, and its first frame is still
+	// the Mirror restart. pane.mu guards it.
+	raw bool
 	// asked is the size its terminal fits (pane.ask), askedAt and claimed
 	// when it asked it and the user last claimed the pane in it
 	// (pane.stamp); pane.mu guards them.

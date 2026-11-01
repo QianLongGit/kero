@@ -1,7 +1,9 @@
 package proto
 
 import (
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -53,5 +55,35 @@ func TestDirName(t *testing.T) {
 	p := Pane{Dir: `C:\Users\egoist\dev\mygo`}
 	if got := p.PaneName(); got != "mygo" {
 		t.Errorf("pane named %q", got)
+	}
+}
+
+// Raw is optional on both sides of the handshake: a raw attach asks for it,
+// the daemon echoes it, and an older daemon that knows nothing of it leaves
+// it out without complaint.
+func TestRawFieldJSON(t *testing.T) {
+	if b, err := json.Marshal(Hello{Kind: "attach", Session: "x", Raw: true}); err != nil {
+		t.Fatal(err)
+	} else if !strings.Contains(string(b), `"raw":true`) {
+		t.Errorf("Hello marshals without raw: %s", b)
+	}
+	if b, err := json.Marshal(Hello{Kind: "attach"}); err != nil {
+		t.Fatal(err)
+	} else if strings.Contains(string(b), `"raw"`) {
+		t.Errorf("Hello marshals a raw it was never given: %s", b)
+	}
+	var h Hello
+	if err := json.Unmarshal([]byte(`{"kind":"attach","raw":true}`), &h); err != nil {
+		t.Fatal(err)
+	}
+	if !h.Raw {
+		t.Error("a daemon-bound raw ask does not unmarshal back")
+	}
+	var w Welcome
+	if err := json.Unmarshal([]byte(`{"version":3}`), &w); err != nil {
+		t.Fatal(err)
+	}
+	if w.Raw {
+		t.Error("an old daemon's welcome, with no raw echo, reads as raw")
 	}
 }

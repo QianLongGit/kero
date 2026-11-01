@@ -40,6 +40,9 @@ type Hello struct {
 	Peer   string `json:"peer,omitempty"`
 	Via    string `json:"via,omitempty"`
 	Client string `json:"client,omitempty"`
+	// Attach only, asking for the program's original bytes rather than the
+	// Mirror stream (`kero attach`).
+	Raw bool `json:"raw,omitempty"`
 }
 
 // Welcome answers a Hello.
@@ -58,6 +61,9 @@ type Welcome struct {
 	// Attach only: the size of the snapshot that follows.
 	Cols int `json:"cols,omitempty"`
 	Rows int `json:"rows,omitempty"`
+	// Attach only: the daemon honored Hello's raw ask. An older daemon
+	// leaves it out, and the client then reads the ordinary Mirror stream.
+	Raw bool `json:"raw,omitempty"`
 }
 
 // Request is a call on a control connection.

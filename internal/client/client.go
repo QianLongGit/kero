@@ -329,6 +329,23 @@ func AttachVia(d Dialer, id string) (*Stream, error) {
 	return &Stream{conn: conn, r: r, Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
 }
 
+// AttachViaRaw opens a session's stream asking for the program's original
+// bytes (`kero attach`). A sibling of AttachVia rather than opts plumbing,
+// as the minimal change; whether the daemon honors the ask is in the
+// Welcome's Raw echo, which a caller reads to tell which stream it got.
+func AttachViaRaw(d Dialer, id string) (*Stream, error) {
+	conn, err := d.Dial()
+	if err != nil {
+		return nil, err
+	}
+	w, r, err := handshake(conn, proto.Hello{Kind: "attach", Session: id, Raw: true})
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return &Stream{conn: conn, r: r, Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
+}
+
 func (s *Stream) Read(p []byte) (int, error) {
 	for len(s.buf) == 0 {
 		kind, payload, err := proto.ReadFrame(s.r)

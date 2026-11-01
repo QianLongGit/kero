@@ -38,7 +38,7 @@ Usage:
                                   hosts, each under the name -H takes
   kero new [options] [-- cmd…]  start a session, printing its id
       -p, --project <name|id>     project to put it in (default: by directory)
-      -n, --name <name>           name it
+      -n, -s, --name <name>       name it
       -d, --dir <dir>             start it there (default: here)
       -f, --focus                 show it in the app
       -w, --wait                  wait for cmd to end, exit with its status
@@ -46,6 +46,10 @@ Usage:
       --worktree <branch>         in a git worktree of its own, on a new
                                   branch from the default branch
       --base <ref>                the branch to start it from instead
+  kero attach [-t target]       enter a session's terminal, its bytes as
+                                the program writes them; Ctrl+B d leaves
+      -t, --target <target>     which session or pane (default: the most
+                                recently active)
   kero split [target] [options] [-- cmd…]
                                 start a pane beside a pane, printing its id
       --right (default), --down, --left, --up
@@ -170,7 +174,7 @@ ambiguous one), 4 kerod unreachable.
 `
 
 // Commands lists the subcommands, which main sends here.
-var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
+var Commands = []string{"ls", "list", "new", "attach", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
 	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
@@ -373,9 +377,12 @@ func run(args []string, host string) error {
 		}
 		return w.Flush()
 
+	case "attach":
+		return attachCmd(st, args, host)
+
 	case "new":
 		f, err := parse(args,
-			map[string]string{"p": "project", "project": "project", "n": "name", "name": "name", "d": "dir", "dir": "dir", "timeout": "timeout", "t": "timeout",
+			map[string]string{"p": "project", "project": "project", "n": "name", "name": "name", "s": "name", "d": "dir", "dir": "dir", "timeout": "timeout", "t": "timeout",
 				"u": "url", "url": "url", "worktree": "worktree", "base": "base"},
 			map[string]string{"f": "focus", "focus": "focus", "json": "json", "wait": "wait", "w": "wait"})
 		if err != nil {
