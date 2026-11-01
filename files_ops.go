@@ -131,9 +131,9 @@ func (a *App) commitName() {
 		}
 		a.update(func() {
 			if err != nil {
-				msg := locales.FilesCreateFailed(name, err.Error())
+				msg := locales.FilesCreateFailed(name, remoteError(err))
 				if e.op == editRename {
-					msg = locales.FilesRenameFailed(path.Base(e.oldRel), err.Error())
+					msg = locales.FilesRenameFailed(path.Base(e.oldRel), remoteError(err))
 				}
 				a.toast(msg)
 				return
@@ -241,7 +241,7 @@ func (a *App) deleteEntry(h *host, it fileItem) {
 		}
 		a.update(func() {
 			if err != nil {
-				a.toast(locales.FilesDeleteFailed(it.Name, err.Error()))
+				a.toast(locales.FilesDeleteFailed(it.Name, remoteError(err)))
 				return
 			}
 			a.side.files.gen++
