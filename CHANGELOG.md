@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.3.26
+
+- The Files tree has a **Preview** toggle above it, off by default: a
+  click on a file only chooses it now, and the viewer keeps what it
+  shows. With the toggle on, a click opens the file beside the panes as
+  it did, and turning the toggle on opens the file chosen at once.
+- <kbd>Space</kbd> previews the row chosen in the Files tree, or the
+  file in the viewer with none chosen, on the Mac's Quick Look panel —
+  which the tree's coming back had left without a row to look at.
+- Making, renaming or deleting a file on a host with an older kerod
+  tells of it, the toast saying to update the host, instead of the bare
+  "unknown method" its kerod answers with.
+
 ## 2.3.25
 
 - The right sidebar has a **Files** tab beside Changes: the pane's
