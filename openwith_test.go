@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/client"
+	"kero/internal/proto"
 
 	"kero/locales"
 )
