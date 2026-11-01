@@ -20,11 +20,13 @@ import (
 // The Files tab is the tree of the worktree of the pane the user is in,
 // else of its directory, as kerod lists it (fs.list), a folder at a time
 // as the user unfolds it: what git ignores shows faded, and .git not at
-// all. A click on a file opens it in the viewer, as text the user edits
-// (edits.go), which follows the file as it changes. A drag of a row
-// offers the file to the system (files_drag.go), a right click opens the
-// row's menu (files_ops.go, files_menu.go), and a remote host's rows
-// carry the transfers too (files_transfer.go).
+// all. The row above the tree carries the Preview toggle: on, a click on
+// a file opens it in the viewer, as its text the user edits (edits.go),
+// which follows the file as it changes; off, the click only chooses the
+// row, which Space previews (Quick Look), and the viewer keeps what it
+// shows. A drag of a row offers the file to the system (files_drag.go),
+// a right click opens the row's menu (files_ops.go, files_menu.go), and
+// a remote host's rows carry the transfers too (files_transfer.go).
 
 // filesState is the Files tab's.
 type filesState struct {
@@ -33,6 +35,10 @@ type filesState struct {
 	dirs   map[string]*dirList
 	open   map[string]bool
 	places map[string]*ui.ListState
+	// chosen is the row chosen in each root's tree, by host and root
+	// (filesKey), -1 for none: the row a click chose, which Space
+	// previews.
+	chosen map[string]*int
 	// gen counts the times the tab came to show, each of which lists its
 	// folders anew; shown tells it shows this frame, and showed that it
 	// did the frame before.
@@ -97,6 +103,10 @@ const maxView = 4 << 20
 
 // filesKey keys a path of a host.
 func filesKey(h *host, p string) string { return h.name + "\x00" + p }
+
+// filesPreview tells whether a click on a file of the Files tab opens it
+// in the viewer: off until the user turns it on.
+func (a *App) filesPreview() bool { return a.prefs.FilesPreview != nil && *a.prefs.FilesPreview }
 
 // filesRoot is the folder the Files tab shows, and the pane it is of: the
 // worktree of the one the user is in, else its directory.
@@ -186,6 +196,19 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	}
 	walk(root, "", 0)
 
+	// The choice of a row is the tree's own place, as its listing is:
+	// the list keeps it by the row's key as the rows change, and Space
+	// previews it.
+	if fs.chosen == nil {
+		fs.chosen = map[string]*int{}
+	}
+	sel := fs.chosen[filesKey(h, root)]
+	if sel == nil {
+		sel = new(int)
+		*sel = -1
+		fs.chosen[filesKey(h, root)] = sel
+	}
+	sid, pid := s.ID, p.ID
 	ui.Row(c.Key("root")).Height(28).Shrink(0).Padding(0, 10, 6, 16).Gap(0).AlignItems(ui.Center).Children(func() {
 		// The label is the folder it names: its menu the upload into it,
 		// as a folder's row of the tree has — a remote host's, for this
@@ -207,6 +230,38 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 					delete(fs.open, k)
 				}
 			}
+		})
+		// The Preview toggle: on, a click on a file opens it in the
+		// viewer; off, the click only chooses the row, and the viewer
+		// keeps what it shows.
+		on := a.filesPreview()
+		fg := pal.textFaint
+		if on {
+			fg = pal.text
+		}
+		b := ui.ButtonBase(c.Key("files-preview")).Height(22).Padding(0, 7).Radius(5).AlignItems(ui.Center).Shrink(0).
+			Cursor(ui.CursorPointer).Label(locales.FilesOpenPreview())
+		if on {
+			b.Background(pal.chip)
+		} else if b.Hovered() {
+			b.Background(pal.rowHover)
+		}
+		if b.Clicked() {
+			a.defer_(func() {
+				v := !on
+				a.prefs.FilesPreview = &v
+				a.savePrefs()
+				// The tree follows at once: the row chosen opens in the
+				// viewer as the preview turns on.
+				if v {
+					if i := *sel; i >= 0 && i < len(items) && !items[i].Dir && items[i].err == "" && !items[i].edit {
+						a.openInView(sid, pid, items[i].path, items[i].rel)
+					}
+				}
+			})
+		}
+		b.Children(func() {
+			ui.Text(c, locales.FilesOpenPreview()).FontSize(12).FontWeight(600).TextColor(fg).SingleLine().Shrink(0)
 		})
 	})
 	// The transfer under way, below the root's row.
@@ -230,11 +285,13 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 		fs.places[filesKey(h, root)] = ls
 	}
 	ls.Key = func(i int) any { return treeKey{items[i].rel, items[i].Dir} }
+	// The choice the keyboard moves as the tree has the focus, and the
+	// row chosen shows in the list's own way.
+	ls.Selected = sel
 	var shown string
 	if v := a.viewOf(s); v != nil && v.kind == sideFiles && v.file != nil {
 		shown = v.file.path
 	}
-	sid, pid := s.ID, p.ID
 	ui.List(c.Key("files"), ls, len(items), func(i int) {
 		it := items[i]
 		switch {
@@ -245,6 +302,10 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 		case it.Dir:
 			key := filesKey(h, it.path)
 			row := a.treeFolder(c, pal, it.Name, it.rel, it.depth, it.open, it.Ignored, func() {
+				// As a file's row: the folder's click chooses it and
+				// hands the tree the keyboard, then folds or unfolds.
+				*sel = i
+				ls.Focus(c)
 				if it.open {
 					delete(fs.open, key)
 				} else {
@@ -257,47 +318,68 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			row.DragDataFrom(func() transfer.Data { return a.fileDragData(h, it.path, true) })
 		default:
 			row := a.treeEntry(c, pal, h, pid, it, it.path == shown, func() {
-				s := a.session(sid)
-				if s == nil {
-					return
+				// The row keeps its click to itself, so the list does
+				// not choose it or take the keyboard: the click does
+				// both, and with the preview on, opens the file in the
+				// viewer; off, it only chooses the row.
+				*sel = i
+				ls.Focus(c)
+				if a.filesPreview() {
+					a.openInView(sid, pid, it.path, it.rel)
 				}
-				v := a.side.views[sid]
-				if v != nil && v.file != nil && v.file.path == it.path {
-					a.openView(s, sideFiles, nil) // the one it shows
-					return
-				}
-				// In the place of the one it shows, saved first.
-				var ts []editTarget
-				if v != nil && v.file != nil {
-					if t := a.fileTarget(v.file); t.dirty() {
-						ts = append(ts, t)
-					}
-				}
-				a.askToSave(ts, func() {
-					if s := a.session(sid); s != nil {
-						a.openView(s, sideFiles, &fileView{pane: pid, path: it.path, rel: it.rel})
-					}
-				})
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 		}
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
-	// Space previews the file the viewer shows, as macOS does — a remote
-	// host's through the cache, as any preview of it is.
-	if shown != "" && ls.Shortcut(c, 0, ui.KeySpace) {
-		path := shown
-		a.defer_(func() {
-			a.withLocalFile(h, path, func(local string) {
-				if err := quickLook(local); err != nil {
-					a.toast(err.Error())
-				}
+	// Space previews the row a click chose, as macOS does — the file the
+	// viewer shows while the choice is a folder's, an error's or none —
+	// a remote host's through the cache, as any preview of it is.
+	if ls.Shortcut(c, 0, ui.KeySpace) {
+		quick := shown
+		if i := *sel; i >= 0 && i < len(items) && !items[i].Dir && items[i].err == "" && !items[i].edit {
+			quick = items[i].path
+		}
+		if quick != "" {
+			path := quick
+			a.defer_(func() {
+				a.withLocalFile(h, path, func(local string) {
+					if err := quickLook(local); err != nil {
+						a.toast(err.Error())
+					}
+				})
 			})
-		})
+		}
 	}
 }
 
-// treeEntry is a file of the Files tab's tree, which a click opens in the
-// viewer; faded, it is one git ignores. A double click opens it as
+// openInView opens a file of the tree in the viewer, in the place of the
+// one it shows, saved first; the file it shows, it goes on showing.
+func (a *App) openInView(sid, pane, path, rel string) {
+	s := a.session(sid)
+	if s == nil {
+		return
+	}
+	v := a.side.views[sid]
+	if v != nil && v.file != nil && v.file.path == path {
+		a.openView(s, sideFiles, nil) // the one it shows
+		return
+	}
+	var ts []editTarget
+	if v != nil && v.file != nil {
+		if t := a.fileTarget(v.file); t.dirty() {
+			ts = append(ts, t)
+		}
+	}
+	a.askToSave(ts, func() {
+		if s := a.session(sid); s != nil {
+			a.openView(s, sideFiles, &fileView{pane: pane, path: path, rel: rel})
+		}
+	})
+}
+
+// treeEntry is a file of the Files tab's tree: a click chooses its row
+// and hands the tree the keyboard, and with the preview on opens it in
+// the viewer; faded, it is one git ignores. A double click opens it as
 // Settings say, in a file pane beside its own pane or in the system's app
 // for it (openBySetting); a drag of it offers the file to the system: to
 // another app, to a folder of the Finder's — a remote host's as the

@@ -64,6 +64,11 @@ type prefs struct {
 	SideTab    string  `json:"sideTab,omitempty"`
 	RightWidth float32 `json:"rightWidth,omitempty"`
 	SideWidth  float32 `json:"sideWidth,omitempty"`
+	// FilesPreview turns the Files tab's preview on and off: on, a click
+	// on a file opens it in the viewer; off, the click only chooses the
+	// row, and the viewer keeps what it shows. What a double click opens
+	// is the file-open setting's to say.
+	FilesPreview *bool `json:"filesPreview,omitempty"`
 	// EndedOpen and ArchivedOpen tell the sidebar's sections of the
 	// agents' ended conversations unfolded (session-history).
 	EndedOpen    bool `json:"endedOpen,omitempty"`
@@ -170,8 +175,8 @@ type App struct {
 	projectAfter bool
 	// hostAt is the host whose section a drag last hovered, and its
 	// side, as projectAt is of a project's header.
-	hostAt    *host
-	hostAfter bool
+	hostAt       *host
+	hostAfter    bool
 	previewSince time.Time
 	previewShown bool
 	arrived      map[string]bool

@@ -179,8 +179,9 @@ func TestRightSidebar(t *testing.T) {
 }
 
 // The Files tab is the worktree's tree, a folder listed as it unfolds,
-// without .git, what git ignores faded; a click on a file opens it in the
-// viewer, as its text, which edits and follows the file.
+// without .git, what git ignores faded; with the preview on, a click on
+// a file opens it in the viewer, as its text, which edits and follows
+// the file.
 func TestFilesTab(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -217,6 +218,11 @@ func TestFilesTab(t *testing.T) {
 	if _, ok := tt.Find("auth.go"); !ok {
 		t.Fatalf("unfolding internal didn't show auth.go; texts %q", tt.Texts())
 	}
+	// The preview on, a click opens the file in the viewer.
+	if err := tt.Click("Preview"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("auth.go"); err != nil {
 		t.Fatal(err)
 	}
@@ -783,5 +789,147 @@ func TestViewerFollowsResize(t *testing.T) {
 		if want := row.W - minPanes; math.Abs(float64(card.W-want)) > 0.5 {
 			t.Errorf("at %d wide the viewer is %v wide, want %v as the row is %v", w, card.W, want, row.W)
 		}
+	}
+}
+
+// The row above the tree carries the Preview toggle: off, as it starts,
+// a click on a file only chooses its row and the viewer keeps whatever
+// it shows; on, a click opens the file in the viewer — the choice of
+// before at once, as the preview turns on. The state lasts the run.
+func TestFilesTabPreviewToggle(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	fs := &a.side.files
+	fs.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "a.txt"}, {Name: "main.go"}}},
+	}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	if !tt.HasText("Preview") {
+		t.Fatalf("no Preview toggle above the tree; texts %q", tt.Texts())
+	}
+	chosen := func() int {
+		if c := fs.chosen[filesKey(h, "/tmp/demo")]; c != nil {
+			return *c
+		}
+		return -2
+	}
+
+	// Off, as it starts: a click chooses the row alone, opening nothing.
+	if err := tt.Click("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if v := a.viewOf(s); v != nil {
+		t.Fatalf("with the preview off, a click opened the viewer on %+v", v.file)
+	}
+	if c := chosen(); c < 0 {
+		t.Errorf("a click chose row %d, want main.go's", c)
+	}
+
+	// On: the choice of before opens at once, and a click opens the file.
+	if err := tt.Click("Preview"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.filesPreview() {
+		t.Error("the Preview toggle did not turn the preview on")
+	}
+	if v := a.viewOf(s); v == nil || v.file == nil || v.file.path != "/tmp/demo/main.go" {
+		t.Errorf("turning the preview on opened %+v, want main.go at once", a.viewOf(s))
+	}
+
+	// Off again: a click only chooses, and the viewer keeps what it
+	// shows — the file it shows included, which a click does not close.
+	if err := tt.Click("Preview"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.filesPreview() {
+		t.Error("the Preview toggle did not turn the preview off")
+	}
+	if err := tt.Click("a.txt"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if v := a.viewOf(s); v == nil || v.file == nil || v.file.path != "/tmp/demo/main.go" {
+		t.Errorf("with the preview off, a click moved the viewer to %+v", a.viewOf(s))
+	}
+	if err := tt.Click("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if v := a.viewOf(s); v == nil || v.file == nil || v.file.path != "/tmp/demo/main.go" {
+		t.Error("a click on the file the viewer shows closed or moved it")
+	}
+
+	// The state lasts the run.
+	if b, err := os.ReadFile(prefsPath()); err != nil || !strings.Contains(string(b), `"filesPreview": false`) {
+		t.Errorf("the preview state did not reach the app's preferences: %s (%v)", b, err)
+	}
+}
+
+// Space previews the row a click chose, as macOS's Quick Look does: the
+// panel takes the file its row names — a remote host's through the
+// cache — and, while no row is chosen, the file the viewer shows. The
+// panel itself is macOS's; the call is what a test sees.
+func TestFilesTabSpaceQuickLook(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	fs := &a.side.files
+	fs.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "a.txt"}, {Name: "main.go"}}},
+	}
+	looked := make(chan string, 2)
+	old := quickLook
+	quickLook = func(path string) error { looked <- path; return nil }
+	t.Cleanup(func() { quickLook = old })
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	// A click chooses a row and hands the tree the keyboard; Space
+	// previews the file the chosen row names.
+	if err := tt.Click("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Key(0, ui.KeySpace)
+	tt.Frame()
+	select {
+	case p := <-looked:
+		if p != "/tmp/demo/main.go" {
+			t.Errorf("Space previewed %q, want /tmp/demo/main.go", p)
+		}
+	default:
+		t.Fatal("Space previewed nothing after a click chose a row")
+	}
+
+	// While no row is chosen, Space previews the file the viewer shows.
+	if c := fs.chosen[filesKey(h, "/tmp/demo")]; c != nil {
+		*c = -1
+	}
+	a.openView(s, sideFiles, &fileView{pane: "a", path: "/tmp/demo/a.txt", rel: "a.txt"})
+	tt.Frame()
+	tt.Key(0, ui.KeySpace)
+	tt.Frame()
+	select {
+	case p := <-looked:
+		if p != "/tmp/demo/a.txt" {
+			t.Errorf("Space previewed %q, want the viewer's a.txt", p)
+		}
+	default:
+		t.Fatal("Space previewed nothing while the viewer showed a file")
 	}
 }

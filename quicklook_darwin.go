@@ -165,8 +165,9 @@ func qlBind() {
 // quickLook previews a file in the Quick Look panel: the shared panel,
 // re-pointed at the file and brought forward. The path is of this
 // machine, which the Files view sees to. The panel owns the keyboard
-// while it is up, and Esc hands it back.
-func quickLook(path string) error {
+// while it is up, and Esc hands it back. A variable, for the tests to
+// stand in for the panel.
+var quickLook = func(path string) error {
 	qlOnce.Do(qlBind)
 	if qlErr != nil {
 		return qlErr

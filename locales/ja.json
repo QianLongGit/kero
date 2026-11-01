@@ -444,6 +444,7 @@
   "changesExpandFiles": "すべて展開",
   "changesBinary": "バイナリファイル",
   "changesTooLarge": "大きすぎて表示できません",
+  "filesOpenPreview": "プレビュー",
   "filesOpenVSCode": "VSCode で開く",
   "filesChooseApp": "アプリを選択…",
   "filesNoApps": "このファイルを開けるアプリがありません",
