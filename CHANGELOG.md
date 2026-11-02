@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.3.27
+
+- `kero attach` enters a session from a phone's terminal over SSH: the
+  first frame repaints it whole — scrollback, screen, cursor — and every
+  frame after is the program's own bytes, so the terminal on the other
+  end is the emulator: focus events and CSI u pass through untouched.
+  <kbd>Ctrl+B</kbd> <kbd>d</kbd> leaves, as tmux's chord does, and a
+  connection that drops reattaches by itself and repaints, never
+  garbled. `kero new` grows `-s` as an alias of `-n`.
+- The update mark beside a host in the sidebar shows only when asked
+  for now, behind **Update hints** in Settings › Hosts — a host of a
+  version the app cannot even talk to keeps its mark whatever the
+  setting, as what it asks for is a fix. Beside the switch, **Update
+  all hosts** brings every host behind this app up to it through the
+  same install one host gets, each with its own turn.
+- A pane that ran inside tmux comes back after a daemon restart with
+  its tmux client, which holds the conversation it had — the agent's
+  conversation resumes only when no client is there, no longer beside
+  one.
+
 ## 2.3.26
 
 - The Files tree has a **Preview** toggle above it, off by default: a
