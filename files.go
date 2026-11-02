@@ -17,8 +17,8 @@ import (
 	"kero/locales"
 )
 
-// The Files tab is the tree of the worktree of the pane the user is in,
-// else of its directory, as kerod lists it (fs.list), a folder at a time
+// The Files tab is the tree of the directory of the pane the user is in,
+// where it works (WorkDir), as kerod lists it (fs.list), a folder at a time
 // as the user unfolds it: what git ignores shows faded, and .git not at
 // all. The row above the tree carries the Preview toggle: on, a click on
 // a file opens it in the viewer, as its text the user edits (edits.go),
@@ -109,18 +109,15 @@ func filesKey(h *host, p string) string { return h.name + "\x00" + p }
 func (a *App) filesPreview() bool { return a.prefs.FilesPreview != nil && *a.prefs.FilesPreview }
 
 // filesRoot is the folder the Files tab shows, and the pane it is of: the
-// worktree of the one the user is in, else its directory.
+// directory the pane the user is in works in (WorkDir), where a cd within
+// the pane moves the tree. The worktree (withGit) only tells the listings
+// what git ignores, not where the tree stands.
 func (a *App) filesRoot(s *proto.Session) (*proto.Pane, string) {
 	p := withGit(s, s.PaneByID(a.focusOf(s)))
-	switch {
-	case p == nil:
+	if p == nil {
 		return nil, ""
-	case p.Git != nil:
-		return p, p.Git.Root
-	case p.ProcessDir != "":
-		return p, p.ProcessDir
 	}
-	return p, p.Dir
+	return p, p.WorkDir()
 }
 
 // filesSide is the Files tab: the root's tree, a folder listed as it
@@ -230,6 +227,12 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 					delete(fs.open, k)
 				}
 			}
+		})
+		// Reload reads the tree's folders anew: a listing sits as it
+		// came, and a change the tree did not watch — a file another
+		// program wrote — has its say only here.
+		iconButton(c, "files-reload", reloadIcon, locales.FilesRefresh(), pal, func() {
+			a.defer_(func() { a.side.files.gen++ })
 		})
 		// The Preview toggle: on, a click on a file opens it in the
 		// viewer; off, the click only chooses the row, and the viewer

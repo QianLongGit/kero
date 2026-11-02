@@ -187,6 +187,7 @@ func TestFilesTab(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Dir = g.Root // the pane works at the worktree's root
 	a.prefs.Side = sideFiles
 	h := a.hostOf(s.ID)
 	fs := &a.side.files
@@ -504,6 +505,7 @@ func TestFilesTabChanges(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Dir = g.Root // the pane works at the worktree's root
 	a.prefs.Side = sideFiles
 	h := a.hostOf(s.ID)
 	fs := &a.side.files
@@ -801,6 +803,7 @@ func TestFilesTabPreviewToggle(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Dir = g.Root // the pane works at the worktree's root
 	a.prefs.Side = sideFiles
 	h := a.hostOf(s.ID)
 	fs := &a.side.files
@@ -884,6 +887,7 @@ func TestFilesTabSpaceQuickLook(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Dir = g.Root // the pane works at the worktree's root
 	a.prefs.Side = sideFiles
 	h := a.hostOf(s.ID)
 	fs := &a.side.files
@@ -931,5 +935,171 @@ func TestFilesTabSpaceQuickLook(t *testing.T) {
 		}
 	default:
 		t.Fatal("Space previewed nothing while the viewer showed a file")
+	}
+}
+
+// The tree lists its folders anew only as the tab comes to show or the
+// worktree changes: a file another program wrote shows once Reload reads
+// the folders again — the whole tree, open folders too.
+func TestFilesTabReload(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	dir := t.TempDir()
+	s.Panes[0].Dir = dir
+	a.prefs.Side = sideFiles
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "fs.list" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.FSListParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		des, err := os.ReadDir(p.Dir)
+		if err != nil {
+			return nil, err
+		}
+		entries := make([]proto.FSEntry, len(des))
+		for i, de := range des {
+			entries[i] = proto.FSEntry{Name: de.Name(), Dir: de.IsDir()}
+		}
+		return proto.FSList{Entries: entries}, nil
+	})
+	defer stop()
+	os.WriteFile(filepath.Join(dir, "old.txt"), []byte("old\n"), 0o644)
+	a.updateFn = func(fn func()) { fn() } // as a window marshals the updates
+	a.local().cl = cl
+	tt := ui.NewTester(a.view, 1280, 720)
+	listed := func(file string) bool {
+		for start := time.Now(); ; {
+			tt.Frame()
+			if _, ok := tt.Find(file); ok {
+				return true
+			}
+			if time.Since(start) > 8*time.Second {
+				return false
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !listed("old.txt") {
+		t.Fatalf("the tree did not list old.txt; texts %q", tt.Texts())
+	}
+
+	// A file written outside the app stays off the tree: nothing watches
+	// the folder of a pane with no worktree and no agent working.
+	os.WriteFile(filepath.Join(dir, "new.txt"), []byte("new\n"), 0o644)
+	time.Sleep(200 * time.Millisecond)
+	tt.Frame()
+	if _, ok := tt.Find("new.txt"); ok {
+		t.Fatal("a file written outside the app came to the tree on its own")
+	}
+	if err := tt.Click("Reload"); err != nil {
+		t.Fatal(err)
+	}
+	if !listed("new.txt") {
+		t.Fatalf("Reload did not list new.txt; texts %q", tt.Texts())
+	}
+}
+
+// The tree follows the pane the user is in to the directory it works in
+// (WorkDir): a cd within the pane moves the root there — out of the
+// worktree too — and the focus moving to another pane moves it to that
+// one's; the worktree stays only what tells the listings what git
+// ignores.
+func TestFilesTabFollowsPaneDir(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	repo := t.TempDir()
+	sub, out := filepath.Join(repo, "sub"), t.TempDir()
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for f, dir := range map[string]string{
+		"in-sub.txt": sub, "at-root.txt": repo, "outside.txt": out,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g := &proto.GitInfo{Root: repo, Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Dir = sub
+	a.prefs.Side = sideFiles
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "fs.list" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.FSListParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		des, err := os.ReadDir(p.Dir)
+		if err != nil {
+			return nil, err
+		}
+		entries := make([]proto.FSEntry, len(des))
+		for i, de := range des {
+			entries[i] = proto.FSEntry{Name: de.Name(), Dir: de.IsDir()}
+		}
+		return proto.FSList{Entries: entries}, nil
+	})
+	defer stop()
+	a.updateFn = func(fn func()) { fn() } // as a window marshals the updates
+	a.local().cl = cl
+	tt := ui.NewTester(a.view, 1280, 720)
+	listed := func(file string) bool {
+		for start := time.Now(); ; {
+			tt.Frame()
+			if _, ok := tt.Find(file); ok {
+				return true
+			}
+			if time.Since(start) > 8*time.Second {
+				return false
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// Within the worktree, the tree is of the pane's directory, not the
+	// worktree's root, while the changes stay of the worktree: the files
+	// follow the pane cd at the folder's own scale, the changes only as
+	// the pane leaves the worktree whole.
+	if p, root := a.filesRoot(s); p != &s.Panes[0] || root != sub {
+		t.Errorf("the tree is of pane %v's %q, want %q", p, root, sub)
+	}
+	if scope := changesScope(&s.Panes[0], git.BaseBranch); scope != repo+"|"+git.BaseBranch {
+		t.Errorf("the changes are of %q within the worktree, want the worktree's root", scope)
+	}
+	if !listed("in-sub.txt") {
+		t.Fatalf("the tree of the pane's directory did not list in-sub.txt; texts %q", tt.Texts())
+	}
+	if _, ok := tt.Find("at-root.txt"); ok {
+		t.Error("the tree listed the worktree's root, not the pane's directory")
+	}
+
+	// A cd out of the worktree moves the tree along, git's fading and all.
+	s.Panes[0].Dir = out
+	if p, root := a.filesRoot(s); p != &s.Panes[0] || root != out {
+		t.Errorf("after a cd the tree is of %q, want %q", root, out)
+	}
+	if !listed("outside.txt") {
+		t.Fatalf("a cd did not move the tree; texts %q", tt.Texts())
+	}
+	if _, ok := tt.Find("in-sub.txt"); ok {
+		t.Error("the tree kept the directory it left")
+	}
+
+	// The focus moving to another pane moves the tree to its directory.
+	s.Panes[1].Dir = repo
+	a.focus["s1"] = "b"
+	if p, root := a.filesRoot(s); p != &s.Panes[1] || root != repo {
+		t.Errorf("with another pane focused the tree is of pane %v's %q", p, root)
+	}
+	if !listed("at-root.txt") {
+		t.Fatalf("the focus moving did not move the tree; texts %q", tt.Texts())
+	}
+	if _, ok := tt.Find("outside.txt"); ok {
+		t.Error("the tree kept the pane no longer focused")
 	}
 }

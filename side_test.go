@@ -527,7 +527,8 @@ func TestFoldAllFiles(t *testing.T) {
 
 // A pane just split from another has no worktree until kerod looks at
 // it: meanwhile the sidebar keeps the worktree its directory is in, its
-// changes listed and its base chosen, and its files.
+// changes listed and its base chosen, and its files take the worktree's
+// fading as they follow the pane's own directory.
 func TestSplitKeepsSidebar(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -554,7 +555,7 @@ func TestSplitKeepsSidebar(t *testing.T) {
 	if ch.base != git.BaseHead {
 		t.Errorf("the split pane changed the base to %q", ch.base)
 	}
-	if p, root := a.filesRoot(s); p == nil || p.ID != "c" || root != "/tmp" {
+	if p, root := a.filesRoot(s); p == nil || p.ID != "c" || root != "/tmp/sub" {
 		t.Errorf("the split pane's files are of %q", root)
 	}
 
