@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.28
+
+- The Files tree stands where the pane works, not on its worktree's
+  root: a `cd` within the pane moves the tree to the folder its shell
+  lands in, and outside a git repository the tree follows the pane at
+  last. What git tells the tree — the ignored faded, `.git` hidden —
+  still runs off the worktree whole, and the Changes tab stays of the
+  worktree as long as the pane works somewhere within it.
+- **Reload**, beside the tree's root, reads every folder anew, open
+  ones too: a change the tree did not watch — a file another program
+  wrote, outside git or in — has its say once the tree reads again.
+
 ## 2.3.27
 
 - `kero attach` enters a session from a phone's terminal over SSH: the
