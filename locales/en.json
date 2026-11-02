@@ -1001,6 +1001,15 @@
     }
   },
   "hostUpdateDev": "A development build of Kero can't update a host. Run a released Kero, or update the host with kero daemon update there.",
+  "hostUpdateAllTitle": "{count, plural, one {Update Kero on # host?} other {Update Kero on # hosts?}}",
+  "@hostUpdateAllTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hostUpdateAllDetail": "Kero then restarts its service on each host. Sessions there start again where they were, with their history, and the programs running in them end.",
   "hostVersionTitle": "Kero on {host} is another version",
   "@hostVersionTitle": {
     "placeholders": {
@@ -1181,6 +1190,10 @@
   "setListenNoTailscale": "Tailscale isn't running here: kerod listens once it is.",
   "setRemoteUpdates": "Let them update Kero here",
   "setRemoteUpdatesDetail": "Kero on your other machines can update this app to its version. The app relaunches, and the programs running in its sessions end.",
+  "setUpdateHints": "Update hints",
+  "setUpdateHintsDetail": "Show an update mark next to hosts in the sidebar whose Kero server is older than this app",
+  "setUpdateAllHosts": "Update all hosts",
+  "setUpdateAllHostsDetail": "Install this app's Kero server version on every host that is behind",
   "setHostSettingsSplit": "A host's own settings",
   "setHostSettingsSplitDetail": "The shell, environment, scrollback and session restore of a host's sessions come from its own configuration: run kero config edit on the host. Appearance, keyboard and notifications are this app's.",
   "setShellThisComputer": "These apply to this computer's sessions. Each host's come from its own configuration (Settings › Hosts).",

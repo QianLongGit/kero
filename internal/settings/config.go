@@ -298,6 +298,7 @@ var keys = []key{
 			return nil
 		}},
 	boolKey("remote-updates", "let Kero on another machine that connects update the Kero app here to its version, which restarts it", func(s *Settings) *bool { return &s.RemoteUpdates }),
+	boolKey("host-update-hints", "mark hosts in the sidebar whose Kero server is older than this app, offering to update them", func(s *Settings) *bool { return &s.HostUpdateHints }),
 	boolKey("git-status", "show the git branch and changes of each session", func(s *Settings) *bool { return &s.GitStatus }),
 	boolKey("sidebar-smart", "a session's detailed row shows one line: its branch in a repository, else its folder; while on, the branch and folder switches do not apply", func(s *Settings) *bool { return &s.SidebarSmart }),
 	boolKey("sidebar-branch", "show a session's branch in the sidebar, beside its name in compact rows and on the second line of detailed ones; needs git-status", func(s *Settings) *bool { return &s.SidebarBranch }),

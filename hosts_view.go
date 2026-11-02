@@ -88,7 +88,9 @@ func (a *App) hostTag(c *ui.Context, pal *palette, h *host) {
 
 // hostState says how the app stands with a host, at the end of its row,
 // or of its first group's header: a dot while it connects or failed to,
-// a chip when Kero there wants updating or kerod restarting.
+// a chip when Kero there wants updating or kerod restarting. A host
+// merely behind the app tells so only while the user asked for update
+// hints; one the app cannot talk to, whatever, as what it needs is a fix.
 func (a *App) hostState(c *ui.Context, pal *palette, h *host) {
 	switch {
 	case h.busy != "":
@@ -99,7 +101,7 @@ func (a *App) hostState(c *ui.Context, pal *palette, h *host) {
 		a.hostDot(c, pal, pal.textFaint, locales.StatusConnecting())
 	case h.conn == connFailed:
 		a.hostDot(c, pal, pal.danger, a.hostProblem(h))
-	case h.conn == connVersion || h.behind():
+	case h.conn == connVersion || (a.set.HostUpdateHints && h.behind()):
 		b := ui.ButtonBase(c.Key("update")).Height(22).Padding(0, 7).Gap(5).Radius(11).AlignItems(ui.Center).
 			Label(locales.HostUpdateAction(h.name)).Tooltip(a.hostVersionDetail(h))
 		if b.Hovered() {
@@ -428,6 +430,29 @@ func (a *App) offerHostUpdate(h *host) {
 	}
 	if a.win != nil {
 		a.win.Focus()
+	}
+}
+
+// offerUpdateAll updates the server build of Kero on every host behind
+// this app, or of a version its protocol cannot reach, to this app's
+// version — asking once for them all, as one host's update asks for it
+// alone. Each install takes its own turn, apart from the others.
+func (a *App) offerUpdateAll(c *ui.Context, hosts []*host) {
+	if !released(mygo.App.Version()) {
+		a.toastIn(c, locales.HostUpdateDev())
+		return
+	}
+	a.ss.confirm = &confirmation{
+		open:    true,
+		title:   locales.HostUpdateAllTitle(len(hosts)),
+		detail:  locales.HostUpdateAllDetail(),
+		action:  locales.CommonUpdate(),
+		destroy: true,
+		run: func() {
+			for _, h := range hosts {
+				a.install(h)
+			}
+		},
 	}
 }
 

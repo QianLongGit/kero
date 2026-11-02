@@ -5870,6 +5870,26 @@ func (msgs Messages) HostUpdateDev() string {
 	return Catalog.Format(msgs.locale, "hostUpdateDev", nil)
 }
 
+// HostUpdateAllTitle says "{count, plural, one {Update Kero on # host?} other {Update Kero on # hosts?}}"
+// in the language the app shows.
+func HostUpdateAllTitle(count int) string { return In(i18n.Locale()).HostUpdateAllTitle(count) }
+
+// HostUpdateAllTitle says "{count, plural, one {Update Kero on # host?} other {Update Kero on # hosts?}}"
+// in the language of msgs.
+func (msgs Messages) HostUpdateAllTitle(count int) string {
+	return Catalog.Format(msgs.locale, "hostUpdateAllTitle", map[string]any{"count": count})
+}
+
+// HostUpdateAllDetail says "Kero then restarts its service on each host. Sessions there start again where they were, with their history, and the …"
+// in the language the app shows.
+func HostUpdateAllDetail() string { return In(i18n.Locale()).HostUpdateAllDetail() }
+
+// HostUpdateAllDetail says "Kero then restarts its service on each host. Sessions there start again where they were, with their history, and the …"
+// in the language of msgs.
+func (msgs Messages) HostUpdateAllDetail() string {
+	return Catalog.Format(msgs.locale, "hostUpdateAllDetail", nil)
+}
+
 // HostVersionTitle says "Kero on {host} is another version"
 // in the language the app shows.
 func HostVersionTitle(host string) string { return In(i18n.Locale()).HostVersionTitle(host) }
@@ -6280,6 +6300,46 @@ func SetRemoteUpdatesDetail() string { return In(i18n.Locale()).SetRemoteUpdates
 // in the language of msgs.
 func (msgs Messages) SetRemoteUpdatesDetail() string {
 	return Catalog.Format(msgs.locale, "setRemoteUpdatesDetail", nil)
+}
+
+// SetUpdateHints says "Update hints"
+// in the language the app shows.
+func SetUpdateHints() string { return In(i18n.Locale()).SetUpdateHints() }
+
+// SetUpdateHints says "Update hints"
+// in the language of msgs.
+func (msgs Messages) SetUpdateHints() string {
+	return Catalog.Format(msgs.locale, "setUpdateHints", nil)
+}
+
+// SetUpdateHintsDetail says "Show an update mark next to hosts in the sidebar whose Kero server is older than this app"
+// in the language the app shows.
+func SetUpdateHintsDetail() string { return In(i18n.Locale()).SetUpdateHintsDetail() }
+
+// SetUpdateHintsDetail says "Show an update mark next to hosts in the sidebar whose Kero server is older than this app"
+// in the language of msgs.
+func (msgs Messages) SetUpdateHintsDetail() string {
+	return Catalog.Format(msgs.locale, "setUpdateHintsDetail", nil)
+}
+
+// SetUpdateAllHosts says "Update all hosts"
+// in the language the app shows.
+func SetUpdateAllHosts() string { return In(i18n.Locale()).SetUpdateAllHosts() }
+
+// SetUpdateAllHosts says "Update all hosts"
+// in the language of msgs.
+func (msgs Messages) SetUpdateAllHosts() string {
+	return Catalog.Format(msgs.locale, "setUpdateAllHosts", nil)
+}
+
+// SetUpdateAllHostsDetail says "Install this app's Kero server version on every host that is behind"
+// in the language the app shows.
+func SetUpdateAllHostsDetail() string { return In(i18n.Locale()).SetUpdateAllHostsDetail() }
+
+// SetUpdateAllHostsDetail says "Install this app's Kero server version on every host that is behind"
+// in the language of msgs.
+func (msgs Messages) SetUpdateAllHostsDetail() string {
+	return Catalog.Format(msgs.locale, "setUpdateAllHostsDetail", nil)
 }
 
 // SetHostSettingsSplit says "A host's own settings"

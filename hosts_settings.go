@@ -38,6 +38,30 @@ func (a *App) hostsPage(c *ui.Context, pal *palette) {
 		for _, h := range a.hosts[1:] {
 			a.hostRow(c, pal, h)
 		}
+		// What each host's row offers, for every host behind this app at
+		// once — none of a version the app could only take back. With
+		// none to update, the button sleeps.
+		if len(a.hosts) > 1 {
+			var behind []*host
+			for _, h := range a.hosts[1:] {
+				if h.busy == "" && !h.ahead() && (h.conn == connVersion || h.behind()) {
+					behind = append(behind, h)
+				}
+			}
+			settingRow(c, pal, locales.SetUpdateAllHosts(), locales.SetUpdateAllHostsDetail(), func() {
+				row := ui.Row(c).Disabled(len(behind) == 0)
+				row.Children(func() {
+					if button(c, "update-all", locales.CommonUpdate(), "", true, pal) {
+						a.offerUpdateAll(c, behind)
+					}
+				})
+			})
+		}
+		// The sidebar's marks of the same updates, beside the button that
+		// runs them.
+		settingRow(c, pal, locales.SetUpdateHints(), locales.SetUpdateHintsDetail(), func() {
+			toggle(c.Key("host-update-hints"), &a.set.HostUpdateHints, pal)
+		})
 	})
 	docLink(c, pal, "hosts-docs", locales.SetHostsDocs(), "https://kero.sh/docs/remote")
 	settingsGroup(c, pal, locales.SetHostAdd(), locales.SetHostAddDetail(), func() {

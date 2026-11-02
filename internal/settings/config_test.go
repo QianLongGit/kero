@@ -136,6 +136,17 @@ func TestRemoteUpdatesOptIn(t *testing.T) {
 	}
 }
 
+// The sidebar's update marks wait for the user to ask for them.
+func TestHostUpdateHintsOptIn(t *testing.T) {
+	if Default().HostUpdateHints {
+		t.Error("host update hints are on by default")
+	}
+	s, probs := parse("host-update-hints = true\n")
+	if !s.HostUpdateHints || len(probs) != 0 {
+		t.Errorf("host-update-hints = true: %v, problems %q", s.HostUpdateHints, probs)
+	}
+}
+
 // The branch beside a session's name is on by default, off only as the
 // user takes it off: what is saved reads back the same, and the default
 // writes no line.

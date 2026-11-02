@@ -113,6 +113,11 @@ type Settings struct {
 	// app here to its version, and restart kerod into it, as it can a
 	// server build: off unless the user turns it on here.
 	RemoteUpdates bool `json:"remoteUpdates,omitempty"`
+	// HostUpdateHints marks hosts in the sidebar whose Kero server is
+	// older than this app, offering the update: the user picks when a
+	// host updates, so the standing mark is noise to them until they ask
+	// for it — off unless the user turns it on here.
+	HostUpdateHints bool `json:"hostUpdateHints,omitempty"`
 }
 
 // Host is a machine whose kerod the app shows: its name, and its address
