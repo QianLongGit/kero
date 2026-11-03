@@ -25,6 +25,7 @@ import (
 // and nothing become the default, a file pane, "pane" and "editor"
 // themselves.
 func TestMigrateFileOpenPref(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir()) // the cache's index lives there now
 	for _, c := range []struct {
 		pref, want string
 	}{

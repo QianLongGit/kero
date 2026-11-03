@@ -1,11 +1,13 @@
 package main
 
-// A remote host's file opens through a cache of kero's own: it comes
-// down once by fs.read, any editor's edit to the copy here writes back
-// by fs.write after a second of quiet, under the hash of what was read,
-// and a file the host changed meanwhile asks before anything overwrites
-// it. This file is the whole of that; the opens that use it are routed
-// through materialize in file_pane.go, files_drag.go and openwith.go.
+// A remote host's file opens through a cache of kero's own, under the
+// system tmp: it comes down by fs.read while the copy here is not the
+// size the host's file is, any editor's edit to the copy here writes
+// back by fs.write after a second of quiet, under the hash of what was
+// read, and a file the host changed meanwhile asks before anything
+// overwrites it. This file is the whole of that; the opens that use it
+// are routed through materialize in file_pane.go, files_drag.go and
+// openwith.go.
 
 import (
 	"crypto/sha256"
@@ -69,9 +71,10 @@ type cacheEntry struct {
 	uploading bool
 }
 
-// cacheRoot is where the cache keeps the files it brings down: a folder
-// of kero's own, one of each host's under it.
-func cacheRoot() string { return filepath.Join(proto.Dir(), "files") }
+// cacheRoot is where the cache keeps the files it brings down: the
+// system tmp's own kero folder, which a boot clears — a file of it is
+// kero's to bring down again, never the user's to lose.
+func cacheRoot() string { return filepath.Join(os.TempDir(), "kero", "cache") }
 
 // cachePath is where a host's file comes to this machine: a folder of
 // the host's own, by its name, and in it the file by its path with its
@@ -210,12 +213,43 @@ func (a *App) loadCacheIndex() {
 	a.startUploadWatcher()
 }
 
+// rememberCache takes a cache file that answers an open back into the
+// cache's map: a record already there keeps its own hash — the lock its
+// next write flies under — and one with none builds from the file's own
+// content, so its edits write back as any cached file's. It says false
+// when the file cannot be read, for the caller to bring it down again.
+func (a *App) rememberCache(hostName, remotePath, local string) bool {
+	a.cache.mu.Lock()
+	defer a.cache.mu.Unlock()
+	if a.cache.entries[local] != nil {
+		return true
+	}
+	data, err := os.ReadFile(local)
+	if err != nil {
+		return false
+	}
+	fi, err := os.Stat(local)
+	if err != nil {
+		return false
+	}
+	if a.cache.entries == nil {
+		a.cache.entries = map[string]*cacheEntry{}
+	}
+	a.cache.entries[local] = &cacheEntry{host: hostName, remote: remotePath,
+		hash: git.Hash(data), mod: fi.ModTime(), size: fi.Size()}
+	// As a download would: a pane of this file finds it again after this
+	// app's own restart, the system's tmp holding it still.
+	a.saveCacheIndexLocked()
+	return true
+}
+
 // materialize brings a file of a host to this machine, as the file the
-// user opens: a remote host's downloads once into the cache, from where
-// its edits write back; a local host's file is its own path already.
-// cl is the host's connection as the caller's thread, the UI's, read
-// it; this runs on a goroutine of its caller's, never the UI thread,
-// and reads nothing of the app's own but the cache.
+// user opens: a remote host's comes down into the cache while the copy
+// here is not the size the host's file is — the only word of it fs.stat
+// speaks — and from there its edits write back; a local host's file is
+// its own path already. cl is the host's connection as the caller's
+// thread, the UI's, read it; this runs on a goroutine of its caller's,
+// never the UI thread, and reads nothing of the app's own but the cache.
 func (a *App) materialize(cl *client.Client, hostName, remotePath string) (string, error) {
 	if hostName == "" {
 		return remotePath, nil
@@ -224,16 +258,6 @@ func (a *App) materialize(cl *client.Client, hostName, remotePath string) (strin
 		return "", errCacheOffline
 	}
 	local := cachePath(hostName, remotePath)
-	a.cache.mu.Lock()
-	cached := a.cache.entries[local] != nil
-	a.cache.mu.Unlock()
-	if cached {
-		if _, err := os.Stat(local); err == nil {
-			a.startUploadWatcher()
-			return local, nil
-		}
-		// The copy went — the cache emptied, cleaned: read it down again.
-	}
 	var st proto.FSStat
 	if err := cl.Call("fs.stat", proto.FSStatParams{Path: remotePath}, &st); err != nil {
 		return "", err
@@ -245,6 +269,13 @@ func (a *App) materialize(cl *client.Client, hostName, remotePath string) (strin
 		// fs.read reads at most cacheMax: a file past it is said here,
 		// rather than by a download that could not come whole.
 		return "", fmt.Errorf("%s is larger than %d MB", remotePath, cacheMax>>20)
+	}
+	// The copy answers while it is the size the host's file is: a change
+	// of the same size is not fs.stat's to tell, and meets the write
+	// back's own hash instead, which asks before anything overwrites.
+	if fi, err := os.Stat(local); err == nil && fi.Size() == st.Size && a.rememberCache(hostName, remotePath, local) {
+		a.startUploadWatcher()
+		return local, nil
 	}
 	var r proto.FSRead
 	if err := cl.Call("fs.read", proto.FSReadParams{Path: remotePath, Max: cacheMax}, &r); err != nil {

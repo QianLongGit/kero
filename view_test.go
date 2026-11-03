@@ -34,6 +34,9 @@ func testApp(t *testing.T) *App {
 	t.Setenv("KERO_HOME", home)
 	// The configuration too: never the user's.
 	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	// The file cache sits under the system tmp: never the machine's real
+	// one, whose files one test's opens would leave for the next.
+	t.Setenv("TMPDIR", t.TempDir())
 	a := newApp()
 	var l *proto.Layout
 	a.st = proto.State{

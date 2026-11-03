@@ -200,8 +200,8 @@ func TestFilesOpenMaterialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("materialize: %v", err)
 	}
-	if !strings.HasPrefix(local, filepath.Join(proto.Dir(), "files")+string(os.PathSeparator)) {
-		t.Errorf("the cache is at %q, want under %s", local, filepath.Join(proto.Dir(), "files"))
+	if !strings.HasPrefix(local, cacheRoot()+string(os.PathSeparator)) {
+		t.Errorf("the cache is at %q, want under %s", local, cacheRoot())
 	}
 	if base := filepath.Base(local); !strings.HasSuffix(base, "main.go") || len(base) <= len("main.go") {
 		t.Errorf("the cache file is %q, want a hash with the file's own name kept", base)
@@ -279,6 +279,99 @@ func TestFilesOpenMaterializeLarge(t *testing.T) {
 	}
 	if n := func() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads["/srv/demo/blob.bin"] }(); n != 0 {
 		t.Errorf("fs.read came %d times, want none", n)
+	}
+}
+
+// The cache keeps its files under the system tmp's own kero folder: a
+// boot clears it, and kero holds nothing there a boot may not take — a
+// file comes down again. The folders under it stay as they were: one of
+// the host's own, and in it the file by its path with its own name.
+func TestFilesOpenCacheUnderTmp(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("package main\n")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(os.TempDir(), "kero", "cache")
+	if !strings.HasPrefix(local, root+string(os.PathSeparator)) {
+		t.Errorf("the cache is at %q, want under %s", local, root)
+	}
+	if host := filepath.Base(filepath.Dir(local)); len(host) != 16 {
+		t.Errorf("the host's folder is %q, want one of the host hash's 16", host)
+	}
+}
+
+// Every open asks the host its file's size and holds the copy against
+// it: one that matches opens as it is — the host reads it down once —
+// and one that does not, the host's file having changed size, comes
+// down again over it. The cache's own say of what it holds is not the
+// word: the host's is.
+func TestFilesOpenCacheBySize(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("one")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := func() int {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return f.reads["/srv/demo/main.go"]
+	}
+	// A second open of the file as it is reads none: the copy answers.
+	again, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != local || reads() != 1 {
+		t.Errorf("an unchanged file opened %q with %d reads, want %q and the one", again, reads(), local)
+	}
+	// The host's file changed size: the copy no longer matches and comes
+	// down again, as the host now holds it.
+	f.mu.Lock()
+	f.files["/srv/demo/main.go"] = []byte("one two")
+	f.mu.Unlock()
+	if _, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if n := reads(); n != 2 {
+		t.Errorf("fs.read came %d times, want a second for the change", n)
+	}
+	if b, err := os.ReadFile(local); err != nil || string(b) != "one two" {
+		t.Errorf("the cache holds %q, %v, want the host's new one", b, err)
+	}
+}
+
+// A copy left on the disk with no record of it — the index gone with a
+// boot's tmp, the file yet there — answers an open its size matches:
+// nothing reads down, and the record builds again from the file's own
+// content, so the edits that follow still write back under its hash.
+func TestFilesOpenCacheHitWithoutRecord(t *testing.T) {
+	f := newFilesHost(t)
+	f.files["/srv/demo/main.go"] = []byte("one")
+	local, err := f.a.materialize(f.h.cl, "remote", "/srv/demo/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The app starts again with no index to read back: the copy alone is
+	// left of what the last run held.
+	if err := os.Remove(cacheIndexPath()); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	if _, err := a.materialize(f.h.cl, "remote", "/srv/demo/main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if n := func() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads["/srv/demo/main.go"] }(); n != 1 {
+		t.Errorf("fs.read came %d times, want the first app's one alone", n)
+	}
+	e := a.cacheRecord(local)
+	if e == nil {
+		t.Fatal("a matching copy built no record")
+	}
+	if e.host != "remote" || e.remote != "/srv/demo/main.go" || e.hash != fileSHA([]byte("one")) {
+		t.Errorf("the record is %+v, want one of the file's own content", e)
 	}
 }
 
@@ -711,7 +804,7 @@ func TestFilesOpenRemotePreview(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no file came")
 	}
-	if !strings.HasPrefix(local, filepath.Join(proto.Dir(), "files")) {
+	if !strings.HasPrefix(local, cacheRoot()) {
 		t.Fatalf("the file opened is %q, want the cache's", local)
 	}
 	// The open again reads the cache's copy, not the host: fs.read
@@ -846,7 +939,7 @@ func TestFilesOpenRemotePane(t *testing.T) {
 		if p == nil {
 			return errors.New("no pane was made")
 		}
-		if !strings.HasPrefix(p.File, filepath.Join(proto.Dir(), "files")) {
+		if !strings.HasPrefix(p.File, cacheRoot()) {
 			return fmt.Errorf("the pane shows %q, want the cache's copy", p.File)
 		}
 		if p.Split != pane.ID {
