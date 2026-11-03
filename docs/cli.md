@@ -45,6 +45,16 @@ kero restart <pane>              # start an exited pane's shell again
 | `--worktree <branch>`       | Start it in a git worktree of its own, on a new branch ([more](./changes.md#sessions-in-their-own-worktree)) |
 | `--base <ref>`              | The branch the worktree's starts from (default: the default branch) |
 
+## tui
+
+`kero tui` fills the terminal with the session list, live. Pick a session and you're in its terminal, as `kero attach` — `Ctrl+B d` detaches to the shell, not back to the list.
+
+```sh
+kero tui    # pick a session from a full-screen list, and enter it
+```
+
+In the list: `n` starts a session, `s` splits a pane beside the row, `d` closes it (`y` confirms), `r` renames, `/` filters, digits jump, `q` or `Esc` quits — a tap or a click on a row enters it.
+
 ## Typing and reading
 
 ```sh

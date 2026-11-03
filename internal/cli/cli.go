@@ -50,6 +50,10 @@ Usage:
                                 the program writes them; Ctrl+B d leaves
       -t, --target <target>     which session or pane (default: the most
                                 recently active)
+  kero tui                      pick a session from a full-screen list,
+                                enter it: n new · s split · d close ·
+                                r rename · / filter · q quits; a tap or
+                                click enters too
   kero split [target] [options] [-- cmd…]
                                 start a pane beside a pane, printing its id
       --right (default), --down, --left, --up
@@ -174,7 +178,7 @@ ambiguous one), 4 kerod unreachable.
 `
 
 // Commands lists the subcommands, which main sends here.
-var Commands = []string{"ls", "list", "new", "attach", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
+var Commands = []string{"ls", "list", "new", "attach", "tui", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
 	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
@@ -379,6 +383,9 @@ func run(args []string, host string) error {
 
 	case "attach":
 		return attachCmd(st, args, host)
+
+	case "tui":
+		return tuiCmd(st, c, args, host)
 
 	case "new":
 		f, err := parse(args,
