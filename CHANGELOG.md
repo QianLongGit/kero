@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.3.30
+
+- <kbd>⌘</kbd> <kbd>W</kbd> with the keyboard in the viewer closes the
+  viewer, asking first to save its edits, instead of the pane beside it.
+  Opening a file, a diff or the branch's changes gives the viewer the
+  keyboard.
+- `kero ls --all` lists this machine's sessions and each host's, under
+  the names `-H` takes, and says why a host is out of reach.
+- On Windows, Codex's hook runs from every shell, including a Kero
+  installed under a path with spaces. Thanks @f1sherb0y
+- Filter list rules with `$~document` block every other kind of request
+  instead of none. Thanks @kevin9327
+- Kero keeps its agent skill and the Pi and OpenCode plugins current as
+  it starts.
+
 ## 2.3.29
 
 - Files opened from a host keep their cache in the system's own tmp,
