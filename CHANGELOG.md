@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.29
+
+- Files opened from a host keep their cache in the system's own tmp,
+  under `kero/cache`, which a reboot empties: the app's data folder no
+  longer holds copies nothing ever cleaned. An open asks the host the
+  file's size and holds its copy against it — one that matches serves
+  as it is, one the host has changed since comes down again — and a
+  copy left without its record, the tmp cleared around it, has the
+  record rebuilt from its own content, so its edits still write back
+  to the host.
+
 ## 2.3.28
 
 - The Files tree stands where the pane works, not on its worktree's
