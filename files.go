@@ -365,6 +365,7 @@ func (a *App) openInView(sid, pane, path, rel string) {
 	v := a.side.views[sid]
 	if v != nil && v.file != nil && v.file.path == path {
 		a.openView(s, sideFiles, nil) // the one it shows
+		a.focusViewer()
 		return
 	}
 	var ts []editTarget
@@ -376,6 +377,7 @@ func (a *App) openInView(sid, pane, path, rel string) {
 	a.askToSave(ts, func() {
 		if s := a.session(sid); s != nil {
 			a.openView(s, sideFiles, &fileView{pane: pane, path: path, rel: rel})
+			a.focusViewer()
 		}
 	})
 }
