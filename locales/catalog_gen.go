@@ -4784,6 +4784,26 @@ func (msgs Messages) FilesPaste() string {
 	return Catalog.Format(msgs.locale, "filesPaste", nil)
 }
 
+// FilesCopyPath says "Copy Path"
+// in the language the app shows.
+func FilesCopyPath() string { return In(i18n.Locale()).FilesCopyPath() }
+
+// FilesCopyPath says "Copy Path"
+// in the language of msgs.
+func (msgs Messages) FilesCopyPath() string {
+	return Catalog.Format(msgs.locale, "filesCopyPath", nil)
+}
+
+// FilesCopyRelativePath says "Copy Relative Path"
+// in the language the app shows.
+func FilesCopyRelativePath() string { return In(i18n.Locale()).FilesCopyRelativePath() }
+
+// FilesCopyRelativePath says "Copy Relative Path"
+// in the language of msgs.
+func (msgs Messages) FilesCopyRelativePath() string {
+	return Catalog.Format(msgs.locale, "filesCopyRelativePath", nil)
+}
+
 // FilesDelete says "Delete"
 // in the language the app shows.
 func FilesDelete() string { return In(i18n.Locale()).FilesDelete() }

@@ -462,6 +462,8 @@
   "filesUploadDone": "{count} 個のファイルを {host} にアップロードしました",
   "filesTransferFailed": "転送に失敗しました: {err}",
   "filesTransferCancelled": "転送をキャンセルしました",
+  "filesCopyPath": "パスをコピー",
+  "filesCopyRelativePath": "相対パスをコピー",
   "changesRevert": "元に戻す",
   "changesKeep": "保持",
   "changesRevertTip": "ファイルに古い行を戻します",

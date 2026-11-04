@@ -640,6 +640,8 @@
   "filesUpdateHost": "The kerod on this host is older than this version of Kero. Update it on the host to browse its files.",
   "filesCopy": "Copy",
   "filesPaste": "Paste",
+  "filesCopyPath": "Copy Path",
+  "filesCopyRelativePath": "Copy Relative Path",
   "filesDelete": "Delete",
   "filesDeleteFileTitle": "Delete “{name}”?",
   "@filesDeleteFileTitle": {

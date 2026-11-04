@@ -471,6 +471,8 @@
   "filesUpdateHost": "该主机上的 kerod 版本比当前 Kero 旧。请更新主机上的 kerod 再浏览文件。",
   "filesCopy": "复制",
   "filesPaste": "粘贴",
+  "filesCopyPath": "复制路径",
+  "filesCopyRelativePath": "复制相对路径",
   "filesDelete": "删除",
   "filesDeleteFileTitle": "要删除“{name}”吗？",
   "filesDeleteFileDetail": "该文件将被永久删除。",

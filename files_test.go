@@ -912,6 +912,84 @@ func TestFilesTabChanges(t *testing.T) {
 	shot(t, tt, "files-delete")
 }
 
+// A row's menu copies its entry's path to the clipboard: the path on the
+// host it is on, and the entry's own in the tree's root — a folder's row
+// carries the two as a file's does.
+func TestFilesTabCopyPath(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Dir = g.Root // the pane works at the worktree's root
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	fs := &a.side.files
+	fs.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"):          {entries: []proto.FSEntry{{Name: "internal", Dir: true}, {Name: "main.go"}}},
+		filesKey(h, "/tmp/demo/internal"): {entries: []proto.FSEntry{{Name: "auth.go"}}},
+	}
+	fs.open = map[string]bool{filesKey(h, "/tmp/demo/internal"): true} // the folder unfolded
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		return nil, errors.New("the tree keeps what it listed")
+	})
+	defer stop()
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	a.local().cl = cl
+
+	// A file's row, in a folder of the root.
+	if err := tt.RightClick("auth.go"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Menu(); !slices.Contains(got, "Copy Path") || !slices.Contains(got, "Copy Relative Path") {
+		t.Fatalf("the file's menu is %q", got)
+	}
+	if err := tt.ChooseMenuItem("Copy Path"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "/tmp/demo/internal/auth.go" {
+		t.Errorf("Copy Path put %q", got)
+	}
+	if err := tt.RightClick("auth.go"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Copy Relative Path"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "internal/auth.go" {
+		t.Errorf("Copy Relative Path put %q", got)
+	}
+
+	// A folder's row carries the two as a file's does.
+	if err := tt.RightClick("internal"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Menu(); !slices.Contains(got, "Copy Path") || !slices.Contains(got, "Copy Relative Path") {
+		t.Fatalf("the folder's menu is %q", got)
+	}
+	if err := tt.ChooseMenuItem("Copy Path"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "/tmp/demo/internal" {
+		t.Errorf("Copy Path put %q", got)
+	}
+	if err := tt.RightClick("internal"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Copy Relative Path"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "internal" {
+		t.Errorf("Copy Relative Path put %q", got)
+	}
+}
+
 // The app opening with the right sidebar shown shows it at once, not
 // sliding in as kerod's state comes; showing it later slides it in.
 func TestRightSidebarOpensShown(t *testing.T) {
