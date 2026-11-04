@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.32
+
+- A right click on a row of the Files tab can copy its path: Copy Path
+  puts the row's own absolute path on its host on the clipboard, and
+  Copy Relative Path its path from the root the tree stands in, each
+  with a toast to say it landed.
+
 ## 2.3.31
 
 - `kero tui` fills the terminal with the session list, live: pick a
