@@ -1332,11 +1332,27 @@ func TestFilesTabReload(t *testing.T) {
 	})
 	defer stop()
 	os.WriteFile(filepath.Join(dir, "old.txt"), []byte("old\n"), 0o644)
-	a.updateFn = func(fn func()) { fn() } // as a window marshals the updates
+	// A window marshals the fs.list answers onto its main thread, which
+	// runs a frame only once they land: a queue the test drains before
+	// each frame stands in for that thread, where a plain fn() would run
+	// the answers on the client's goroutine, against the frames.
+	upd := make(chan func(), 64)
+	a.updateFn = func(fn func()) { upd <- fn }
+	drain := func() {
+		for {
+			select {
+			case fn := <-upd:
+				fn()
+			default:
+				return
+			}
+		}
+	}
 	a.local().cl = cl
 	tt := ui.NewTester(a.view, 1280, 720)
 	listed := func(file string) bool {
 		for start := time.Now(); ; {
+			drain()
 			tt.Frame()
 			if _, ok := tt.Find(file); ok {
 				return true
@@ -1410,11 +1426,27 @@ func TestFilesTabFollowsPaneDir(t *testing.T) {
 		return proto.FSList{Entries: entries}, nil
 	})
 	defer stop()
-	a.updateFn = func(fn func()) { fn() } // as a window marshals the updates
+	// A window marshals the fs.list answers onto its main thread, which
+	// runs a frame only once they land: a queue the test drains before
+	// each frame stands in for that thread, where a plain fn() would run
+	// the answers on the client's goroutine, against the frames.
+	upd := make(chan func(), 64)
+	a.updateFn = func(fn func()) { upd <- fn }
+	drain := func() {
+		for {
+			select {
+			case fn := <-upd:
+				fn()
+			default:
+				return
+			}
+		}
+	}
 	a.local().cl = cl
 	tt := ui.NewTester(a.view, 1280, 720)
 	listed := func(file string) bool {
 		for start := time.Now(); ; {
+			drain()
 			tt.Frame()
 			if _, ok := tt.Find(file); ok {
 				return true
