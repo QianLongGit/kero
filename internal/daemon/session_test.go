@@ -312,3 +312,82 @@ func TestPaneTTY(t *testing.T) {
 		t.Errorf("pane tty %q, want a /dev/ttys* device", p.info.TTY)
 	}
 }
+
+// session.move with a project of "" takes the session out of every
+// project — the sidebar's group of none — while a project the daemon
+// does not know stays refused.
+func TestMoveSessionToNoProject(t *testing.T) {
+	d := testDaemon(t)
+	s, err := d.create(proto.CreateParams{Project: "pr", URL: "about:blank"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	none := ""
+	if err := d.moveSession(proto.MoveSessionParams{Session: s.ID, Pin: "head", Project: &none}); err != nil {
+		t.Fatalf("move to no project: %v", err)
+	}
+	if got := stateSession(d.state(), s.ID).Project; got != "" {
+		t.Errorf("project %q, want none", got)
+	}
+	missing := "nope"
+	if err := d.moveSession(proto.MoveSessionParams{Session: s.ID, Project: &missing}); err == nil {
+		t.Error("moved to a project the daemon does not know")
+	}
+}
+
+// stateSession finds a session in the state the subscribers see.
+func stateSession(st proto.State, id string) proto.Session {
+	for _, s := range st.Sessions {
+		if s.ID == id {
+			return s
+		}
+	}
+	return proto.Session{ID: "<gone>"}
+}
+
+// A pin that would circle the chain it hangs from gives way: the newest
+// drag wins, so no state the daemon keeps can void a circle's pins.
+func TestMoveSessionBreaksPinCycle(t *testing.T) {
+	d := testDaemon(t)
+	mk := func() proto.Session {
+		s, err := d.create(proto.CreateParams{Project: "pr", URL: "about:blank"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	s1, s2, s3 := mk(), mk(), mk()
+
+	// Two swapped: s1 under s2, then s2 under s1 — s1's pin gives way.
+	if err := d.moveSession(proto.MoveSessionParams{Session: s1.ID, Pin: s2.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.moveSession(proto.MoveSessionParams{Session: s2.ID, Pin: s1.ID}); err != nil {
+		t.Fatal(err)
+	}
+	st := d.state()
+	if got := stateSession(st, s1.ID).Pin; got != "" {
+		t.Errorf("swap: pin(s1)=%q, want none — it would circle", got)
+	}
+	if got := stateSession(st, s2.ID).Pin; got != s1.ID {
+		t.Errorf("swap: pin(s2)=%q, want s1", got)
+	}
+
+	// A chain s1→s2, then s3 under s1: the chain's member pointing at s3
+	// gives way, the rest of the chain stands.
+	if err := d.moveSession(proto.MoveSessionParams{Session: s1.ID, Pin: s2.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.moveSession(proto.MoveSessionParams{Session: s2.ID, Pin: s3.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.moveSession(proto.MoveSessionParams{Session: s3.ID, Pin: s1.ID}); err != nil {
+		t.Fatal(err)
+	}
+	st = d.state()
+	for id, want := range map[string]string{s1.ID: s2.ID, s2.ID: "", s3.ID: s1.ID} {
+		if got := stateSession(st, id).Pin; got != want {
+			t.Errorf("chain: pin(%s)=%q, want %q", id, got, want)
+		}
+	}
+}

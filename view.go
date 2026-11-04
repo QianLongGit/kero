@@ -490,8 +490,10 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			a.defer_(func() { a.moveProject(pd, target, after) })
 		} else if d.session != "" {
 			sid := d.session
+			// The group of none heads its sessions like a project does,
+			// and takes them in: an empty project names it.
 			var project *string
-			if id != "" && d.project != id {
+			if d.project != id {
 				p := id
 				project = &p
 			}
@@ -721,10 +723,11 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, ss []*pr
 	}
 	if d, ok := ui.Drop[sidebarDrag](row); ok && d.session != "" && d.host == h && d.session != s.ID {
 		sid, pin := d.session, s.ID
-		// Dropped in another project's row, the session moves house with
-		// its pin; the project of none has no house to name.
+		// Dropped in another group's row, the session moves house with
+		// its pin — into the group of none when the row stands there,
+		// which an empty project names.
 		var project *string
-		if s.Project != "" && d.project != s.Project {
+		if d.project != s.Project {
 			p := s.Project
 			project = &p
 		}

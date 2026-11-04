@@ -975,8 +975,9 @@ type (
 	// MoveSessionParams pin a session in its sidebar (session.move). Pin
 	// is the pin to keep ("", a session id, or "head"); Project, when
 	// present, is the project to move the session to, which must be one
-	// this daemon knows: a session cannot leave the kerod that owns its
-	// terminal.
+	// this daemon knows or empty for none — the sidebar's group of the
+	// sessions without a project: a session cannot leave the kerod that
+	// owns its terminal.
 	MoveSessionParams struct {
 		Session string  `json:"session"`
 		Pin     string  `json:"pin"`

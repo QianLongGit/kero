@@ -116,6 +116,39 @@ func orderSessions(group []proto.Session, order string) []proto.Session {
 	return out
 }
 
+// breakPinCycle walks the pin chain the new pin would hang from and
+// clears the pin of the first session on it that points back at id: the
+// newest drag wins, and the older pin that would circle gives way, so
+// two drags after the same place both stand. A pin to "head" or none
+// cannot circle; a chain that walks a circle of old data stops at the
+// sessions' length, and orderSessions voids that circle as it draws.
+func breakPinCycle(ss []proto.Session, id, pin string) {
+	if pin == "" || pin == "head" {
+		return
+	}
+	cur := pin
+	for range ss {
+		var x *proto.Session
+		for i := range ss {
+			if ss[i].ID == cur {
+				x = &ss[i]
+				break
+			}
+		}
+		if x == nil {
+			return
+		}
+		if x.Pin == id {
+			x.Pin = ""
+			return
+		}
+		if x.Pin == "" || x.Pin == "head" {
+			return
+		}
+		cur = x.Pin
+	}
+}
+
 // updatedKey is when a session last did something, for the updated
 // order: its program's last write, else its status's since, else its
 // creation.

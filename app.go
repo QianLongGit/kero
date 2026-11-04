@@ -111,6 +111,11 @@ type App struct {
 	st      proto.State
 	loaded  bool       // a state came
 	pending *jumpQuery // a kero://focus URL that waits for the state to resolve it
+	// pendingMoves holds what the app's sidebar drags just set, by host
+	// and session, until a state confirms it: a snapshot that left the
+	// daemon before the drag's answer would else stand the row back
+	// where it was, for the round trip the answer takes.
+	pendingMoves map[moveKey]pendingMove
 
 	prefs      prefs
 	set        settings.Settings // the user's settings: Settings' controls edit it
@@ -1651,15 +1656,52 @@ func (a *App) commitProjectRename() {
 
 // moveSession pins a session where the user put it in its sidebar, and
 // moves it to another project when asked to (session.move): the pin and
-// the move show at once, and the daemon's state follows.
+// the move show at once, held over the states that left the daemon
+// before the move's answer, and the daemon's state follows.
 func (a *App) moveSession(id, pin string, project *string) {
+	h := a.hostOf(id)
+	var held pendingMove
 	if s := a.session(id); s != nil {
+		held = pendingMove{pin: pin, oldPin: s.Pin, oldProject: s.Project, at: time.Now()}
+		if project != nil {
+			held.project, held.moved = *project, true
+		}
+		breakPinCycle(a.st.Sessions, id, pin)
 		s.Pin = pin
 		if project != nil {
 			s.Project = *project
 		}
+		// No session to show for it — the daemon will say so — holds
+		// nothing: a session that comes back would else lose its pin to
+		// an empty one.
+		if a.pendingMoves == nil {
+			a.pendingMoves = map[moveKey]pendingMove{}
+		}
+		a.pendingMoves[moveKey{h, id}] = held
 	}
-	a.call(id, "session.move", proto.MoveSessionParams{Session: id, Pin: pin, Project: project}, nil)
+	a.call(id, "session.move", proto.MoveSessionParams{Session: id, Pin: pin, Project: project}, func(err error) {
+		if err == nil {
+			// The move stands on the daemon; the state that carries it
+			// confirms the hold, and one still in flight may yet come
+			// without it — the hold stays until then.
+			return
+		}
+		// A refusal says why, and — when the app still shows this drag:
+		// another may have taken the session while the answer was out,
+		// and its show and hold are the newer word — rolls what the app
+		// showed at once back off, and holds nothing.
+		k := moveKey{h, id}
+		if cur, ok := a.pendingMoves[k]; ok && cur == held {
+			delete(a.pendingMoves, k)
+			if s := a.session(id); s != nil {
+				s.Pin = held.oldPin
+				if held.moved {
+					s.Project = held.oldProject
+				}
+			}
+		}
+		a.toast(err.Error())
+	})
 }
 
 func (a *App) selectOffset(d int) {

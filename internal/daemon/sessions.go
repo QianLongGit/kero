@@ -548,7 +548,8 @@ func (d *Daemon) move(p proto.MoveParams) error {
 // moveSession pins a session, and moves it to another project when asked
 // to (session.move). The daemon keeps the pin and the project membership
 // only: the order a pin stands for is the client's to work out, which it
-// does per state. The project must be one this daemon knows, for a
+// does per state. The project must be one this daemon knows — the empty
+// one leaves every project, for the sidebar's group of none — for a
 // session cannot leave the kerod that owns its terminal; a name the
 // daemon does not know would else mint a project, as create would.
 func (d *Daemon) moveSession(p proto.MoveSessionParams) error {
@@ -559,11 +560,34 @@ func (d *Daemon) moveSession(p proto.MoveSessionParams) error {
 		return fmt.Errorf("no session %q", p.Session)
 	}
 	if p.Project != nil {
-		if !slices.ContainsFunc(d.projects, func(pr proto.Project) bool { return pr.ID == *p.Project }) {
+		// The empty project is the sidebar's group of none: moving there
+		// leaves every project, which no known one must answer for.
+		if *p.Project != "" && !slices.ContainsFunc(d.projects, func(pr proto.Project) bool { return pr.ID == *p.Project }) {
 			d.mu.Unlock()
 			return fmt.Errorf("no project %q", *p.Project)
 		}
 		s.project = *p.Project
+	}
+	// A pin cannot stand in a circle: the chain the new pin hangs from
+	// gives way at the first session on it already pinned to the one
+	// moving — the newest drag wins, as every client then draws it
+	// instead of voiding the circle.
+	if p.Pin != "" && p.Pin != "head" {
+		cur := p.Pin
+		for range d.sessions {
+			x := d.findSessionLocked(cur)
+			if x == nil {
+				break
+			}
+			if x.pin == p.Session {
+				x.pin = ""
+				break
+			}
+			if x.pin == "" || x.pin == "head" {
+				break
+			}
+			cur = x.pin
+		}
 	}
 	s.pin = p.Pin
 	d.mu.Unlock()

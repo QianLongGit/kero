@@ -521,6 +521,64 @@ func (a *App) mergeState(h *host, st proto.State) {
 		sessions = append(sessions, ss...)
 	}
 	a.st.Projects, a.st.Sessions, a.owner = projects, sessions, owner
+	a.holdMoves(h)
+}
+
+// moveKey is a drag's session under its host.
+type moveKey struct {
+	h       *host
+	session string
+}
+
+// pendingMove is what one sidebar drag set at once, held over the states
+// that left the daemon before the drag's answer came.
+type pendingMove struct {
+	pin        string    // the pin the drag set
+	project    string    // the project it moved the session to
+	moved      bool      // whether the drag moved house at all
+	oldPin     string    // what stood before, for a move the daemon refuses
+	oldProject string
+	at         time.Time // when the drag set it
+}
+
+// moveHold is how long a drag's change stays held: long enough for the
+// move's answer and the state that carries it, short enough that a
+// refused or lost move does not stand forever.
+const moveHold = 3 * time.Second
+
+// holdMoves keeps the app's just-dragged pins and projects over the
+// state a host just sent — a snapshot taken before the drag's answer
+// would else stand the row back where it was, until the state that
+// carries the pin lands. A state that shows the whole drag confirms it;
+// one that does not takes it from the move again. A move moveHold old,
+// or whose session is gone, holds no more.
+func (a *App) holdMoves(h *host) {
+	for k, m := range a.pendingMoves {
+		if k.h != h {
+			continue
+		}
+		if time.Since(m.at) > moveHold {
+			delete(a.pendingMoves, k)
+			continue
+		}
+		s := a.session(k.session)
+		if s == nil {
+			delete(a.pendingMoves, k)
+			continue
+		}
+		if s.Pin == m.pin && (!m.moved || s.Project == m.project) {
+			delete(a.pendingMoves, k)
+			continue
+		}
+		s.Pin = m.pin
+		if m.moved {
+			s.Project = m.project
+		}
+		// The state brought the chain back as it stood before the drag
+		// broke it, pin and all: break it again, or the circle the drag
+		// closed voids both pins and drops the rows to the auto order.
+		breakPinCycle(a.st.Sessions, k.session, m.pin)
+	}
 }
 
 // own records a session the app just made as a host's, before its
