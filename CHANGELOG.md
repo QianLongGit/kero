@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.3.31
+
+- `kero tui` fills the terminal with the session list, live: pick a
+  session, or one of its panes, and you are in it, as `kero attach` —
+  <kbd>Ctrl+B</kbd> <kbd>d</kbd> detaches to the shell, not back to
+  the list. In the list, `n` starts a session, `s` splits a pane
+  beside the row, `d` closes it, `r` renames, `/` filters, digits
+  jump, and a tap or a click on a row enters it.
+- Sidebar drags land where you drop them: a session dragged onto
+  another group moves there, one dragged onto the sessions without a
+  project moves back out of it, and a swap no longer voids the chain
+  of pins below it. A move holds through the states the daemon
+  broadcasts while it is on its way, until the daemon confirms it,
+  refuses it, or it times out.
+
 ## 2.3.30
 
 - <kbd>⌘</kbd> <kbd>W</kbd> with the keyboard in the viewer closes the
