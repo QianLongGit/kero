@@ -122,6 +122,8 @@ var keys = []key{
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
 	choiceKey("file-open", "what a double click on a file of the Files view opens it in", func(s *Settings) *string { return &s.FileOpen }, "system", "pane"),
+	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. Closing a Mac's lid still sleeps it",
+		func(s *Settings) *string { return &s.KeepAwake }, KeepAwakeModes...),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
 	choiceKey("language", "the app's language; system follows the system's", func(s *Settings) *string { return &s.Language }, append([]string{"system"}, Languages...)...),
@@ -133,6 +135,27 @@ var keys = []key{
 	numberKey("font-weight", "100 to 900", func(s *Settings) float64 { return float64(s.FontWeight) }, func(s *Settings, n float64) { s.FontWeight = int(n) }),
 	numberKey("line-height", "a multiple of the font's", func(s *Settings) float64 { return float64(s.LineHeight) }, func(s *Settings, n float64) { s.LineHeight = float32(n) }),
 	boolKey("font-ligatures", "join characters as the font draws them", func(s *Settings) *bool { return &s.Ligatures }),
+	{name: "font-feature", doc: "the font's OpenType features, as Ghostty's: ss01 turns one on, -calt turns one off, cv05=2 picks an alternate; comma-separated or repeated, and applied after font-ligatures", list: true,
+		get: func(s *Settings) []string { return slices.Clone(s.FontFeatures) },
+		set: func(s *Settings, v []string) error {
+			s.FontFeatures = nil
+			var bad []string
+			for _, l := range v {
+				if strings.TrimSpace(l) == "" {
+					s.FontFeatures = nil // an empty value clears those before it
+					continue
+				}
+				fs, err := ParseFontFeatures(l)
+				s.FontFeatures = append(s.FontFeatures, fs...)
+				if err != nil {
+					bad = append(bad, err.Error())
+				}
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
+			}
+			return nil
+		}},
 	boolKey("font-thicken", "a heavier stroke, as Ghostty's", func(s *Settings) *bool { return &s.Thicken }),
 	numberKey("minimum-contrast", "the least contrast text keeps with its background, 1 (none) to 21, as Ghostty's", func(s *Settings) float64 { return float64(s.MinContrast) }, func(s *Settings, n float64) { s.MinContrast = float32(min(max(n, 1), 21)) }),
 	boolKey("dim-unfocused-terminals", "fade the terminals you're not in, when a session has several panes", func(s *Settings) *bool { return &s.DimUnfocused }),

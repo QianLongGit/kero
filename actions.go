@@ -119,12 +119,25 @@ func (a *App) run(id string, args map[string]string) {
 		a.zoom(-1, false)
 	case "text.reset":
 		a.zoom(0, true)
+	case "theme.toggle":
+		a.toggleDark()
 	case quickAction:
 		a.toggleQuick()
 	}
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+}
+
+// toggleDark turns the window to the other appearance than the one it
+// shows, light or dark, over the system's.
+func (a *App) toggleDark() {
+	s := a.set
+	s.Appearance = "dark"
+	if mygo.Theme.IsDark() {
+		s.Appearance = "light"
+	}
+	a.applySettings(s)
 }
 
 // item is a menu item running an action, with the user's shortcut.
@@ -184,6 +197,7 @@ var actionTitles = map[string]func() string{
 	"text.bigger":         locales.ActionBigger,
 	"text.smaller":        locales.ActionSmaller,
 	"text.reset":          locales.ActionActualSize,
+	"theme.toggle":        locales.ActionToggleDarkMode,
 	quickAction:           locales.ActionQuickTerminal,
 }
 
@@ -257,10 +271,10 @@ func (a *App) menu() *mygo.Menu {
 }
 
 // viewItems are the View menu's items, kept apart from menu's own for
-// the tests: the panel toggles, the text sizes, the quick terminal, and
-// the window's own.
+// the tests: the panel toggles, the text sizes, the theme, the quick
+// terminal, and the window's own.
 func (a *App) viewItems() []*mygo.MenuItem {
-	return append(a.items("View", []string{"sidebar.toggle", "rightSidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
+	return append(a.items("View", []string{"sidebar.toggle", "rightSidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{"theme.toggle"}, []string{quickAction}),
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 }
 

@@ -15,8 +15,8 @@ import (
 )
 
 // A right click on a file of the tree opens it in an app: the system's
-// own, or VS Code. No system but macOS names the apps that open a file,
-// so there is no submenu of them to choose.
+// own default, or VS Code. No system but macOS names the apps that open
+// a file, so there is no submenu of them to choose.
 func TestFilesOpenWithMenu(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -34,7 +34,8 @@ func TestFilesOpenWithMenu(t *testing.T) {
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{locales.CommonOpen(), locales.FilesOpenVSCode(),
+	want := []string{locales.FilesOpenDefault(), "-",
+		locales.CommonOpen(), locales.FilesOpenVSCode(),
 		"-", locales.FilesCopy(), locales.FilesPaste(), locales.FilesCopyPath(), locales.FilesCopyRelativePath(),
 		"-", locales.FilesNewFile(), locales.FilesNewFolder(), "-", locales.FilesRename(), locales.FilesDeleteItem()}
 	if got := tt.Menu(); !slices.Equal(got, want) {

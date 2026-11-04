@@ -247,18 +247,30 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 // resumeCommand is the command that resumes an agent's session, nil for
 // none.
 func resumeCommand(a *proto.AgentSession) []string {
-	if a == nil || !agentSessionRe.MatchString(a.ID) {
-		return nil
+	command, _ := resumeCommandWithReason(a)
+	return command
+}
+
+// resumeCommandWithReason also explains a shell fallback without including
+// the agent's name or conversation ID in the diagnostic.
+func resumeCommandWithReason(a *proto.AgentSession) ([]string, string) {
+	if a == nil {
+		return nil, "no agent session recorded"
+	}
+	if !agentSessionRe.MatchString(a.ID) {
+		return nil, "invalid agent session ID"
 	}
 	switch a.Agent {
 	case "claude":
-		return []string{"claude", "--resume", a.ID}
+		return []string{"claude", "--resume", a.ID}, ""
 	case "codex":
-		return []string{"codex", "resume", a.ID}
+		return []string{"codex", "resume", a.ID}, ""
 	case "pi", "opencode":
-		return []string{a.Agent, "--session", a.ID}
+		return []string{a.Agent, "--session", a.ID}, ""
+	case "omp":
+		return []string{"omp", "--session", a.ID}, ""
 	}
-	return nil
+	return nil, "unsupported agent"
 }
 
 // materializeCommand is what a dormant pane runs again when a client

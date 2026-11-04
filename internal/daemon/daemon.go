@@ -166,6 +166,18 @@ func Run(opts Options) error {
 	d.git = newGitFollow(d)
 	empty := ""
 	d.viewed.Store(&empty)
+	lg.Print("--- daemon run ---")
+	// The daemon lock stays held until Run returns. Only its owner reads or
+	// changes this marker; a rejected second daemon must leave it alone.
+	runMarker := filepath.Join(dir, "kerod.running")
+	if _, err := os.Stat(runMarker); err == nil {
+		lg.Print("previous daemon exit was unclean")
+	} else if !os.IsNotExist(err) {
+		lg.Printf("reading daemon run marker: %v", err)
+	}
+	if err := os.WriteFile(runMarker, nil, 0o600); err != nil {
+		lg.Printf("recording daemon run: %v", err)
+	}
 	lg.Printf("kerod %d started (Kero %s, pid %d, %s)", proto.Version, build.Version(), os.Getpid(), exe)
 	d.linkCLI()
 	// The listeners first: Tailscale Serve's socket takes a umask of its
@@ -174,7 +186,12 @@ func Run(opts Options) error {
 	d.loadConversations()
 	d.restore()
 
-	signal.Ignore(syscall.SIGHUP, syscall.SIGPIPE)
+	signal.Ignore(syscall.SIGPIPE)
+	// SIGHUP is caught, on a channel nothing reads, not ignored: kerod
+	// outlives it either way, but an ignored signal stays ignored across
+	// exec, so a pane's programs would ignore their hangup too. A caught
+	// one is back to its default in a child.
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGHUP)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	notifyStop(sigs)
@@ -211,6 +228,10 @@ func Run(opts Options) error {
 	<-d.quit
 	ln.Close()
 	d.net.close()
+	// Do not defer this: a panic or forced exit must leave the marker behind.
+	if err := os.Remove(runMarker); err != nil && !os.IsNotExist(err) {
+		lg.Printf("clearing daemon run marker: %v", err)
+	}
 	if d.restarting {
 		d.successor()
 	}
@@ -561,7 +582,7 @@ func expandHome(p string) string {
 // their executable or script.
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
-	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi",
+	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi", "omp",
 }
 
 func detectAgent(name string, args []string) string {

@@ -54,8 +54,11 @@ type prefs struct {
 	// across every host; unlisted projects follow in the daemon's order.
 	ProjectOrder []string `json:"projectOrder,omitempty"`
 	// SidebarOrder is the sidebar's order: "created" or "updated".
-	SidebarOrder string  `json:"sidebarOrder,omitempty"`
-	FontSize     float32 `json:"fontSize,omitempty"`
+	SidebarOrder string `json:"sidebarOrder,omitempty"`
+	// Expanded are the split sessions whose panes the sidebar lists under
+	// their rows, by id.
+	Expanded map[string]bool `json:"expanded,omitempty"`
+	FontSize float32         `json:"fontSize,omitempty"`
 	// Side is the tab the right sidebar shows, "" while it is hidden, and
 	// SideTab the one it shows again; RightWidth is its width, and
 	// SideWidth the width of the card beside the panes that opens a file
@@ -102,6 +105,7 @@ type App struct {
 	win     *mygo.Window
 	winOpen bool
 	tray    *mygo.Tray // the icon in the menu bar or notification area, while it shows
+	awake   awakeHold  // keeps the computer from sleeping, as Keep computer awake asks
 
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
@@ -505,6 +509,7 @@ func (a *App) notify(first bool) {
 		waiting = 0
 	}
 	mygo.App.SetBadgeCount(waiting)
+	a.keepAwake()
 }
 
 func (a *App) updateTitle() {
@@ -966,10 +971,44 @@ func (a *App) watchReturn() {
 func (a *App) termFont() terminal.Font {
 	f := terminal.Font{Family: a.termFamily(), Size: a.set.FontSize, Weight: a.set.FontWeight,
 		LineHeight: a.set.LineHeight, Thicken: a.set.Thicken}
-	if !a.set.Ligatures {
-		f.Features = []string{"-calt", "-liga", "-dlig"}
-	}
+	f.Features = a.fontFeatures()
 	return f
+}
+
+// fontFeatures are the terminals' OpenType features, as terminal.Font
+// takes them: ligatures off unless they're wanted, then the user's
+// font-feature, which win over them for the tags they name.
+func (a *App) fontFeatures() []string {
+	var fs []string
+	if !a.set.Ligatures {
+		for _, tag := range []string{"calt", "liga", "dlig"} {
+			if !slices.ContainsFunc(a.set.FontFeatures, func(f string) bool { return featureTag(f) == tag }) {
+				fs = append(fs, "-"+tag)
+			}
+		}
+	}
+	return append(fs, a.set.FontFeatures...)
+}
+
+// featureTag is the tag of a feature as terminal.Font takes it.
+func featureTag(f string) string {
+	tag, _, _ := strings.Cut(strings.TrimLeft(f, "+-"), "=")
+	return tag
+}
+
+// uiFeatures converts features as terminal.Font takes them, as -calt,
+// into the list ui.Span.Features takes, as calt=0.
+func uiFeatures(fs []string) string {
+	out := make([]string, 0, len(fs))
+	for _, f := range fs {
+		if tag, ok := strings.CutPrefix(f, "-"); ok {
+			f = tag + "=0"
+		} else {
+			f = strings.TrimPrefix(f, "+")
+		}
+		out = append(out, f)
+	}
+	return strings.Join(out, ",")
 }
 
 // termThemes returns the terminal's colors in light and dark windows: the
@@ -1105,7 +1144,8 @@ func (a *App) apply(s settings.Settings, save bool) {
 		}
 	}
 	font := old.FontFamily != s.FontFamily || old.FontSize != s.FontSize || old.FontWeight != s.FontWeight ||
-		old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken
+		old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken ||
+		!slices.Equal(old.FontFeatures, s.FontFeatures)
 	themes := old.LightTheme != s.LightTheme || old.DarkTheme != s.DarkTheme
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||
 		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick
@@ -1167,6 +1207,12 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
+	}
+	if old.KeepAwake != s.KeepAwake {
+		a.keepAwake()
+		if a.tray != nil {
+			a.tray.SetMenu(a.trayMenu())
+		}
 	}
 	if old.AppIcon != s.AppIcon && a.win != nil {
 		a.changeAppIcon()
@@ -1752,6 +1798,25 @@ func (a *App) jumpToAttention() {
 
 func (a *App) toggleSidebar() {
 	a.prefs.SidebarHidden = !a.prefs.SidebarHidden
+	a.savePrefs()
+}
+
+// toggleSessionPanes shows or hides the panes of a split session under
+// its row in the sidebar, forgetting the sessions that are gone.
+func (a *App) toggleSessionPanes(id string) {
+	if a.prefs.Expanded == nil {
+		a.prefs.Expanded = map[string]bool{}
+	}
+	for k := range a.prefs.Expanded {
+		if a.session(k) == nil {
+			delete(a.prefs.Expanded, k)
+		}
+	}
+	if a.prefs.Expanded[id] {
+		delete(a.prefs.Expanded, id)
+	} else {
+		a.prefs.Expanded[id] = true
+	}
 	a.savePrefs()
 }
 

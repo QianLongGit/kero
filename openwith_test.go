@@ -192,7 +192,8 @@ func TestFilesOpenWithMenu(t *testing.T) {
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesChooseApp(),
+	want := []string{locales.FilesOpenDefault(), "-",
+		locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesChooseApp(),
 		"-", locales.FilesCopy(), locales.FilesPaste(), locales.FilesCopyPath(), locales.FilesCopyRelativePath(),
 		"-", locales.FilesNewFile(), locales.FilesNewFolder(), "-", locales.FilesRename(), locales.FilesDeleteItem()}
 	if got := tt.Menu(); !slices.Equal(got, want) {
