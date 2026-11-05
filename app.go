@@ -15,7 +15,6 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -50,8 +49,10 @@ type prefs struct {
 	SidebarWidth  float32         `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
-	// ProjectOrder is the order the user dragged projects into, by id,
-	// across every host; unlisted projects follow in the daemon's order.
+	// ProjectOrder is the fork's old project order, by id, kept in the
+	// app's preferences before the daemon came to own the order: it is
+	// read once on start to move each host's projects to their places
+	// there, and empties once they have all landed (migrateProjectOrder).
 	ProjectOrder []string `json:"projectOrder,omitempty"`
 	// SidebarOrder is the sidebar's order: "created" or "updated".
 	SidebarOrder string `json:"sidebarOrder,omitempty"`
@@ -151,6 +152,10 @@ type App struct {
 	renaming        string
 	renamingProject string
 	renameBuf       string
+	projMove        projectMove // the project dragged in the sidebar
+	// orderMigrating says the old project order, kept in the preferences,
+	// is being carried over to the daemon, so it starts but once.
+	orderMigrating bool
 
 	renameFrames int
 	chrome       chrome // where the sidebar's animation puts things
@@ -178,12 +183,10 @@ type App struct {
 	// Panes dragged: the zone last under the pointer, the pane whose
 	// drop preview shows and since when, and the panes just moved, which
 	// spring in.
-	lastZone     dropZone
-	previewKey   string
-	projectAt    string // the project a drag last hovered, and its side
-	projectAfter bool
-	// hostAt is the host whose section a drag last hovered, and its
-	// side, as projectAt is of a project's header.
+	lastZone   dropZone
+	previewKey string
+	// hostAt is the host whose section a dragged project header last
+	// hovered, and its side.
 	hostAt       *host
 	hostAfter    bool
 	previewSince time.Time
@@ -403,6 +406,9 @@ func (a *App) setState(h *host, st proto.State) {
 	}
 	a.mergeState(h, st)
 	a.loaded = true
+	// The state in, the fork's old project order can move over to the
+	// daemon, which owns the order now (itself idle once it has).
+	a.migrateProjectOrder()
 	if s := a.session(a.layoutDrag.session); s != nil && s.Layout.SameShape(dragged) {
 		s.Layout = dragged
 	}
@@ -572,7 +578,8 @@ func (a *App) groups() []group {
 	return gs
 }
 
-// hostGroups returns a host's projects, with their sessions.
+// hostGroups returns a host's projects, with their sessions, in the
+// order the daemon keeps.
 func (a *App) hostGroups(h *host) []group {
 	var projects []proto.Project
 	for _, p := range a.st.Projects {
@@ -580,7 +587,6 @@ func (a *App) hostGroups(h *host) []group {
 			projects = append(projects, p)
 		}
 	}
-	a.orderProjects(projects)
 	var gs []group
 	known := map[string]bool{}
 	for _, p := range projects {
@@ -607,92 +613,13 @@ func (a *App) hostGroups(h *host) []group {
 	return gs
 }
 
-// orderProjects sorts ps as the user dragged them, by the ids in
-// ProjectOrder; projects it does not name keep the daemon's order, after
-// them.
-func (a *App) orderProjects(ps []proto.Project) {
-	if len(a.prefs.ProjectOrder) == 0 {
-		return
-	}
-	at := map[string]int{}
-	for i, id := range a.prefs.ProjectOrder {
-		if _, ok := at[id]; !ok {
-			at[id] = i
-		}
-	}
-	sort.SliceStable(ps, func(i, j int) bool {
-		ii, iok := at[ps[i].ID]
-		jj, jok := at[ps[j].ID]
-		switch {
-		case iok && jok:
-			return ii < jj
-		case iok:
-			return true
-		case jok:
-			return false
-		}
-		return false
-	})
-}
-
-// projectDrag is a project dragged by its name to another place under the
-// same host.
-type projectDrag struct {
-	host *host
-	id   string
-}
-
-// sidebarDrag is what the sidebar drags to another place under a host: a
-// session (session set), which pins where it lands — after a row, or at
-// a group's head — or a project (id set), which moves before or after
-// the one it lands on. One type serves both: an element takes values of
-// one drag type only, and a group's header takes either.
+// sidebarDrag is a session dragged to another place under its host:
+// where it lands pins — after a row, or at a group's head — and the
+// project it stood in moves house with it.
 type sidebarDrag struct {
 	host    *host
 	session string
-	id      string // the project dragged, when not a session
 	project string // the dragged session's project, to move house with it
-}
-
-// moveProject puts a project drag before or after target, under its
-// host, and keeps the order in the app's preferences.
-func (a *App) moveProject(d projectDrag, target string, after bool) {
-	if d.id == "" || target == "" || d.id == target {
-		return
-	}
-	var order []string
-	for _, g := range a.hostGroups(d.host) {
-		if g.project.ID != "" {
-			order = append(order, g.project.ID)
-		}
-	}
-	i := slices.Index(order, d.id)
-	j := slices.Index(order, target)
-	if i < 0 || j < 0 {
-		return
-	}
-	order = slices.Delete(order, i, i+1)
-	j = slices.Index(order, target)
-	if after {
-		j++
-	}
-	order = slices.Insert(order, j, d.id)
-	// Replace this host's ids in the order, leaving the other hosts' as
-	// they are: only their order among themselves matters.
-	hostIDs := map[string]bool{}
-	for _, g := range a.hostGroups(d.host) {
-		if g.project.ID != "" {
-			hostIDs[g.project.ID] = true
-		}
-	}
-	kept := a.prefs.ProjectOrder[:0]
-	for _, id := range a.prefs.ProjectOrder {
-		if !hostIDs[id] {
-			kept = append(kept, id)
-		}
-	}
-	a.prefs.ProjectOrder = append(kept, order...)
-	a.savePrefs()
 }
 
 // moveHost puts a host's whole section of the sidebar — its row and its
@@ -726,6 +653,92 @@ func (a *App) moveHost(h, target *host, after bool) {
 	// reconnects, as no host's address changed.
 	a.syncHosts()
 	a.applySettings(a.set)
+}
+
+// migrateProjectOrder carries the fork's old project order, kept in the
+// app's preferences, over to the daemon, which owns the order now: each
+// host's projects take the places the preference names, and it empties
+// once every move has landed, so this runs but once. A host out of
+// reach, or a move a daemon refuses, leaves the preference as it was,
+// for the next start to carry the rest — a host already in its places
+// asks for no move at all. A host's moves go one at a time, the next
+// only once the one before has landed: the places are figured in that
+// order, and requests that race — each on its own goroutine on both
+// ends — could land out of it. Hosts go in parallel: their orders have
+// nothing to do with one another.
+func (a *App) migrateProjectOrder() {
+	if a.orderMigrating || len(a.prefs.ProjectOrder) == 0 {
+		return
+	}
+	for _, h := range a.hosts {
+		if h.cl == nil {
+			return // a host out of reach keeps its order in the preference
+		}
+	}
+	a.orderMigrating = true
+	chains, failed := 0, false
+	landed := func() {
+		chains--
+		if chains == 0 && !failed {
+			a.prefs.ProjectOrder = nil
+			a.savePrefs()
+		}
+	}
+	for _, h := range a.hosts {
+		ids := a.hostProjects(h)
+		named, in := make([]string, 0, len(ids)), map[string]bool{}
+		for _, id := range a.prefs.ProjectOrder {
+			if slices.Contains(ids, id) && !in[id] {
+				in[id] = true
+				named = append(named, id)
+			}
+		}
+		if len(named) == 0 {
+			continue // nothing of this host's stands in the preference
+		}
+		// The preference's order first, the projects it does not name in
+		// the daemon's after them — as the sidebar ordered them before.
+		rest := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return in[id] })
+		want := append(named, rest...)
+		var moves []proto.MoveProjectParams
+		for to, id := range want {
+			if a.hostProjects(h)[to] == id {
+				continue // already in its place
+			}
+			// What the sidebar shows at once, as a drag does.
+			a.st.Projects = reorderProjects(a.st.Projects, id, to, func(p proto.Project) bool { return a.hostOf(p.ID) == h })
+			moves = append(moves, proto.MoveProjectParams{ID: id, Index: to})
+		}
+		if len(moves) == 0 {
+			continue
+		}
+		chains++
+		i := 0
+		var send func()
+		send = func() {
+			if i == len(moves) {
+				landed()
+				return
+			}
+			m := moves[i]
+			i++
+			a.callOn(h, "project.move", m, func(err error) {
+				if err != nil {
+					failed = true
+					landed()
+					return
+				}
+				send()
+			})
+		}
+		send()
+	}
+	if chains == 0 {
+		// Every host already stood as the preference said — or nothing of
+		// its did — so nothing needs to land.
+		a.prefs.ProjectOrder = nil
+		a.savePrefs()
+	}
 }
 
 // orderGroup orders a sidebar group's sessions for showing: the auto
@@ -970,7 +983,7 @@ func (a *App) watchReturn() {
 
 func (a *App) termFont() terminal.Font {
 	f := terminal.Font{Family: a.termFamily(), Size: a.set.FontSize, Weight: a.set.FontWeight,
-		LineHeight: a.set.LineHeight, Thicken: a.set.Thicken}
+		CellWidth: a.set.CellWidth, LineHeight: a.set.LineHeight, Thicken: a.set.Thicken}
 	f.Features = a.fontFeatures()
 	return f
 }
@@ -994,21 +1007,6 @@ func (a *App) fontFeatures() []string {
 func featureTag(f string) string {
 	tag, _, _ := strings.Cut(strings.TrimLeft(f, "+-"), "=")
 	return tag
-}
-
-// uiFeatures converts features as terminal.Font takes them, as -calt,
-// into the list ui.Span.Features takes, as calt=0.
-func uiFeatures(fs []string) string {
-	out := make([]string, 0, len(fs))
-	for _, f := range fs {
-		if tag, ok := strings.CutPrefix(f, "-"); ok {
-			f = tag + "=0"
-		} else {
-			f = strings.TrimPrefix(f, "+")
-		}
-		out = append(out, f)
-	}
-	return strings.Join(out, ",")
 }
 
 // termThemes returns the terminal's colors in light and dark windows: the
@@ -1144,7 +1142,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 		}
 	}
 	font := old.FontFamily != s.FontFamily || old.FontSize != s.FontSize || old.FontWeight != s.FontWeight ||
-		old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken ||
+		old.CellWidth != s.CellWidth || old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken ||
 		!slices.Equal(old.FontFeatures, s.FontFeatures)
 	themes := old.LightTheme != s.LightTheme || old.DarkTheme != s.DarkTheme
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||

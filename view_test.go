@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -20,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/actions"
+	"kero/internal/client"
 	"kero/internal/proto"
 	"kero/internal/settings"
 
@@ -38,6 +40,11 @@ func testApp(t *testing.T) *App {
 	// one, whose files one test's opens would leave for the next.
 	t.Setenv("TMPDIR", t.TempDir())
 	a := newApp()
+	t.Cleanup(func() {
+		if a.ss.preview != nil {
+			a.ss.preview.Close()
+		}
+	})
 	var l *proto.Layout
 	a.st = proto.State{
 		Projects: []proto.Project{{ID: "p1", Name: "demo", Dir: "/tmp"}},
@@ -828,6 +835,28 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	}
 }
 
+// A project's header shows how many sessions it holds, unless
+// sidebar-session-count is off.
+func TestSidebarSessionCount(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	for _, id := range []string{"s2", "s3"} {
+		s := a.st.Sessions[0]
+		s.ID = id
+		a.st.Sessions = append(a.st.Sessions, s)
+	}
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	if !slices.Contains(tt.Texts(), "3") {
+		t.Errorf("the project's header has no count; texts %q", tt.Texts())
+	}
+	a.set.SidebarCount = false
+	tt.Frame()
+	if slices.Contains(tt.Texts(), "3") {
+		t.Errorf("with sidebar-session-count off, the project's header still has its count")
+	}
+}
+
 // A detailed row shows, under the session's name, its status message,
 // its branch and changes, and its folder, a line each while their
 // settings show them; a compact one keeps to one line ($KERO_SHOTS).
@@ -929,14 +958,40 @@ func TestSidebarRows(t *testing.T) {
 	}
 }
 
-// Dragging a project's name moves it among its host's projects, before
-// or after the project it is dropped on.
-func TestProjectOrder(t *testing.T) {
+// The fork's old project order, kept in the app's preferences, moves to
+// the daemon once it is reachable: the host's projects take the places
+// the preference names, and the preference empties when they have all
+// landed. Out of reach, the preference waits; emptied, no move is asked
+// again.
+func TestMigrateProjectOrder(t *testing.T) {
 	a := testApp(t)
 	a.st.Projects = append(a.st.Projects,
 		proto.Project{ID: "p2", Name: "two"},
 		proto.Project{ID: "p3", Name: "three"})
 	a.prefs.ProjectOrder = []string{"p3", "p1", "p2"}
+	moves := make(chan proto.MoveProjectParams, 16)
+	var cl *client.Client
+	cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "project.move" {
+			var p proto.MoveProjectParams
+			if err := json.Unmarshal(raw, &p); err == nil {
+				moves <- p
+			}
+		}
+		return nil, nil
+	})
+	upd := make(chan func(), 64)
+	a.updateFn = func(fn func()) { upd <- fn }
+	drain := func() {
+		for {
+			select {
+			case fn := <-upd:
+				fn()
+			default:
+				return
+			}
+		}
+	}
 	ids := func() []string {
 		var out []string
 		for _, g := range a.hostGroups(a.local()) {
@@ -944,21 +999,162 @@ func TestProjectOrder(t *testing.T) {
 		}
 		return out
 	}
+
+	// The daemon out of reach: nothing moves, the preference waits.
+	a.migrateProjectOrder()
+	if got := ids(); !slices.Equal(got, []string{"p1", "p2", "p3"}) {
+		t.Fatalf("an unreachable daemon reordered %v", got)
+	}
+	if a.prefs.ProjectOrder == nil {
+		t.Fatal("an unreachable daemon emptied the preference")
+	}
+
+	a.local().cl = cl
+	a.migrateProjectOrder()
 	if got := ids(); !slices.Equal(got, []string{"p3", "p1", "p2"}) {
 		t.Fatalf("ordered %v", got)
 	}
-	a.moveProject(projectDrag{host: a.local(), id: "p1"}, "p3", false)
-	if got := ids(); !slices.Equal(got, []string{"p1", "p3", "p2"}) {
-		t.Errorf("before p3: %v", got)
+	// Only p3 has to move: p1 and p2 fall in behind it.
+	select {
+	case p := <-moves:
+		if p.ID != "p3" || p.Index != 0 {
+			t.Errorf("moved %+v, want p3 to 0", p)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the daemon was asked for no move")
 	}
-	a.moveProject(projectDrag{host: a.local(), id: "p2"}, "p1", false)
-	if got := ids(); !slices.Equal(got, []string{"p2", "p1", "p3"}) {
-		t.Errorf("before p1: %v", got)
+	// The answers empty the preference once they have all landed.
+	deadline := time.Now().Add(2 * time.Second)
+	for a.prefs.ProjectOrder != nil && time.Now().Before(deadline) {
+		drain()
+		time.Sleep(time.Millisecond)
+	}
+	if a.prefs.ProjectOrder != nil {
+		t.Fatal("the preference did not empty once the moves landed")
+	}
+	// And it asks for nothing again.
+	a.migrateProjectOrder()
+	if len(moves) != 0 {
+		t.Errorf("an emptied preference asked for %d more moves", len(moves))
 	}
 }
 
-// A project's name dragged onto another project's lower half puts it
-// after that project.
+// A move the daemon refuses leaves the preference as it was, for the
+// next start to carry the order again.
+func TestMigrateProjectOrderRetries(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
+	a.prefs.ProjectOrder = []string{"p2", "p1"}
+	asked := make(chan struct{}, 16)
+	a.local().conn = connReady
+	a.local().cl, _ = projectClient(t, func(method string, _ json.RawMessage) (any, error) {
+		if method == "project.move" {
+			asked <- struct{}{}
+			return nil, errors.New("older daemon")
+		}
+		return nil, nil
+	})
+	upd := make(chan func(), 64)
+	a.updateFn = func(fn func()) { upd <- fn }
+	a.migrateProjectOrder()
+	select {
+	case <-asked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the daemon was asked for no move")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for a.prefs.ProjectOrder == nil && time.Now().Before(deadline) {
+		select {
+		case fn := <-upd:
+			fn()
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if a.prefs.ProjectOrder == nil {
+		t.Error("a refused move emptied the preference")
+	}
+}
+
+// A host whose order asks for more than one move gets them one at a
+// time: the next only once the one before has landed, for the places are
+// figured in that order — requests that race, each on its own goroutine
+// on both ends, could land out of it.
+func TestMigrateProjectOrderChains(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "p2", Name: "two"},
+		proto.Project{ID: "p3", Name: "three"})
+	// [p1, p2, p3] into [p2, p3, p1]: p2 to 0, then p3 to 1.
+	a.prefs.ProjectOrder = []string{"p2", "p3", "p1"}
+	moves := make(chan proto.MoveProjectParams, 16)
+	a.local().conn = connReady
+	a.local().cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "project.move" {
+			var p proto.MoveProjectParams
+			if err := json.Unmarshal(raw, &p); err == nil {
+				moves <- p
+			}
+		}
+		return nil, nil
+	})
+	upd := make(chan func(), 64)
+	a.updateFn = func(fn func()) { upd <- fn }
+	drain := func() {
+		for {
+			select {
+			case fn := <-upd:
+				fn()
+			default:
+				return
+			}
+		}
+	}
+
+	a.migrateProjectOrder()
+	first := <-moves
+	if first.ID != "p2" || first.Index != 0 {
+		t.Fatalf("the first move was %+v, want p2 to 0", first)
+	}
+	// Only the first went out: the second waits for the first's answer,
+	// which sits unrun until the test marshals it in.
+	select {
+	case p := <-moves:
+		t.Fatalf("the second move, %+v, went out before the first landed", p)
+	case <-time.After(80 * time.Millisecond):
+	}
+	drain()
+	var second *proto.MoveProjectParams
+	deadline := time.Now().Add(2 * time.Second)
+	for second == nil && time.Now().Before(deadline) {
+		drain()
+		select {
+		case p := <-moves:
+			second = &p
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	if second == nil {
+		t.Fatal("the second move never followed the first's answer")
+	}
+	if second.ID != "p3" || second.Index != 1 {
+		t.Errorf("the second move was %+v, want p3 to 1", *second)
+	}
+	// Both landed: the preference empties, and the projects stand as the
+	// preference named them.
+	deadline = time.Now().Add(2 * time.Second)
+	for a.prefs.ProjectOrder != nil && time.Now().Before(deadline) {
+		drain()
+		time.Sleep(time.Millisecond)
+	}
+	if a.prefs.ProjectOrder != nil {
+		t.Fatal("the preference did not empty once the moves landed")
+	}
+	if got := projectIDs(a.st.Projects); !slices.Equal(got, []string{"p2", "p3", "p1"}) {
+		t.Errorf("the projects stand %v, want p2 p3 p1", got)
+	}
+}
+
 // A project's header dragged onto another host's moves its host's whole
 // section there — the sidebar's only handle on the order of the hosts'
 // sections — and the settings keep it.
@@ -981,9 +1177,11 @@ func TestHostDrag(t *testing.T) {
 	if !ok {
 		t.Fatalf("no pone project; texts %q", tt.Texts())
 	}
-	dst, ok := tt.Find("ptwo")
+	// The drop is on the lower half of two's group, over its session's
+	// row: pone's host moves after two's section.
+	dst, ok := tt.Find("two sess")
 	if !ok {
-		t.Fatalf("no ptwo project; texts %q", tt.Texts())
+		t.Fatalf("no two sess row; texts %q", tt.Texts())
 	}
 	dragged(tt, src, dst)
 	var order []string
@@ -1004,40 +1202,9 @@ func TestHostDrag(t *testing.T) {
 	}
 }
 
-func TestProjectDrag(t *testing.T) {
-	a := testApp(t)
-	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
-	tt := ui.NewTester(a.view, 1100, 640)
-	tt.Frame()
-	src, ok := tt.Find("demo")
-	if !ok {
-		t.Fatalf("no demo project; texts %q", tt.Texts())
-	}
-	dst, ok := tt.Find("two")
-	if !ok {
-		t.Fatalf("no two project; texts %q", tt.Texts())
-	}
-	tt.Press(src.X+10, src.Y+src.H/2)
-	for i := 1; i <= 10; i++ {
-		f := float32(i) / 10
-		x := src.X + 10
-		y := src.Y + src.H/2 + (dst.Y+dst.H-4-src.Y-src.H/2)*f
-		tt.Move(x, y)
-		tt.Advance(16 * time.Millisecond)
-		tt.Frame()
-	}
-	tt.Release(dst.X+10, dst.Y+dst.H-4)
-	tt.Frame()
-	tt.Advance(50 * time.Millisecond)
-	tt.Frame()
-	if !slices.Equal(a.prefs.ProjectOrder, []string{"p2", "p1"}) {
-		t.Errorf("order %v, want p2 then p1", a.prefs.ProjectOrder)
-	}
-}
-
 // A remote host's projects drag as this machine's do, in their own
-// order: the drag of a remote header to another of its host's leaves
-// the order and the screen follows.
+// order under their host: the drag of a remote header to another of its
+// host's asks the host's kerod, and the screen follows.
 func TestProjectDragRemote(t *testing.T) {
 	a := testApp(t)
 	h := &host{name: "remote", conn: connReady, loaded: true}
@@ -1049,6 +1216,15 @@ func TestProjectDragRemote(t *testing.T) {
 		proto.Session{ID: "rs1", Project: "r1", Name: "rone sess", Created: 100},
 		proto.Session{ID: "rs2", Project: "r2", Name: "rtwo sess", Created: 200})
 	a.owner = map[string]*host{"r1": h, "r2": h, "rs1": h, "rs2": h}
+	moved := make(chan proto.MoveProjectParams, 4)
+	h.cl, _ = projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "project.move" {
+			var p proto.MoveProjectParams
+			json.Unmarshal(raw, &p)
+			moved <- p
+		}
+		return nil, nil
+	})
 	tt := ui.NewTester(a.view, 1100, 640)
 	tt.Frame()
 	// The host's kerod pushes its layout as it changes, as the app sits
@@ -1063,14 +1239,16 @@ func TestProjectDragRemote(t *testing.T) {
 	if !ok {
 		t.Fatalf("no rone project; texts %q", tt.Texts())
 	}
-	dst, ok := tt.Find("rtwo")
+	// The group's lower half, over its session's row.
+	dst, ok := tt.Find("rtwo sess")
 	if !ok {
-		t.Fatalf("no rtwo project; texts %q", tt.Texts())
+		t.Fatalf("no rtwo session; texts %q", tt.Texts())
 	}
 	dragged(tt, src, dst)
-	if !slices.Equal(a.prefs.ProjectOrder, []string{"r2", "r1"}) {
-		t.Errorf("order %v, want r2 then r1", a.prefs.ProjectOrder)
+	if got := projectIDs(a.st.Projects); !slices.Equal(got, []string{"p1", "r2", "r1"}) {
+		t.Errorf("projects %v, want p1 r2 r1", got)
 	}
+	wantMoved(t, moved, proto.MoveProjectParams{ID: "r1", Index: 1})
 	tt.Frame()
 	two, _ := tt.Find("rtwo")
 	one, _ := tt.Find("rone")

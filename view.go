@@ -336,13 +336,17 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	// The space between and below the rows moves the window, as the top
 	// bar does.
 	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
-		n := 0 // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
+		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
+		// Where the project dragged would go, as the last frame found it;
+		// this frame's groups find it again.
+		at := a.projMove.at
+		a.projMove.at = -1
 		// This machine's projects first, unlabeled; then each host's,
 		// under its name.
 		if local := a.local(); local.loaded {
 			for _, g := range a.hostGroups(local) {
-				a.groupView(c, pal, g, gi, &n)
+				a.groupView(c, pal, g, gi, at, &n)
 				gi++
 			}
 			if len(a.st.Sessions) == 0 && local.conn == connReady && len(a.hosts) == 1 {
@@ -363,7 +367,7 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 			}
 			for i, g := range groups {
 				g.first = i == 0
-				a.groupView(c, pal, g, gi, &n)
+				a.groupView(c, pal, g, gi, at, &n)
 				gi++
 			}
 		}
@@ -401,7 +405,39 @@ func (a *App) sortButton(c *ui.Context, pal *palette) {
 	b.Children(func() { ui.Icon(c, sortIcon).Size(16, 16) })
 }
 
-func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
+func (a *App) groupView(c *ui.Context, pal *palette, g group, gi, at int, n *int) {
+	// The group, its header and its rows, takes a project dragged to
+	// another place: a line shows where it would go.
+	grp := ui.Column(c.Key("group-" + g.key())).Shrink(0)
+	a.projectTarget(grp, g, at)
+	// A project of another host over this host's group moves its host's
+	// whole section here (moveHost): the daemon's own target above takes
+	// none but its host's drags, so this one takes the rest. Its halves
+	// say before or after, as a reorder's do.
+	if d, over := ui.DragOver[projectDrag](grp); over && d.id != "" && d.host != g.host && g.host.remote() {
+		_, y, _ := grp.PointerPosition()
+		a.hostAt, a.hostAfter = g.host, y > grp.Bounds().H/2
+	}
+	if d, ok := ui.Drop[projectDrag](grp); ok && d.id != "" && d.host != g.host && g.host.remote() {
+		after := a.hostAfter
+		if a.hostAt != g.host {
+			_, y, _ := grp.PointerPosition()
+			after = y > grp.Bounds().H/2
+		}
+		dh, target := d.host, g.host
+		a.defer_(func() { a.moveHost(dh, target, after) })
+	}
+	moving := g.project.ID != "" && a.projMove.id == g.project.ID
+	grp.Opacity(grp.Animate("moving", 1-0.6*b2f(moving), 120*time.Millisecond))
+	grp.Children(func() {
+		a.groupBody(c, pal, g, gi, moving, n)
+		if a.projMove.id != "" && a.projMove.host == g.host && at >= 0 {
+			a.insertionLine(c, pal, g, gi, at)
+		}
+	})
+}
+
+func (a *App) groupBody(c *ui.Context, pal *palette, g group, gi int, moving bool, n *int) {
 	id, key := g.project.ID, g.key()
 	collapsed := a.prefs.Collapsed[key]
 	// current says this project holds the session in the card; folded, its
@@ -430,45 +466,50 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		inset++
 	}
 	hdr := ui.Row(c.Key("project-"+key)).Height(a.sidebarDensity().hdrH).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
+	// While a project is dragged, the headers it passes do not light up.
+	hovered := hdr.Hovered() && a.projMove.id == ""
 	renaming := id != "" && a.renamingProject == id
-	// The name is the project's handle: dragged, it moves the project to
-	// another place under its host.
-	if id != "" && !renaming {
-		hdr.Drag(sidebarDrag{host: g.host, id: id}).Cursor(ui.CursorGrab)
+	// Dragged, the header takes its project to another place among its
+	// host's: a chip of it follows the pointer, and its group fades where
+	// it was. A lone project of a host drags too — not to reorder within
+	// its host, but onto another host's section (groupView).
+	if id != "" && !renaming && (len(a.hostProjects(g.host)) > 1 || g.host.remote()) {
+		hdr.Drag(projectDrag{g.host, id})
 		if hdr.Dragging() {
-			hdr.Opacity(0.35)
-		}
-	}
-	// A project lands before or after this one; a session at the head of
-	// its sessions, moving into the project when it stood in another's —
-	// the sessions without a project have a header of their own, which
-	// only heads them, no project to move into.
-	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.host == g.host {
-		if d.id != "" && d.id != id {
-			y, _, _ := hdr.PointerPosition()
-			after := y > 14
-			a.projectAt, a.projectAfter = id, after
-			hdr.Background(pal.rowHover)
-			hdr.Draw(func(p *ui.Painter, r ui.Rect) {
-				ly := r.Y
-				if after {
-					ly = r.Y + r.H - 2
+			a.projMove.host, a.projMove.id = g.host, id
+			floating(hdr.Background(pal.popover), pal)
+		} else if moving {
+			a.defer_(func() {
+				if a.projMove.id == id {
+					a.projMove = projectMove{at: -1}
 				}
-				p.Fill(ui.Rect{X: r.X, Y: ly, W: r.W, H: 2}, pal.accent, 1)
-			})
-		} else if d.session != "" {
-			hdr.Background(pal.rowHover)
-			hdr.Draw(func(p *ui.Painter, r ui.Rect) {
-				p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 2}, pal.accent, 1)
 			})
 		}
 	}
-	// A project's header dragged onto another host's moves its host's
-	// whole section there: the hosts' sections have no other handle, a
-	// host having no header of its own while it needs no row.
-	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.id != "" && d.host != g.host && g.host.remote() {
-		y, _, _ := hdr.PointerPosition()
-		a.hostAt, a.hostAfter = g.host, y > 14
+	// A session at the head of its sessions, moving into the project when
+	// it stood in another's — the sessions without a project have a header
+	// of their own, which only heads them, no project to move into.
+	if d, over := ui.DragOver[sidebarDrag](hdr); over && d.session != "" && d.host == g.host {
+		hdr.Background(pal.rowHover)
+		hdr.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 2}, pal.accent, 1)
+		})
+	}
+	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.session != "" && d.host == g.host {
+		sid := d.session
+		// The group of none heads its sessions like a project does, and
+		// takes them in: an empty project names it.
+		var project *string
+		if d.project != id {
+			p := id
+			project = &p
+		}
+		a.defer_(func() { a.moveSession(sid, "head", project) })
+	}
+	// Another host's project over this host's section: a line at the
+	// section's edge shows where its host's whole section would go
+	// (groupView takes the drag itself).
+	if a.projMove.id != "" && a.projMove.host != nil && a.projMove.host != g.host && a.hostAt == g.host {
 		hdr.Background(pal.rowHover)
 		hdr.Draw(func(p *ui.Painter, r ui.Rect) {
 			ly := r.Y
@@ -478,38 +519,6 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			p.Fill(ui.Rect{X: r.X, Y: ly, W: r.W, H: 2}, pal.accent, 1)
 		})
 	}
-	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.host == g.host {
-		if d.id != "" && d.id != id {
-			y, _, _ := hdr.PointerPosition()
-			after := y > 14
-			if a.projectAt == id {
-				// The side the insertion line last showed.
-				after = a.projectAfter
-			}
-			target, pd := id, projectDrag{host: d.host, id: d.id}
-			a.defer_(func() { a.moveProject(pd, target, after) })
-		} else if d.session != "" {
-			sid := d.session
-			// The group of none heads its sessions like a project does,
-			// and takes them in: an empty project names it.
-			var project *string
-			if d.project != id {
-				p := id
-				project = &p
-			}
-			a.defer_(func() { a.moveSession(sid, "head", project) })
-		}
-	}
-	if d, ok := ui.Drop[sidebarDrag](hdr); ok && d.id != "" && d.host != g.host && g.host.remote() {
-		after := a.hostAfter
-		if a.hostAt != g.host {
-			y, _, _ := hdr.PointerPosition()
-			after = y > 14
-		}
-		dh, target := d.host, g.host
-		a.defer_(func() { a.moveHost(dh, target, after) })
-	}
-	hovered := hdr.Hovered()
 	if hdr.Clicked() && !renaming {
 		a.toggleProject(key)
 	}
@@ -528,6 +537,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if m.Item(locales.SessionRename()).Disabled(id == "").Chosen() {
 			a.startProjectRename(id)
 		}
+		a.projectMenu(m, g)
 		m.Separator()
 		// A remote group's menu has its host's, as the host has no header.
 		if g.host.remote() {
@@ -589,7 +599,9 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if g.host.remote() {
 			a.hostTag(c, pal, g.host)
 		}
-		ui.Textf(c, "%d", len(g.sessions)).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
+		if a.set.SidebarCount {
+			ui.Textf(c, "%d", len(g.sessions)).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
+		}
 		chev := ui.Icon(c, chevronIcon).Size(11, 11).TextColor(pal.textFaint)
 		turn := chev.AnimateTo("turn", 90*(1-b2f(collapsed)), ui.Snappy)
 		chev.Rotate(turn).Opacity(chev.Animate("shown", b2f(hovered || collapsed), 120*time.Millisecond))
