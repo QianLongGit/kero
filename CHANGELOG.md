@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.35
+
+- The Files tab's right-click menu drops its built-in
+  **Open in VSCode** item: VS Code now plays by the same rule as every
+  other app — tick it in Settings › General to pin it, untick it and
+  it's gone.
+
 ## 2.3.34
 
 - On macOS, Settings › General lists the computer's installed apps,
