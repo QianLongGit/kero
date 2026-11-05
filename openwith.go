@@ -1,9 +1,9 @@
 package main
 
 // The Open With menu of a file of the Files view: the system's own app
-// for it, VS Code, the apps the configuration pins, and on macOS the
-// apps installed on the system — the Finder's Open With, for the tree.
-// The commands that run the apps come back as plain values, so what the
+// for it, the apps the configuration pins, and on macOS the apps
+// installed on the system — the Finder's Open With, for the tree. The
+// commands that run the apps come back as plain values, so what the
 // menu does tests without running it. A remote host's file opens
 // through the cache, as any open of it does.
 
@@ -22,16 +22,11 @@ import (
 // path.
 type AppEntry struct{ Name, Path string }
 
-// vscodeName is VS Code as the Applications folders name it, whose item
-// the menu has always had: an app of the same name pinned would double
-// it, so the menu skips it and Settings leaves its switch off.
-const vscodeName = "Visual Studio Code"
-
 // pinnedApps are the apps the configuration pins to the file menu, as
 // the installed apps name them: matched by the bundle's path, which a
-// rename between installs does not lose. An app uninstalled, or VS Code,
-// whose item the menu has always had, is not there; a path pinned twice
-// is one item, in the order the configuration holds.
+// rename between installs does not lose. An app uninstalled is not
+// there; a path pinned twice is one item, in the order the
+// configuration holds.
 func pinnedApps(pinned []string, apps []AppEntry) []AppEntry {
 	var out []AppEntry
 	seen := map[string]bool{}
@@ -44,9 +39,7 @@ func pinnedApps(pinned []string, apps []AppEntry) []AppEntry {
 				continue
 			}
 			seen[p] = true
-			if app.Name != vscodeName {
-				out = append(out, app)
-			}
+			out = append(out, app)
 			break
 		}
 	}
@@ -69,8 +62,8 @@ func togglePinned(apps []AppEntry, pinned []string, path string, on bool) []stri
 	return out
 }
 
-// openWithCommand runs an app on a file: by its name through open on
-// macOS, which asks LaunchServices for it, as the command the app is
+// openWithCommand runs an app on a file: through open on macOS, which
+// finds the app by its bundle's path, as the command the app is
 // elsewhere.
 func openWithCommand(app, path string) []string {
 	if runtime.GOOS == "darwin" {
@@ -79,28 +72,15 @@ func openWithCommand(app, path string) []string {
 	return []string{app, path}
 }
 
-// vscodeCommands opens a file in VS Code: the app by name on macOS and,
-// where open finds none installed, the CLI in the PATH; elsewhere the
-// CLI alone.
-func vscodeCommands(path string) [][]string {
-	if runtime.GOOS == "darwin" {
-		return [][]string{openWithCommand("Visual Studio Code", path), {"code", path}}
-	}
-	return [][]string{{"code", path}}
-}
-
 // openWithMenu is the menu a right click on a file of the tree opens:
-// the system's own app for it, VS Code, the apps the configuration
-// pins to the menu, and what the platform's own chooseAppMenu adds.
+// the system's own app for it, the apps the configuration pins to the
+// menu, and what the platform's own chooseAppMenu adds.
 func (a *App) openWithMenu(m *ui.Menu, h *host, path string) {
 	if m.Item(locales.CommonOpen()).Chosen() {
 		a.withLocalFile(h, path, openPath)
 	}
-	if m.Item(locales.FilesOpenVSCode()).Chosen() {
-		a.withLocalFile(h, path, func(local string) { a.runOpenWith(vscodeCommands(local)...) })
-	}
 	// No app pinned is no walk of the Applications folders: the menu of
-	// the default settings opens as it always had.
+	// the default settings opens with no app of its own.
 	if len(a.set.FilesPinnedApps) > 0 {
 		for _, app := range pinnedApps(a.set.FilesPinnedApps, installedApps()) {
 			if m.Item(locales.FilesOpenIn(app.Name)).Chosen() {

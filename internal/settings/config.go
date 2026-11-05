@@ -122,7 +122,7 @@ var keys = []key{
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
 	choiceKey("file-open", "what a double click on a file of the Files view opens it in", func(s *Settings) *string { return &s.FileOpen }, "system", "pane"),
-	{name: "files-pinned-app", doc: "an app the Files view's right-click menu opens a file in, beside VS Code, by its bundle's path; repeat it, and leave it empty for none (macOS)", list: true,
+	{name: "files-pinned-app", doc: "an app the Files view's right-click menu opens a file in, by its bundle's path; repeat it, and leave it empty for none (macOS)", list: true,
 		get: func(s *Settings) []string { return slices.Clone(s.FilesPinnedApps) },
 		set: func(s *Settings, v []string) error {
 			s.FilesPinnedApps = nil

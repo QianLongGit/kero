@@ -2732,11 +2732,11 @@ func (msgs Messages) SetPinnedApps() string {
 	return Catalog.Format(msgs.locale, "setPinnedApps", nil)
 }
 
-// SetPinnedAppsDetail says "The apps the Files view's right-click menu opens a file in, beside VS Code. Pinned apps that are uninstalled leave th…"
+// SetPinnedAppsDetail says "The apps the Files view's right-click menu opens a file in, chosen from the installed ones. Pinned apps that are unin…"
 // in the language the app shows.
 func SetPinnedAppsDetail() string { return In(i18n.Locale()).SetPinnedAppsDetail() }
 
-// SetPinnedAppsDetail says "The apps the Files view's right-click menu opens a file in, beside VS Code. Pinned apps that are uninstalled leave th…"
+// SetPinnedAppsDetail says "The apps the Files view's right-click menu opens a file in, chosen from the installed ones. Pinned apps that are unin…"
 // in the language of msgs.
 func (msgs Messages) SetPinnedAppsDetail() string {
 	return Catalog.Format(msgs.locale, "setPinnedAppsDetail", nil)
@@ -4852,16 +4852,6 @@ func FilesOpenPreview() string { return In(i18n.Locale()).FilesOpenPreview() }
 // in the language of msgs.
 func (msgs Messages) FilesOpenPreview() string {
 	return Catalog.Format(msgs.locale, "filesOpenPreview", nil)
-}
-
-// FilesOpenVSCode says "Open in VSCode"
-// in the language the app shows.
-func FilesOpenVSCode() string { return In(i18n.Locale()).FilesOpenVSCode() }
-
-// FilesOpenVSCode says "Open in VSCode"
-// in the language of msgs.
-func (msgs Messages) FilesOpenVSCode() string {
-	return Catalog.Format(msgs.locale, "filesOpenVSCode", nil)
 }
 
 // FilesOpenIn says "Open in {app}"

@@ -18,21 +18,11 @@ import (
 )
 
 // The commands that open a file in an app are plain values, as the menu
-// runs them: on macOS open asks LaunchServices for an app by name, and
-// VS Code falls back to its CLI, which elsewhere is the one.
+// runs them: on macOS open asks LaunchServices for an app by its bundle's
+// path.
 func TestOpenWithCommand(t *testing.T) {
-	if got := openWithCommand("TextEdit", "/tmp/note.txt"); !slices.Equal(got, []string{"open", "-a", "TextEdit", "/tmp/note.txt"}) {
-		t.Errorf("openWithCommand = %q, want open -a TextEdit /tmp/note.txt", got)
-	}
-	want := [][]string{{"open", "-a", "Visual Studio Code", "/tmp/main.go"}, {"code", "/tmp/main.go"}}
-	got := vscodeCommands("/tmp/main.go")
-	if len(got) != len(want) {
-		t.Fatalf("vscodeCommands = %q, want the app and then its CLI", got)
-	}
-	for i := range want {
-		if !slices.Equal(got[i], want[i]) {
-			t.Errorf("vscodeCommands[%d] = %q, want %q", i, got[i], want[i])
-		}
+	if got := openWithCommand("/Applications/TextEdit.app", "/tmp/note.txt"); !slices.Equal(got, []string{"open", "-a", "/Applications/TextEdit.app", "/tmp/note.txt"}) {
+		t.Errorf("openWithCommand = %q, want open -a with the bundle's path", got)
 	}
 }
 
@@ -174,13 +164,12 @@ func TestInstalledApps(t *testing.T) {
 }
 
 // A right click on a file of the tree opens it in an app: the system's
-// own, VS Code, an app the configuration pins beside them, or any app
-// installed on the system.
+// own, an app the configuration pins — VS Code among them, as any other
+// app — or any app installed on the system.
 func TestFilesOpenWithMenu(t *testing.T) {
 	a := testApp(t)
-	// An app the configuration pins to the menu comes after VS Code's
-	// item, as the installed apps name it (the Calculator, which any Mac
-	// holds).
+	// An app the configuration pins to the menu comes after Open, as the
+	// installed apps name it (the Calculator, which any Mac holds).
 	var calc string
 	for _, app := range installedApps() {
 		if app.Name == "Calculator" {
@@ -207,7 +196,7 @@ func TestFilesOpenWithMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{locales.FilesOpenDefault(), "-",
-		locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesOpenIn("Calculator"), locales.FilesChooseApp(),
+		locales.CommonOpen(), locales.FilesOpenIn("Calculator"), locales.FilesChooseApp(),
 		"-", locales.FilesCopy(), locales.FilesPaste(), locales.FilesCopyPath(), locales.FilesCopyRelativePath(),
 		"-", locales.FilesNewFile(), locales.FilesNewFolder(), "-", locales.FilesRename(), locales.FilesDeleteItem()}
 	if got := tt.Menu(); !slices.Equal(got, want) {

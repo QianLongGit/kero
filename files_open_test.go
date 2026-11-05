@@ -774,9 +774,10 @@ func TestFilesOpenWithRemoteMenu(t *testing.T) {
 	}
 	// The Open With group first (the apps of it macOS alone offers), then
 	// the transfers a remote host's rows carry, then the tree's own items
-	// and the row's rename and delete.
+	// and the row's rename and delete. Its apps are the configuration's
+	// own now — none pinned here, so Open alone of them.
 	got := tt.Menu()
-	if len(got) < 3 || got[0] != locales.CommonOpen() || got[1] != locales.FilesOpenVSCode() {
+	if len(got) < 3 || got[0] != locales.CommonOpen() {
 		t.Fatalf("a remote file's menu is %q", got)
 	}
 	for _, want := range []string{locales.FilesDownload(), locales.FilesCopy(), locales.FilesPaste(), locales.FilesDeleteItem()} {

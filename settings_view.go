@@ -667,17 +667,11 @@ func adListRows(c *ui.Context, pal *palette, s *settings.Settings) {
 
 // pinnedAppRow is an installed app of the pinned-menu group, toggled as
 // the configuration pins it. What a toggle leaves is the group's rows in
-// their order, as togglePinned builds it. VS Code's switch sleeps: its
-// item the menu has always had, and pinning it would double it.
+// their order, as togglePinned builds it.
 func pinnedAppRow(c *ui.Context, pal *palette, s *settings.Settings, apps []AppEntry, app AppEntry) {
 	on := slices.Contains(s.FilesPinnedApps, app.Path)
 	settingRow(c, pal, app.Name, "", func() {
-		sw := toggle(c.Key("pinned-"+app.Path), &on, pal)
-		if app.Name == vscodeName {
-			sw.Disabled(true)
-			return
-		}
-		sw.OnChange(func() {
+		toggle(c.Key("pinned-"+app.Path), &on, pal).OnChange(func() {
 			s.FilesPinnedApps = togglePinned(apps, s.FilesPinnedApps, app.Path, on)
 		})
 	})

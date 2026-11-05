@@ -6,9 +6,10 @@ import (
 )
 
 // The apps the configuration pins to the file menu come as the
-// installed apps name them: an uninstalled one is not there, and VS
-// Code's item the menu has always had is not duplicated. A path pinned
-// twice is one item, in the order the configuration holds.
+// installed apps name them: an uninstalled one is not there — VS Code
+// among them, no different from any other app since its item the menu
+// no longer holds on its own. A path pinned twice is one item, in the
+// order the configuration holds.
 func TestPinnedApps(t *testing.T) {
 	app := func(name, path string) AppEntry { return AppEntry{Name: name, Path: path} }
 	installed := []AppEntry{
@@ -24,11 +25,12 @@ func TestPinnedApps(t *testing.T) {
 	}{
 		{"none", nil, nil},
 		{"a pinned app by its path", []string{"/Applications/Beta.app"}, []AppEntry{app("Beta", "/Applications/Beta.app")}},
+		{"VS Code, as any other app", []string{"/Applications/Visual Studio Code.app"},
+			[]AppEntry{app("Visual Studio Code", "/Applications/Visual Studio Code.app")}},
 		{"in the order the configuration holds", []string{"/Applications/Beta.app", "/Applications/Alpha.app"},
 			[]AppEntry{app("Beta", "/Applications/Beta.app"), app("Alpha", "/Applications/Alpha.app")}},
 		{"an uninstalled app is not there", []string{"/Applications/Gone.app", "/Applications/Alpha.app"},
 			[]AppEntry{app("Alpha", "/Applications/Alpha.app")}},
-		{"VS Code's own item is not duplicated", []string{"/Applications/Visual Studio Code.app"}, nil},
 		{"a path pinned twice is one item", []string{"/Applications/Alpha.app", "/Applications/Alpha.app"},
 			[]AppEntry{app("Alpha", "/Applications/Alpha.app")}},
 		{"an empty line pins nothing", []string{"", "/Applications/Alpha.app"}, []AppEntry{app("Alpha", "/Applications/Alpha.app")}},

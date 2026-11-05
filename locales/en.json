@@ -415,7 +415,7 @@
   "setFileOpenSystem": "System default",
   "setFileOpenPane": "File pane",
   "setPinnedApps": "Apps in the right-click menu",
-  "setPinnedAppsDetail": "The apps the Files view's right-click menu opens a file in, beside VS Code. Pinned apps that are uninstalled leave the menu on their own.",
+  "setPinnedAppsDetail": "The apps the Files view's right-click menu opens a file in, chosen from the installed ones. Pinned apps that are uninstalled leave the menu on their own.",
   "setDimUnfocused": "Dim unfocused terminals",
   "setDimUnfocusedDetail": "When a session has several panes, the terminals you’re not in fade.",
   "setBackground": "Theme",
@@ -647,7 +647,6 @@
   "filesOpenInPane": "Open in a File Pane",
   "filesOpenInEditor": "Open in the Host's Editor",
   "filesOpenPreview": "Preview",
-  "filesOpenVSCode": "Open in VSCode",
   "filesOpenIn": "Open in {app}",
   "@filesOpenIn": {
     "placeholders": {
