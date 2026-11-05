@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.34
+
+- On macOS, Settings › General lists the computer's installed apps,
+  live: tick one and the Files tab's right-click menu gains an
+  **Open in <name>** item beside **Open in VSCode** — untick it, or
+  uninstall it, and the item quietly drops off.
+
 ## 2.3.33
 
 - **Keep computer awake** stops the computer from sleeping: **Always**,
