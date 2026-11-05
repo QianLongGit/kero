@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.3.33
+
+- **Keep computer awake** stops the computer from sleeping: **Always**,
+  or **While agents work** in this computer's panes. Pick it in
+  Settings › General, in the tray menu or from the command palette.
+  Thanks @missuo
+- Each session in the sidebar starts with the icon of the program it
+  runs, and a split session shows how many panes it has: click the count
+  to list them, each with its program, branch or folder, and status.
+- **View › Toggle Dark Mode** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>L</kbd>)
+  switches between the light and the dark appearance. Thanks @kgemici
+- The Files tab's menu opens a file or folder in the app the system
+  opens it with, including files the viewer can't show. Thanks @kgemici
+- **Font features** in Settings › Terminal (`font-feature`) turns the
+  font's OpenType features on or off, as Ghostty's does.
+- OMP (oh-my-pi) is recognized as a coding agent, as Pi is. Thanks
+  @frankberliner
+- Dictation apps such as Typeless see the terminal as a text field, so
+  they no longer leave their "copy this text" panel up after inserting.
+  Thanks @missuo
+- On macOS, with **Option is Meta** on, Option sends Alt to programs
+  without also typing the key's special character or leaving a dead key
+  to compose with the next letter. Thanks @iFwu
+- On macOS 26, panes no longer exit with code 137 a second after they
+  start, leaving them blank. Hosts on macOS get this with their next
+  update. Thanks @gascs
+- The browser's address bar opens a bracketed public IPv6 address
+  instead of searching for it. Thanks @idealistichacker
+- A second <kbd>⌘</kbd> <kbd>W</kbd> behind the viewer's save question
+  no longer closes the pane beside it: the question keeps the keyboard,
+  as the window's keys already do.
+- A pane whose screen is still blank no longer quits the app just after
+  it was created: reading an empty screen for assistive technology
+  panicked, and the app went with it.
+- Closing a remote connection no longer races with its read.
+- kerod.log says why a restored pane came back as a shell (no agent
+  session recorded, an unsupported agent, an invalid session ID, or
+  agent resumption turned off), and notes when the previous kerod
+  didn't exit cleanly.
+
 ## 2.3.32
 
 - A right click on a row of the Files tab can copy its path: Copy Path
