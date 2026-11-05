@@ -99,7 +99,9 @@ func settingsIndex() []searchEntry {
 		{"advanced", locales.SetReset(), "defaults reset"},
 	}
 	if runtime.GOOS == "darwin" {
-		entries = append(entries, searchEntry{"general", locales.SetAppIcon(), "macos-show-app-icon dock menu bar menubar tray status item hide"})
+		entries = append(entries,
+			searchEntry{"general", locales.SetAppIcon(), "macos-show-app-icon dock menu bar menubar tray status item hide"},
+			searchEntry{"general", locales.SetPinnedApps(), "files-pinned-app open with right click context menu app pin applications finder"})
 	}
 	return entries
 }

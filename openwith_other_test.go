@@ -16,9 +16,12 @@ import (
 
 // A right click on a file of the tree opens it in an app: the system's
 // own default, or VS Code. No system but macOS names the apps that open
-// a file, so there is no submenu of them to choose.
+// a file, so there is no submenu of them to choose, and an app the
+// configuration pins to the menu is none of it here: no installed apps
+// are there to name it.
 func TestFilesOpenWithMenu(t *testing.T) {
 	a := testApp(t)
+	a.set.FilesPinnedApps = []string{"/Applications/TextEdit.app"}
 	s := &a.st.Sessions[0]
 	a.prefs.Side = sideFiles
 	a.local().cl = &client.Client{}

@@ -22,10 +22,6 @@ import (
 	"kero/locales"
 )
 
-// AppEntry is an app as the menu shows it: by its name, at its bundle's
-// path.
-type AppEntry struct{ Name, Path string }
-
 // appsInDir lists the .app bundles under root, walking plain
 // subdirectories depth levels down (Applications folders need two: a
 // suite's bundles sit one level in) and never into a bundle itself. A

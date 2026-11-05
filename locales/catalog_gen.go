@@ -2722,6 +2722,26 @@ func (msgs Messages) SetFileOpenPane() string {
 	return Catalog.Format(msgs.locale, "setFileOpenPane", nil)
 }
 
+// SetPinnedApps says "Apps in the right-click menu"
+// in the language the app shows.
+func SetPinnedApps() string { return In(i18n.Locale()).SetPinnedApps() }
+
+// SetPinnedApps says "Apps in the right-click menu"
+// in the language of msgs.
+func (msgs Messages) SetPinnedApps() string {
+	return Catalog.Format(msgs.locale, "setPinnedApps", nil)
+}
+
+// SetPinnedAppsDetail says "The apps the Files view's right-click menu opens a file in, beside VS Code. Pinned apps that are uninstalled leave th…"
+// in the language the app shows.
+func SetPinnedAppsDetail() string { return In(i18n.Locale()).SetPinnedAppsDetail() }
+
+// SetPinnedAppsDetail says "The apps the Files view's right-click menu opens a file in, beside VS Code. Pinned apps that are uninstalled leave th…"
+// in the language of msgs.
+func (msgs Messages) SetPinnedAppsDetail() string {
+	return Catalog.Format(msgs.locale, "setPinnedAppsDetail", nil)
+}
+
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }
@@ -4842,6 +4862,16 @@ func FilesOpenVSCode() string { return In(i18n.Locale()).FilesOpenVSCode() }
 // in the language of msgs.
 func (msgs Messages) FilesOpenVSCode() string {
 	return Catalog.Format(msgs.locale, "filesOpenVSCode", nil)
+}
+
+// FilesOpenIn says "Open in {app}"
+// in the language the app shows.
+func FilesOpenIn(app string) string { return In(i18n.Locale()).FilesOpenIn(app) }
+
+// FilesOpenIn says "Open in {app}"
+// in the language of msgs.
+func (msgs Messages) FilesOpenIn(app string) string {
+	return Catalog.Format(msgs.locale, "filesOpenIn", map[string]any{"app": app})
 }
 
 // FilesChooseApp says "Choose App…"

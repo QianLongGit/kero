@@ -373,6 +373,36 @@ func TestAdLists(t *testing.T) {
 	}
 }
 
+// The apps the file menu pins hold their bundles' paths, one a line, and
+// a path the file names twice is one; an empty line clears them, as it
+// does the filter lists. What is saved reads back the same.
+func TestFilesPinnedApps(t *testing.T) {
+	tests := []struct {
+		file string
+		want []string
+	}{
+		{"", nil},
+		{"files-pinned-app = /Applications/TextEdit.app", []string{"/Applications/TextEdit.app"}},
+		{"files-pinned-app = /Applications/TextEdit.app\nfiles-pinned-app = /Applications/TextEdit.app", []string{"/Applications/TextEdit.app"}},
+		{"files-pinned-app = /Applications/TextEdit.app\nfiles-pinned-app =\nfiles-pinned-app = /Applications/Xcode.app", []string{"/Applications/Xcode.app"}},
+		{"files-pinned-app =", nil},
+	}
+	for _, tt := range tests {
+		s, probs := parse(tt.file)
+		if !reflect.DeepEqual(s.FilesPinnedApps, tt.want) || len(probs) != 0 {
+			t.Errorf("%q: pinned %q, problems %q", tt.file, s.FilesPinnedApps, probs)
+		}
+		// What is saved reads back the same, and the default writes
+		// nothing.
+		if back, _ := parse(format(s, "")); !reflect.DeepEqual(back.FilesPinnedApps, s.FilesPinnedApps) {
+			t.Errorf("%q: saved and read back %q, want %q", tt.file, back.FilesPinnedApps, s.FilesPinnedApps)
+		}
+	}
+	if out := format(Default(), ""); strings.Contains(out, "files-pinned-app") {
+		t.Errorf("the default pins were written:\n%s", out)
+	}
+}
+
 func TestSaveKeepsASymlinkedConfig(t *testing.T) {
 	dir := t.TempDir()
 	dotfiles := filepath.Join(dir, "dotfiles", "kero", "config")

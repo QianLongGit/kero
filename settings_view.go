@@ -69,7 +69,8 @@ type settingsState struct {
 	featuresDraft   string
 	featuresEditing bool
 	shellEditing    bool
-	loginOpen       bool // open at login, as the system says
+	loginOpen       bool       // open at login, as the system says
+	apps            []AppEntry // the apps installed on the system, for the Files view's pinned menu
 	updates         updatePrefs
 	cliPath         string
 	vibeRule        string // the Vibe Island rule on disk: missing, current or outdated
@@ -94,6 +95,9 @@ func (a *App) openSettings(page string) {
 	if a.ss.page == "" {
 		a.ss.page = "general"
 	}
+	// The apps the pinned-menu group lists, as the window opens: a walk
+	// of the Applications folders, in the moment.
+	a.ss.apps = installedApps()
 	if a.setWin != nil {
 		a.setWin.Show()
 		a.setWin.Focus()
@@ -576,6 +580,15 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				[]string{locales.SetFileOpenSystem(), locales.SetFileOpenPane()})
 		})
 	})
+	// The pinned apps are macOS's own, as the Open With menu's apps are:
+	// nowhere else names the apps that open a file.
+	if runtime.GOOS == "darwin" {
+		settingsGroup(c, pal, locales.SetPinnedApps(), locales.SetPinnedAppsDetail(), func() {
+			for _, app := range a.ss.apps {
+				pinnedAppRow(c, pal, s, a.ss.apps, app)
+			}
+		})
+	}
 	settingsGroup(c, pal, "", "", func() {
 		settingRow(c, pal, locales.AwakeTitle(), locales.AwakeDetail(), func() {
 			popup(c, "keep-awake", &s.KeepAwake, settings.KeepAwakeModes, awakeModeName, 200, pal)
@@ -650,6 +663,24 @@ func adListRows(c *ui.Context, pal *palette, s *settings.Settings) {
 			})
 		})
 	}
+}
+
+// pinnedAppRow is an installed app of the pinned-menu group, toggled as
+// the configuration pins it. What a toggle leaves is the group's rows in
+// their order, as togglePinned builds it. VS Code's switch sleeps: its
+// item the menu has always had, and pinning it would double it.
+func pinnedAppRow(c *ui.Context, pal *palette, s *settings.Settings, apps []AppEntry, app AppEntry) {
+	on := slices.Contains(s.FilesPinnedApps, app.Path)
+	settingRow(c, pal, app.Name, "", func() {
+		sw := toggle(c.Key("pinned-"+app.Path), &on, pal)
+		if app.Name == vscodeName {
+			sw.Disabled(true)
+			return
+		}
+		sw.OnChange(func() {
+			s.FilesPinnedApps = togglePinned(apps, s.FilesPinnedApps, app.Path, on)
+		})
+	})
 }
 
 // adListDetail says what a filter list blocks, or where it is.

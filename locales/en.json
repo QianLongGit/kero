@@ -414,6 +414,8 @@
   "setFileOpenDetail": "What a double click on a file of the Files view opens it in. Space always previews the chosen file.",
   "setFileOpenSystem": "System default",
   "setFileOpenPane": "File pane",
+  "setPinnedApps": "Apps in the right-click menu",
+  "setPinnedAppsDetail": "The apps the Files view's right-click menu opens a file in, beside VS Code. Pinned apps that are uninstalled leave the menu on their own.",
   "setDimUnfocused": "Dim unfocused terminals",
   "setDimUnfocusedDetail": "When a session has several panes, the terminals you’re not in fade.",
   "setBackground": "Theme",
@@ -646,6 +648,14 @@
   "filesOpenInEditor": "Open in the Host's Editor",
   "filesOpenPreview": "Preview",
   "filesOpenVSCode": "Open in VSCode",
+  "filesOpenIn": "Open in {app}",
+  "@filesOpenIn": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
   "filesChooseApp": "Choose App…",
   "filesNoApps": "No app found that opens this file",
   "filesUpdateHost": "The kerod on this host is older than this version of Kero. Update it on the host to browse its files.",

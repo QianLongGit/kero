@@ -774,6 +774,53 @@ func TestAdListToggles(t *testing.T) {
 	}
 }
 
+// The pinned-app rows under Files list the installed apps, each toggled
+// as the configuration pins it, and save in the order of their rows.
+// VS Code's row sleeps: the menu has its item always. The group is
+// macOS's own, as the apps it lists are.
+func TestPinnedAppToggles(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the pinned-app group is macOS's own")
+	}
+	a := testApp(t)
+	a.ss.page = "general"
+	a.ss.apps = []AppEntry{
+		{Name: "Alpha", Path: "/Applications/Alpha.app"},
+		{Name: "Beta", Path: "/Applications/Beta.app"},
+		{Name: "Visual Studio Code", Path: "/Applications/Visual Studio Code.app"},
+	}
+	tt := ui.NewTester(a.settingsView, 820, 1500)
+	tt.Frame()
+	flip := func(label string) {
+		t.Helper()
+		r, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("no row %q; texts %q", label, tt.Texts())
+		}
+		tt.ClickAt(752, r.Y+r.H/2) // its switch, at the row's end
+		tt.Frame()
+		tt.Frame()
+	}
+	flip("Beta")
+	if want := []string{"/Applications/Beta.app"}; !slices.Equal(a.set.FilesPinnedApps, want) || !slices.Equal(settings.Load().FilesPinnedApps, want) {
+		t.Fatalf("pins %q, saved %q, want %q", a.set.FilesPinnedApps, settings.Load().FilesPinnedApps, want)
+	}
+	flip("Alpha")
+	if want := []string{"/Applications/Alpha.app", "/Applications/Beta.app"}; !slices.Equal(settings.Load().FilesPinnedApps, want) {
+		t.Fatalf("saved %q, want %q", settings.Load().FilesPinnedApps, want)
+	}
+	// VS Code's switch is off to the user: clicking it pins nothing.
+	flip("Visual Studio Code")
+	if got := settings.Load().FilesPinnedApps; slices.Contains(got, "/Applications/Visual Studio Code.app") {
+		t.Fatalf("VS Code pinned as %q", got)
+	}
+	flip("Beta")
+	flip("Alpha")
+	if got := settings.Load().FilesPinnedApps; len(got) != 0 {
+		t.Fatalf("no pins saved as %q", got)
+	}
+}
+
 // The font features field keeps what it can read as it is submitted, and
 // leaves a tag it can't in the field, unapplied ($KERO_SHOTS).
 func TestFontFeaturesField(t *testing.T) {

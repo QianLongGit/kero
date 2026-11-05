@@ -35,7 +35,10 @@ type Settings struct {
 	SessionHistory     bool   `json:"sessionHistory"`     // the sidebar lists the agents' ended conversations
 	QuitConfirm        bool   `json:"quitConfirm"`        // tell, the first time, that quitting keeps sessions
 	AppIcon            string `json:"appIcon"`            // macOS: AppIcons; elsewhere the icon is always in the notification area
-	FileOpen           string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system" or "pane"
+	FileOpen           string   `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system" or "pane"
+	// FilesPinnedApps are the bundle paths of the apps the Files view's
+	// right-click menu opens a file in, beside VS Code.
+	FilesPinnedApps []string `json:"filesPinnedApps,omitempty"`
 	KeepAwake          string `json:"keepAwake"`          // one of KeepAwakeModes: while the computer is kept from sleeping
 
 	// Appearance
@@ -387,6 +390,7 @@ func clone(s Settings) Settings {
 	s.Env = append([]string(nil), s.Env...)
 	s.FontFeatures = slices.Clone(s.FontFeatures)
 	s.AdLists = slices.Clone(s.AdLists)
+	s.FilesPinnedApps = slices.Clone(s.FilesPinnedApps)
 	s.Hosts = slices.Clone(s.Hosts)
 	s.Listen = slices.Clone(s.Listen)
 	s.ListenAllow = slices.Clone(s.ListenAllow)

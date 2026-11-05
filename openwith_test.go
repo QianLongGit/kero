@@ -174,9 +174,23 @@ func TestInstalledApps(t *testing.T) {
 }
 
 // A right click on a file of the tree opens it in an app: the system's
-// own, VS Code, or any app installed on the system.
+// own, VS Code, an app the configuration pins beside them, or any app
+// installed on the system.
 func TestFilesOpenWithMenu(t *testing.T) {
 	a := testApp(t)
+	// An app the configuration pins to the menu comes after VS Code's
+	// item, as the installed apps name it (the Calculator, which any Mac
+	// holds).
+	var calc string
+	for _, app := range installedApps() {
+		if app.Name == "Calculator" {
+			calc = app.Path
+		}
+	}
+	if calc == "" {
+		t.Skip("no Calculator among the installed apps")
+	}
+	a.set.FilesPinnedApps = []string{calc}
 	s := &a.st.Sessions[0]
 	a.prefs.Side = sideFiles
 	a.local().cl = &client.Client{}
@@ -193,7 +207,7 @@ func TestFilesOpenWithMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{locales.FilesOpenDefault(), "-",
-		locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesChooseApp(),
+		locales.CommonOpen(), locales.FilesOpenVSCode(), locales.FilesOpenIn("Calculator"), locales.FilesChooseApp(),
 		"-", locales.FilesCopy(), locales.FilesPaste(), locales.FilesCopyPath(), locales.FilesCopyRelativePath(),
 		"-", locales.FilesNewFile(), locales.FilesNewFolder(), "-", locales.FilesRename(), locales.FilesDeleteItem()}
 	if got := tt.Menu(); !slices.Equal(got, want) {
