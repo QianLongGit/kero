@@ -2842,6 +2842,46 @@ func (msgs Messages) SetTransferRsync() string {
 	return Catalog.Format(msgs.locale, "setTransferRsync", nil)
 }
 
+// SetScpPath says "scp path"
+// in the language the app shows.
+func SetScpPath() string { return In(i18n.Locale()).SetScpPath() }
+
+// SetScpPath says "scp path"
+// in the language of msgs.
+func (msgs Messages) SetScpPath() string {
+	return Catalog.Format(msgs.locale, "setScpPath", nil)
+}
+
+// SetScpPathDetail says "Where the scp line runs from. Leave empty to find scp on this machine; the path found lands here."
+// in the language the app shows.
+func SetScpPathDetail() string { return In(i18n.Locale()).SetScpPathDetail() }
+
+// SetScpPathDetail says "Where the scp line runs from. Leave empty to find scp on this machine; the path found lands here."
+// in the language of msgs.
+func (msgs Messages) SetScpPathDetail() string {
+	return Catalog.Format(msgs.locale, "setScpPathDetail", nil)
+}
+
+// SetRsyncPath says "rsync path"
+// in the language the app shows.
+func SetRsyncPath() string { return In(i18n.Locale()).SetRsyncPath() }
+
+// SetRsyncPath says "rsync path"
+// in the language of msgs.
+func (msgs Messages) SetRsyncPath() string {
+	return Catalog.Format(msgs.locale, "setRsyncPath", nil)
+}
+
+// SetRsyncPathDetail says "Where the rsync line runs from. Leave empty to find a GNU rsync 3.1+ on this machine; the path found lands here."
+// in the language the app shows.
+func SetRsyncPathDetail() string { return In(i18n.Locale()).SetRsyncPathDetail() }
+
+// SetRsyncPathDetail says "Where the rsync line runs from. Leave empty to find a GNU rsync 3.1+ on this machine; the path found lands here."
+// in the language of msgs.
+func (msgs Messages) SetRsyncPathDetail() string {
+	return Catalog.Format(msgs.locale, "setRsyncPathDetail", nil)
+}
+
 // SetPinnedApps says "Apps in the right-click menu"
 // in the language the app shows.
 func SetPinnedApps() string { return In(i18n.Locale()).SetPinnedApps() }
@@ -5266,6 +5306,48 @@ func FilesRsyncAbsent(host string) string { return In(i18n.Locale()).FilesRsyncA
 // in the language of msgs.
 func (msgs Messages) FilesRsyncAbsent(host string) string {
 	return Catalog.Format(msgs.locale, "filesRsyncAbsent", map[string]any{"host": host})
+}
+
+// FilesRsyncLocalOld says "This machine's rsync is too old (GNU rsync 3.1+ needed): install a newer one — macOS: brew install rsync — set it…"
+// in the language the app shows.
+func FilesRsyncLocalOld() string { return In(i18n.Locale()).FilesRsyncLocalOld() }
+
+// FilesRsyncLocalOld says "This machine's rsync is too old (GNU rsync 3.1+ needed): install a newer one — macOS: brew install rsync — set it…"
+// in the language of msgs.
+func (msgs Messages) FilesRsyncLocalOld() string {
+	return Catalog.Format(msgs.locale, "filesRsyncLocalOld", nil)
+}
+
+// FilesRsyncRemoteOld says "The rsync on {host} is too old (GNU rsync 3.1+ needed): update it there, or transfer another way"
+// in the language the app shows.
+func FilesRsyncRemoteOld(host string) string { return In(i18n.Locale()).FilesRsyncRemoteOld(host) }
+
+// FilesRsyncRemoteOld says "The rsync on {host} is too old (GNU rsync 3.1+ needed): update it there, or transfer another way"
+// in the language of msgs.
+func (msgs Messages) FilesRsyncRemoteOld(host string) string {
+	return Catalog.Format(msgs.locale, "filesRsyncRemoteOld", map[string]any{"host": host})
+}
+
+// FilesToolMissing says "No {tool} on this machine: install it, or set its path in Settings"
+// in the language the app shows.
+func FilesToolMissing(tool string) string { return In(i18n.Locale()).FilesToolMissing(tool) }
+
+// FilesToolMissing says "No {tool} on this machine: install it, or set its path in Settings"
+// in the language of msgs.
+func (msgs Messages) FilesToolMissing(tool string) string {
+	return Catalog.Format(msgs.locale, "filesToolMissing", map[string]any{"tool": tool})
+}
+
+// FilesToolPathBad says "Couldn't run {path}, the path set in Settings: {err}"
+// in the language the app shows.
+func FilesToolPathBad(path string, err string) string {
+	return In(i18n.Locale()).FilesToolPathBad(path, err)
+}
+
+// FilesToolPathBad says "Couldn't run {path}, the path set in Settings: {err}"
+// in the language of msgs.
+func (msgs Messages) FilesToolPathBad(path string, err string) string {
+	return Catalog.Format(msgs.locale, "filesToolPathBad", map[string]any{"path": path, "err": err})
 }
 
 // ChangesRevert says "Revert"

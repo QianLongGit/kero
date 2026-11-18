@@ -42,6 +42,13 @@ func TestSettingsPages(t *testing.T) {
 					t.Errorf("page general: no %q; texts %q", title, tt.Texts())
 				}
 			}
+			// The Files group's tool paths, under the transfer row they
+			// belong to.
+			for _, title := range []string{"scp path", "rsync path"} {
+				if !tt.HasText(title) {
+					t.Errorf("page general: no %q; texts %q", title, tt.Texts())
+				}
+			}
 		}
 		if p.id != "hosts" && tt.HasText("Experimental") {
 			t.Errorf("page %s is tagged experimental", p.id)

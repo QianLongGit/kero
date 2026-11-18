@@ -65,6 +65,12 @@ type settingsState struct {
 	draft      map[string]string
 	envDraft   string
 	shellDraft string
+	// The transfer tool paths' drafts, while their fields hold the
+	// focus (scpPathEditing, rsyncPathEditing).
+	scpPathDraft     string
+	rsyncPathDraft   string
+	scpPathEditing   bool
+	rsyncPathEditing bool
 	// featuresDraft is font-feature as the field has it, while
 	// featuresEditing.
 	featuresDraft   string
@@ -601,6 +607,10 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 			segmented(c, "files-transfer", &s.FilesTransfer, []string{"builtin", "scp", "rsync"},
 				[]string{locales.SetTransferBuiltin(), locales.SetTransferScp(), locales.SetTransferRsync()})
 		})
+		a.toolPathRow(c, pal, "files-scp-path", locales.SetScpPath(), locales.SetScpPathDetail(),
+			&s.FilesScpPath, &a.ss.scpPathDraft, &a.ss.scpPathEditing)
+		a.toolPathRow(c, pal, "files-rsync-path", locales.SetRsyncPath(), locales.SetRsyncPathDetail(),
+			&s.FilesRsyncPath, &a.ss.rsyncPathDraft, &a.ss.rsyncPathEditing)
 	})
 	// The pinned apps are macOS's own, as the Open With menu's apps are:
 	// nowhere else names the apps that open a file.
@@ -1173,6 +1183,27 @@ func (a *App) fontFeaturesField(c *ui.Context, pal *palette) {
 	if !a.ss.featuresEditing {
 		keep()
 	}
+}
+
+// toolPathRow edits one transfer tool's path, as the shell row edits
+// the shell: a draft while the field holds the focus, kept as it is
+// submitted or the focus leaves it. The empty field is the find's own
+// place — the path it answers lands here, for the user to see and
+// change.
+func (a *App) toolPathRow(c *ui.Context, pal *palette, key, label, detail string, path *string, draft *string, editing *bool) {
+	settingRow(c, pal, label, detail, func() {
+		if !*editing {
+			*draft = *path
+		}
+		in := textField(c, key, draft, "", 220, pal)
+		*editing = in.Focused()
+		// Kept as it is submitted, or as the field loses the focus.
+		keep := func() { *path = strings.TrimSpace(*draft) }
+		in.OnSubmit(keep)
+		if !*editing && strings.TrimSpace(*draft) != *path {
+			keep()
+		}
+	})
 }
 
 func (a *App) shellPage(c *ui.Context, pal *palette) {

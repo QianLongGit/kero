@@ -11,12 +11,15 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -64,23 +67,14 @@ func xferSSHArgs(a remote.Addr) []string {
 	return args
 }
 
-// quoteRemotePath shell-quotes the path of a scp host:path side: the
-// remote shell re-reads it — a space breaks it — so it goes out wrapped
-// in double quotes with \, " and $ escaped inside. Local paths ride argv
-// untouched (a picker's path never starts with "-", and scp takes no --);
-// rsync formats its own remote side and is not quoted here.
-func quoteRemotePath(p string) string {
-	if p == "" {
-		return ""
-	}
-	q := strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`)
-	return `"` + q.Replace(p) + `"`
-}
-
-// scpUploadArgs — scp [-o opts] [-P port] file… [user@]host:"dir"
+// scpUploadArgs — scp [-o opts] [-P port] file… [user@]host:dir
 // (scp passes -o through to its ssh; its port is -P, scp's -p keeps
-// times; the user rides the target, scp has no -l user; the dir is
-// quoteRemotePath'd).
+// times; the user rides the target, scp has no -l user). The dir rides
+// bare, spaces included: OpenSSH 9.0+ scp is SFTP underneath, where the
+// argv reaches the far side as it left this one — no shell re-reads it,
+// so a quote would only land in the path as a literal character, and
+// 2.3.37's quoting broke every path, spaced or not, on the legacy (-O)
+// backend just the same.
 func scpUploadArgs(a remote.Addr, files []string, dir string) []string {
 	args := sshOptionArgs()
 	if a.Port != "" {
@@ -91,11 +85,12 @@ func scpUploadArgs(a remote.Addr, files []string, dir string) []string {
 	if a.User != "" {
 		userHost = a.User + "@" + a.Host
 	}
-	return append(args, userHost+":"+quoteRemotePath(dir))
+	return append(args, userHost+":"+dir)
 }
 
-// scpDownloadArgs — scp [-r when a folder] [-o opts] [-P port] [user@]host:"path" dest.
-// No .git exclusion: scp has none; the built-in tar's skip
+// scpDownloadArgs — scp [-r when a folder] [-o opts] [-P port] [user@]host:path dest.
+// The remote side rides bare as the upload's own (scpUploadArgs). No
+// .git exclusion: scp has none; the built-in tar's skip
 // (internal/daemon/transfer.go's skippedByDownload) is a difference of
 // the mode, documented here, not worked around.
 func scpDownloadArgs(a remote.Addr, path string, isDir bool, dest string) []string {
@@ -111,7 +106,7 @@ func scpDownloadArgs(a remote.Addr, path string, isDir bool, dest string) []stri
 	if a.User != "" {
 		userHost = a.User + "@" + a.Host
 	}
-	return append(args, userHost+":"+quoteRemotePath(path), dest)
+	return append(args, userHost+":"+path, dest)
 }
 
 // rsyncUploadArgs — rsync -a -s --info=progress2 -e "ssh …" file… [user@]host:dir
@@ -152,6 +147,104 @@ func rsyncDownloadArgs(a remote.Addr, path string, isDir bool, dest string) []st
 // has to answer. No -s: no path rides it.
 func rsyncProbeArgs(a remote.Addr) []string {
 	return append(xferSSHArgs(a), "--", a.Host, "rsync --version")
+}
+
+// rsyncVersionOK reads the first line of a rsync --version banner and
+// says whether it is GNU rsync 3.1 or newer — the floor the transfer
+// line stands on: -s arrived with 3.0, --info=progress2 with 3.1, and
+// macOS ships an openrsync that answers --version happily yet takes
+// neither flag. GNU's own banner is "rsync  version X.Y…" — two spaces
+// before "version" — which openrsync's "openrsync X.Y…" never matches;
+// anything else is read as no, for a version guessed wrong is a
+// transfer that fails mid-air with flags the far side rejected.
+func rsyncVersionOK(firstLine string) bool {
+	const gnuBanner = "rsync  version " // GNU's own spelling: two spaces
+	rest, ok := strings.CutPrefix(firstLine, gnuBanner)
+	if !ok {
+		return false
+	}
+	// The line is a far side's own stdout — the prefix alone, nothing
+	// after it, must read as no, not crash the transfer's goroutine.
+	fields := strings.Fields(rest)
+	if len(fields) == 0 {
+		return false
+	}
+	parts := strings.Split(fields[0], ".")
+	if len(parts) < 2 { // "3" alone says too little
+		return false
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return false
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return false
+	}
+	return major > 3 || (major == 3 && minor >= 1)
+}
+
+// xferBrewHomes lists the Homebrew homes a transfer tool lives in on
+// darwin, which the find probes past LookPath: a GUI process's PATH is
+// launchd's bare /usr/bin:/bin:/usr/sbin:/sbin, and a brew-installed
+// tool — the GNU rsync macOS itself never ships, an OpenSSH past the
+// system's — sits unseen in one of these. Elsewhere there is no such
+// home; LookPath's word is final.
+func xferBrewHomes(goos, tool string) []string {
+	if goos != "darwin" {
+		return nil
+	}
+	return []string{"/opt/homebrew/bin/" + tool, "/usr/local/bin/" + tool}
+}
+
+// xferCandidates lists where a transfer tool may live on this machine:
+// LookPath's own word first, then darwin's brew homes (xferBrewHomes's
+// own why), duplicates dropped — a PATH that holds a brew home would
+// ask one path twice.
+func xferCandidates(tool string) []string {
+	var cands []string
+	if p, err := exec.LookPath(tool); err == nil {
+		cands = append(cands, p)
+	}
+	for _, p := range xferBrewHomes(runtime.GOOS, tool) {
+		if !slices.Contains(cands, p) {
+			cands = append(cands, p)
+		}
+	}
+	return cands
+}
+
+// findScp answers scp's own path. scp has no --version to ask — and
+// needs none: every scp speaks the line we run, its flags the old
+// universal set — so existence is the whole question. LookPath's word
+// is taken unasked, an executable file being its own definition,
+// Windows included — where FileInfo.Mode carries no execute bit, and a
+// bit test there would reject every candidate, LookPath's answer first
+// of all; only the brew homes, paths no one vouched for, stand asked —
+// and they exist on darwin alone, where the bit means what it says.
+func findScp() (string, bool) {
+	if p, err := exec.LookPath("scp"); err == nil {
+		return p, true
+	}
+	for _, p := range xferBrewHomes(runtime.GOOS, "scp") {
+		if st, err := os.Stat(p); err == nil && st.Mode()&0o111 != 0 {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// findRsync answers rsync's own path: the first candidate whose
+// --version banner is GNU 3.1+ (rsyncVersionOK's own floor), asked of
+// the candidate itself — rsyncLocalVersion — for the line's flags must
+// run on this side before any hop.
+func (a *App) findRsync() (string, bool) {
+	for _, p := range xferCandidates("rsync") {
+		if a.rsyncLocalVersion(p) {
+			return p, true
+		}
+	}
+	return "", false
 }
 
 // rsyncFrame matches one frame of rsync --info=progress2 as it rides
@@ -317,29 +410,99 @@ func (a *App) xferRun(h *host, x *transferState, name string, args []string, pro
 	return <-errc
 }
 
-// -- rsync's own: the probe, the cache, the arc --
+// -- rsync's own: the find, the probe, the cache, the arc --
 
-// probeRsync asks the host over ssh whether rsync is there — once per
-// host per run: the answer cannot change between two transfers, and its
-// ssh hop is a second connection every transfer would otherwise pay
-// (decision 4). Only a yes is kept: a no may be rsync installed since.
-// Read on the transfer's goroutine only: the one slot serializes the
-// map's users.
-func (a *App) probeRsync(h *host) bool {
-	if a.rsyncOK[h.name] {
-		return true
-	}
-	p, err := a.xferSpawn(remote.SSHCommand(), rsyncProbeArgs(h.addr))
+// rsyncProbeResult — the probe's three answers, each with its own word
+// in the UI: rsync 3.1+ on the host, no rsync there at all, or one too
+// old to carry the line's flags.
+type rsyncProbeResult int
+
+const (
+	rsyncRemoteOK     rsyncProbeResult = iota // GNU 3.1+ answered
+	rsyncRemoteAbsent                         // no rsync there — the ssh line itself failed
+	rsyncRemoteOld                            // answered, but below GNU 3.1
+)
+
+// rsyncLocalVersion asks one candidate's own banner — spawn it, read
+// the first stdout line, then Wait, the order the pipes' own contract
+// asks: the reader drains before Wait closes what it reads.
+func (a *App) rsyncLocalVersion(path string) bool {
+	p, err := a.xferSpawn(path, []string{"--version"})
 	if err != nil {
 		return false
 	}
-	// The version banner is small, far under a pipe's own room, so Wait
-	// returns without a reader having drained it.
+	line, _ := bufio.NewReader(p.Stdout()).ReadString('\n')
+	return p.Wait() == nil && rsyncVersionOK(line)
+}
+
+// settleTool settles the transfer's tool on this machine — rsync by
+// rsync, scp else. The setting's path is the user's own word, taken
+// as it stands: never probed, never second-guessed — its failures are
+// the user's to see (the flow wraps them in a word that says where to
+// fix). Empty, the find answers for the mode (findScp, findRsync), and
+// its answer is remembered in the setting — the user sees what runs
+// their transfers, may change it, and the next transfer takes it
+// without the find again.
+func (a *App) settleTool(rsync bool, settingPath string) (string, bool) {
+	if settingPath != "" {
+		return settingPath, true
+	}
+	find := findScp
+	if rsync {
+		find = a.findRsync
+	}
+	p, ok := find()
+	if ok {
+		a.rememberXferTool(rsync, p)
+	}
+	return p, ok
+}
+
+// rememberXferTool writes a found path into the setting it belongs to,
+// on the UI thread, only when the field is still empty: the setting is
+// the find's own memory, saved as the settings window's own edits are
+// (applySettings), so the user sees it, may change it — and a path
+// written while the find ran, the user's own word, keeps its place.
+func (a *App) rememberXferTool(rsync bool, path string) {
+	a.update(func() {
+		if rsync && a.set.FilesRsyncPath == "" {
+			a.set.FilesRsyncPath = path
+			a.applySettings(a.set)
+		}
+		if !rsync && a.set.FilesScpPath == "" {
+			a.set.FilesScpPath = path
+			a.applySettings(a.set)
+		}
+	})
+}
+
+// probeRsync asks the host over ssh what its rsync is — once per host
+// per run: the answer cannot change between two transfers, and its
+// ssh hop is a second connection every transfer would otherwise pay
+// (decision 4). Only an OK is kept: an absent or old one may be rsync
+// installed or updated since. Read on the transfer's goroutine only:
+// the one slot serializes the map's users.
+func (a *App) probeRsync(h *host) rsyncProbeResult {
+	if a.rsyncOK[h.name] {
+		return rsyncRemoteOK
+	}
+	p, err := a.xferSpawn(remote.SSHCommand(), rsyncProbeArgs(h.addr))
+	if err != nil {
+		return rsyncRemoteAbsent
+	}
+	// The banner's first line read before Wait, as the local find's
+	// own — the pipe drains before Wait closes it — and the banner is
+	// small, far under a pipe's own room, so the one line is all it
+	// takes.
+	line, _ := bufio.NewReader(p.Stdout()).ReadString('\n')
 	if err := p.Wait(); err != nil {
-		return false
+		return rsyncRemoteAbsent
+	}
+	if !rsyncVersionOK(line) {
+		return rsyncRemoteOld
 	}
 	a.rsyncOK[h.name] = true
-	return true
+	return rsyncRemoteOK
 }
 
 // rsyncArc reads rsync's own frames for the arc: its bytes fill done,
@@ -381,8 +544,13 @@ func (a *App) rsyncArc(x *transferState, download bool) func(frame string) {
 func (a *App) uploadToExt(h *host, dir string) {
 	// The mode read here, on the UI thread the menu ran on, and held by
 	// the goroutine: a setting switched mid-flow is the next transfer's
-	// word, not this one's.
+	// word, not this one's. The tool's path rides with it — the user's
+	// own word, or the find's remembered answer.
 	rsync := a.set.FilesTransfer == "rsync"
+	toolPath := a.set.FilesScpPath
+	if rsync {
+		toolPath = a.set.FilesRsyncPath
+	}
 	x := &transferState{kind: xferUpload, name: proto.DirName(dir), host: h.name}
 	a.side.files.xfer = x
 	a.toast(locales.FilesUploadToast(h.name))
@@ -411,23 +579,44 @@ func (a *App) uploadToExt(h *host, dir string) {
 		}
 		// The tool of the mode, missing on this machine: this transfer's
 		// end, not a fallback — the user chose the tool, and a silent
-		// switch of method would hide the problem (decision 10).
-		tool := "scp"
+		// switch of method would hide the problem (decision 10). The
+		// setting's path is the user's own word; empty, the find answers
+		// and remembers (settleTool's own why).
+		tool, ok := a.settleTool(rsync, toolPath)
+		if !ok {
+			if rsync {
+				// A rsync too old for the line's flags — macOS's
+				// openrsync — is as absent as none at all, in its own
+				// word.
+				a.update(func() {
+					a.toast(locales.FilesRsyncLocalOld())
+					a.xferRelease(x)
+				})
+			} else {
+				a.xferFailed(x, errors.New(locales.FilesToolMissing("scp")))
+			}
+			return
+		}
 		if rsync {
-			tool = "rsync"
-		}
-		if _, err := exec.LookPath(tool); err != nil {
-			a.xferFailed(x, err)
-			return
-		}
-		if rsync && !a.probeRsync(h) {
-			// No rsync on the host: the same standing, in its own word —
-			// no fallback, the built-in stream untouched (decision 10).
-			a.update(func() {
-				a.toast(locales.FilesRsyncAbsent(h.name))
-				a.xferRelease(x)
-			})
-			return
+			switch a.probeRsync(h) {
+			case rsyncRemoteAbsent:
+				// No rsync on the host: the same standing, in its own
+				// word — no fallback, the built-in stream untouched
+				// (decision 10).
+				a.update(func() {
+					a.toast(locales.FilesRsyncAbsent(h.name))
+					a.xferRelease(x)
+				})
+				return
+			case rsyncRemoteOld:
+				// There, but below the floor the flags stand on: its
+				// own word too, for the same standing.
+				a.update(func() {
+					a.toast(locales.FilesRsyncRemoteOld(h.name))
+					a.xferRelease(x)
+				})
+				return
+			}
 		}
 		args := scpUploadArgs(h.addr, files, dir)
 		var prog func(string) // nil on scp: nothing it writes is machine-readable
@@ -436,6 +625,12 @@ func (a *App) uploadToExt(h *host, dir string) {
 		}
 		a.update(func() { x.total = total })
 		if err := a.xferRun(h, x, tool, args, prog); err != nil {
+			// A hand-set path that would not run says so in a word that
+			// says where to fix it; the find's own answer has earned no
+			// such word.
+			if toolPath != "" && err != errXferCancelled {
+				err = errors.New(locales.FilesToolPathBad(toolPath, err.Error()))
+			}
 			a.xferFailed(x, err)
 			return
 		}
@@ -456,8 +651,13 @@ func (a *App) uploadToExt(h *host, dir string) {
 // chosen mode. scp cannot size what it fetches: the total stays 0 and
 // the arc spins; rsync's own percent backs the whole out (decision 6).
 func (a *App) downloadFromExt(h *host, path string, isDir bool) {
-	// As the upload's: the mode read and held before the goroutine.
+	// As the upload's: the mode read and held before the goroutine, the
+	// tool's path riding with it.
 	rsync := a.set.FilesTransfer == "rsync"
+	toolPath := a.set.FilesScpPath
+	if rsync {
+		toolPath = a.set.FilesRsyncPath
+	}
 	name := proto.DirName(path)
 	x := &transferState{kind: xferDownload, name: name, host: h.name}
 	a.side.files.xfer = x
@@ -488,25 +688,49 @@ func (a *App) downloadFromExt(h *host, path string, isDir bool) {
 			dest, file = filepath.Dir(p), filepath.Base(p)
 		}
 		// As the upload's: the tool's absence is this transfer's end
-		// (decision 10).
-		tool := "scp"
+		// (decision 10), the setting's path the user's own word, and
+		// the find's answer remembered (settleTool's own why).
+		tool, ok := a.settleTool(rsync, toolPath)
+		if !ok {
+			if rsync {
+				a.update(func() {
+					a.toast(locales.FilesRsyncLocalOld())
+					a.xferRelease(x)
+				})
+			} else {
+				a.xferFailed(x, errors.New(locales.FilesToolMissing("scp")))
+			}
+			return
+		}
 		if rsync {
-			tool = "rsync"
-		}
-		if _, err := exec.LookPath(tool); err != nil {
-			a.xferFailed(x, err)
-			return
-		}
-		if rsync && !a.probeRsync(h) {
-			a.update(func() {
-				a.toast(locales.FilesRsyncAbsent(h.name))
-				a.xferRelease(x)
-			})
-			return
+			switch a.probeRsync(h) {
+			case rsyncRemoteAbsent:
+				a.update(func() {
+					a.toast(locales.FilesRsyncAbsent(h.name))
+					a.xferRelease(x)
+				})
+				return
+			case rsyncRemoteOld:
+				a.update(func() {
+					a.toast(locales.FilesRsyncRemoteOld(h.name))
+					a.xferRelease(x)
+				})
+				return
+			}
 		}
 		var prog func(string) // nil on scp, as the upload's
 		if rsync {
 			prog = a.rsyncArc(x, true)
+		}
+		// As the upload's wrap: a hand-set path that would not run says
+		// so in a word that says where to fix it — both ends of the
+		// flow's one wire share it.
+		run := func(args []string, prog func(string)) error {
+			err := a.xferRun(h, x, tool, args, prog)
+			if err != nil && toolPath != "" && err != errXferCancelled {
+				err = errors.New(locales.FilesToolPathBad(toolPath, err.Error()))
+			}
+			return err
 		}
 		var landed string
 		if isDir {
@@ -517,7 +741,7 @@ func (a *App) downloadFromExt(h *host, path string, isDir bool) {
 			if rsync {
 				args = rsyncDownloadArgs(h.addr, path, true, root)
 			}
-			if err := a.xferRun(h, x, tool, args, prog); err != nil {
+			if err := run(args, prog); err != nil {
 				a.xferFailed(x, err)
 				return
 			}
@@ -529,7 +753,7 @@ func (a *App) downloadFromExt(h *host, path string, isDir bool) {
 				if rsync {
 					args = rsyncDownloadArgs(h.addr, path, false, tmp)
 				}
-				return a.xferRun(h, x, tool, args, prog)
+				return run(args, prog)
 			})
 			if err != nil {
 				a.xferFailed(x, err)

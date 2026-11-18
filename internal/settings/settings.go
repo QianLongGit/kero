@@ -40,6 +40,12 @@ type Settings struct {
 	// what the Files view moves files with a remote host by: "builtin" its
 	// own transfer stream, "scp" or "rsync" a line of its own
 	FilesTransfer string `json:"filesTransfer,omitempty"`
+	// FilesScpPath and FilesRsyncPath are where those lines run from:
+	// empty for a find over PATH and the brew homes — whose answer is
+	// written back here, for the user to see and change — or a path the
+	// user set, taken as their word.
+	FilesScpPath   string `json:"filesScpPath,omitempty"`
+	FilesRsyncPath string `json:"filesRsyncPath,omitempty"`
 	// FilesPinnedApps are the bundle paths of the apps the Files view's
 	// right-click menu opens a file in, beside VS Code.
 	FilesPinnedApps []string `json:"filesPinnedApps,omitempty"`

@@ -426,6 +426,10 @@
   "setTransferBuiltin": "Kero",
   "setTransferScp": "scp",
   "setTransferRsync": "rsync",
+  "setScpPath": "scp path",
+  "setScpPathDetail": "Where the scp line runs from. Leave empty to find scp on this machine; the path found lands here.",
+  "setRsyncPath": "rsync path",
+  "setRsyncPathDetail": "Where the rsync line runs from. Leave empty to find a GNU rsync 3.1+ on this machine; the path found lands here.",
   "setPinnedApps": "Apps in the right-click menu",
   "setPinnedAppsDetail": "The apps the Files view's right-click menu opens a file in, chosen from the installed ones. Pinned apps that are uninstalled leave the menu on their own.",
   "setDimUnfocused": "Dim unfocused terminals",
@@ -764,6 +768,34 @@
   "@filesRsyncAbsent": {
     "placeholders": {
       "host": {
+        "type": "String"
+      }
+    }
+  },
+  "filesRsyncLocalOld": "This machine's rsync is too old (GNU rsync 3.1+ needed): install a newer one — macOS: brew install rsync — set its path in Settings, or transfer another way",
+  "filesRsyncRemoteOld": "The rsync on {host} is too old (GNU rsync 3.1+ needed): update it there, or transfer another way",
+  "@filesRsyncRemoteOld": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "filesToolMissing": "No {tool} on this machine: install it, or set its path in Settings",
+  "@filesToolMissing": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "filesToolPathBad": "Couldn't run {path}, the path set in Settings: {err}",
+  "@filesToolPathBad": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      },
+      "err": {
         "type": "String"
       }
     }

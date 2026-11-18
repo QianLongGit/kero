@@ -558,3 +558,23 @@ func TestFontFeature(t *testing.T) {
 		t.Errorf("a new file sets font-feature:\n%s", out)
 	}
 }
+
+// The tool paths are free text: a path the user set, or the find's own
+// answer written back; what is saved reads back, and the default, an
+// empty path, writes nothing — the find asks again.
+func TestFilesToolPathsSetting(t *testing.T) {
+	if Default().FilesScpPath != "" || Default().FilesRsyncPath != "" {
+		t.Fatal("the tool paths are not empty by default")
+	}
+	s, probs := parse("files-scp-path = /opt/homebrew/bin/scp\nfiles-rsync-path = /opt/homebrew/bin/rsync\n")
+	if s.FilesScpPath != "/opt/homebrew/bin/scp" || s.FilesRsyncPath != "/opt/homebrew/bin/rsync" || len(probs) != 0 {
+		t.Errorf("tool paths: %q %q, problems %q", s.FilesScpPath, s.FilesRsyncPath, probs)
+	}
+	// What is saved reads back the same, and the default writes nothing.
+	if back, _ := parse(format(s, "")); back.FilesScpPath != "/opt/homebrew/bin/scp" || back.FilesRsyncPath != "/opt/homebrew/bin/rsync" {
+		t.Errorf("saved and read back %q %q", back.FilesScpPath, back.FilesRsyncPath)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "files-scp-path") || strings.Contains(out, "files-rsync-path") {
+		t.Errorf("the default was written:\n%s", out)
+	}
+}

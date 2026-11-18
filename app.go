@@ -214,7 +214,7 @@ type App struct {
 	xferSave  func(defaultPath string) (string, error)
 	xferPick  func(dir, multiple bool) ([]string, error)
 	xferSpawn func(name string, args []string) (xferProc, error) // a test's stand-in for the process
-	rsyncOK   map[string]bool                                    // per-host: "rsync --version" answered 0
+	rsyncOK   map[string]bool                                    // per-host: the probe said GNU rsync 3.1+
 	quick     quickTerm                                          // the terminal the global shortcut drops down
 }
 

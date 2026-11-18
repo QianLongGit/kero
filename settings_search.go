@@ -38,6 +38,8 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},
 		{"general", locales.SetFileOpen(), "file-open files view double click open system default pane editor preview"},
 		{"general", locales.SetFilesTransfer(), "files-transfer scp rsync builtin copy move upload download ssh"},
+		{"general", locales.SetScpPath(), "files scp path bin opt homebrew brew"},
+		{"general", locales.SetRsyncPath(), "files rsync path bin opt homebrew brew"},
 		{"general", locales.AwakeTitle(), "keep-computer-awake awake sleep caffeinate power agents idle lid"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
 		{"general", locales.SetVersion(), "updates check for updates software update about"},
