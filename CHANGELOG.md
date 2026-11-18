@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.37
+
+- **Transfer files with** in Settings › General (`files-transfer`) picks
+  what the Files view moves files to and from a host by: **Kero**'s own
+  transfer, or **scp** or **rsync** connecting from this machine, past
+  the host's Kero — a shorter road that makes long moves faster. A host
+  without rsync stops the move with a notice, not a quiet fallback; scp
+  and rsync write over a file that is already there, where Kero's own
+  keeps both by renaming; and a host reached without ssh, or a Windows
+  one, stays with Kero's own transfer.
+
 ## 2.3.36
 
 - **Reorder projects** in the sidebar: drag a project's header up or
