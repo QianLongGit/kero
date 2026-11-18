@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.3.38
+
+- scp moves work again on OpenSSH 9 and newer, which copies through
+  SFTP: there the quotes Kero put around remote paths landed in them
+  as literal characters, and every move ended in "No such file". The
+  quotes are gone.
+- rsync moves now stand on GNU rsync 3.1 or newer at both ends —
+  Apple's bundled openrsync doesn't speak the flags Kero passes. A
+  missing or too-old one, on this machine or on the host, stops the
+  move with a notice that says which end and what to do, rather than
+  failing halfway through.
+- **scp path** and **rsync path** in Settings › General name the
+  binaries to run. Left empty, Kero finds them itself — past PATH,
+  into Homebrew's /opt/homebrew/bin, which the app as launched from
+  the Finder doesn't see — writes what it found into the field, and
+  takes a path you type over it.
+
 ## 2.3.37
 
 - **Transfer files with** in Settings › General (`files-transfer`) picks
