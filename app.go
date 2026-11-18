@@ -210,10 +210,12 @@ type App struct {
 	// opens one, and the dialogs that say where a download lands and what
 	// an upload sends. The app's own in production (defaultXfer*), a
 	// test's stand-in for the wire and the dialogs.
-	xferDial func(h *host) (net.Conn, *bufio.Reader, error)
-	xferSave func(defaultPath string) (string, error)
-	xferPick func(dir, multiple bool) ([]string, error)
-	quick    quickTerm // the terminal the global shortcut drops down
+	xferDial  func(h *host) (net.Conn, *bufio.Reader, error)
+	xferSave  func(defaultPath string) (string, error)
+	xferPick  func(dir, multiple bool) ([]string, error)
+	xferSpawn func(name string, args []string) (xferProc, error) // a test's stand-in for the process
+	rsyncOK   map[string]bool                                    // per-host: "rsync --version" answered 0
+	quick     quickTerm                                          // the terminal the global shortcut drops down
 }
 
 // confirmation is a question the app asks before something it cannot undo.
@@ -249,6 +251,7 @@ func newApp() *App {
 	a.loadCacheIndex()
 	// The transfer stream's seams, overridable by a test.
 	a.xferDial, a.xferSave, a.xferPick = defaultXferDial, defaultXferSave, defaultXferPick
+	a.xferSpawn, a.rsyncOK = defaultXferSpawn, map[string]bool{}
 	return a
 }
 

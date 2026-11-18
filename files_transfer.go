@@ -213,6 +213,42 @@ func uploadFile(conn net.Conn, br *bufio.Reader, src, dir string, progress func(
 	return landed.Path, nil
 }
 
+// dirDestName is the name a folder download takes under destDir: its
+// own, or the "name copy" pasteName finds beside one of its own.
+// (Extracted from downloadDirTo, which keeps its behavior.)
+func dirDestName(destDir, name string) string {
+	for n := 0; ; n++ {
+		next := pasteName(name, n)
+		if _, err := os.Lstat(filepath.Join(destDir, next)); err != nil {
+			return filepath.Join(destDir, next)
+		}
+	}
+}
+
+// downloadViaTemp lands a file download through a temp of its directory,
+// renamed to name once into() has run whole: every failure path removes
+// the temp under defer, so a download that fails partway leaves the
+// directory as it was — nothing of the name it would have taken.
+func downloadViaTemp(destDir, name string, into func(tmpPath string) error) (final string, err error) {
+	tmp, err := os.CreateTemp(destDir, ".kero-dl-*")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(tmp.Name())
+		}
+	}()
+	if err = into(tmp.Name()); err != nil {
+		return "", err
+	}
+	final = filepath.Join(destDir, name)
+	if err = os.Rename(tmp.Name(), final); err != nil {
+		return "", err
+	}
+	return final, nil
+}
+
 // downloadDirTo untars the body a folder's download sized into
 // destDir/name — its own name, or the "name copy" a paste takes beside
 // one of its own — and returns the folder it filled. progress hears the
@@ -223,14 +259,7 @@ func uploadFile(conn net.Conn, br *bufio.Reader, src, dir string, progress func(
 // or a tar that ends before it is done, takes the whole folder with it:
 // the directory as it was.
 func downloadDirTo(br *bufio.Reader, total int64, destDir, name string, progress func(int64)) (string, error) {
-	root := ""
-	for n := 0; ; n++ {
-		next := pasteName(name, n)
-		if _, err := os.Lstat(filepath.Join(destDir, next)); err != nil {
-			root = filepath.Join(destDir, next)
-			break
-		}
-	}
+	root := dirDestName(destDir, name)
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return "", err
 	}
@@ -428,6 +457,13 @@ func (a *App) downloadFrom(h *host, path string, isDir bool) {
 		a.toast(locales.FilesTransferBusy())
 		return
 	}
+	// A transfer of the host's own — scp or rsync, on a ssh host that is
+	// not Windows — runs its flow instead; every other setting and host,
+	// silently, runs the built-in stream below (decision 3).
+	if a.xferExtApplies(h) {
+		a.downloadFromExt(h, path, isDir)
+		return
+	}
 	name := proto.DirName(path)
 	x := &transferState{kind: xferDownload, name: name, host: h.name}
 	a.side.files.xfer = x
@@ -519,6 +555,12 @@ type xferUp struct {
 func (a *App) uploadTo(h *host, dir string) {
 	if a.side.files.xfer != nil {
 		a.toast(locales.FilesTransferBusy())
+		return
+	}
+	// As a download's: a line of the host's own when the choice and the
+	// host both hold, the built-in stream otherwise, silently.
+	if a.xferExtApplies(h) {
+		a.uploadToExt(h, dir)
 		return
 	}
 	x := &transferState{kind: xferUpload, name: proto.DirName(dir), host: h.name}

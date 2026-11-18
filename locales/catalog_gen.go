@@ -2792,6 +2792,56 @@ func (msgs Messages) SetFileOpenPane() string {
 	return Catalog.Format(msgs.locale, "setFileOpenPane", nil)
 }
 
+// SetFilesTransfer says "Transfer files with"
+// in the language the app shows.
+func SetFilesTransfer() string { return In(i18n.Locale()).SetFilesTransfer() }
+
+// SetFilesTransfer says "Transfer files with"
+// in the language of msgs.
+func (msgs Messages) SetFilesTransfer() string {
+	return Catalog.Format(msgs.locale, "setFilesTransfer", nil)
+}
+
+// SetFilesTransferDetail says "What the Files view moves files to and from a remote host by. scp and rsync connect from this machine, past the host'…"
+// in the language the app shows.
+func SetFilesTransferDetail() string { return In(i18n.Locale()).SetFilesTransferDetail() }
+
+// SetFilesTransferDetail says "What the Files view moves files to and from a remote host by. scp and rsync connect from this machine, past the host'…"
+// in the language of msgs.
+func (msgs Messages) SetFilesTransferDetail() string {
+	return Catalog.Format(msgs.locale, "setFilesTransferDetail", nil)
+}
+
+// SetTransferBuiltin says "Kero"
+// in the language the app shows.
+func SetTransferBuiltin() string { return In(i18n.Locale()).SetTransferBuiltin() }
+
+// SetTransferBuiltin says "Kero"
+// in the language of msgs.
+func (msgs Messages) SetTransferBuiltin() string {
+	return Catalog.Format(msgs.locale, "setTransferBuiltin", nil)
+}
+
+// SetTransferScp says "scp"
+// in the language the app shows.
+func SetTransferScp() string { return In(i18n.Locale()).SetTransferScp() }
+
+// SetTransferScp says "scp"
+// in the language of msgs.
+func (msgs Messages) SetTransferScp() string {
+	return Catalog.Format(msgs.locale, "setTransferScp", nil)
+}
+
+// SetTransferRsync says "rsync"
+// in the language the app shows.
+func SetTransferRsync() string { return In(i18n.Locale()).SetTransferRsync() }
+
+// SetTransferRsync says "rsync"
+// in the language of msgs.
+func (msgs Messages) SetTransferRsync() string {
+	return Catalog.Format(msgs.locale, "setTransferRsync", nil)
+}
+
 // SetPinnedApps says "Apps in the right-click menu"
 // in the language the app shows.
 func SetPinnedApps() string { return In(i18n.Locale()).SetPinnedApps() }
@@ -5206,6 +5256,16 @@ func FilesTransferCancelled() string { return In(i18n.Locale()).FilesTransferCan
 // in the language of msgs.
 func (msgs Messages) FilesTransferCancelled() string {
 	return Catalog.Format(msgs.locale, "filesTransferCancelled", nil)
+}
+
+// FilesRsyncAbsent says "No rsync on {host}: install it there, or transfer another way"
+// in the language the app shows.
+func FilesRsyncAbsent(host string) string { return In(i18n.Locale()).FilesRsyncAbsent(host) }
+
+// FilesRsyncAbsent says "No rsync on {host}: install it there, or transfer another way"
+// in the language of msgs.
+func (msgs Messages) FilesRsyncAbsent(host string) string {
+	return Catalog.Format(msgs.locale, "filesRsyncAbsent", map[string]any{"host": host})
 }
 
 // ChangesRevert says "Revert"

@@ -134,6 +134,26 @@ func TestFileOpenSetting(t *testing.T) {
 	}
 }
 
+// The transfer choice, made on the General page, is what the Files view
+// moves files to and from a remote host by.
+func TestFilesTransferChoice(t *testing.T) {
+	a := testApp(t)
+	a.ss.page = "general"
+	// The page's rows run past a window's height; a tall one reaches the
+	// files-transfer row, under the file-open one, without scrolling.
+	tt := ui.NewTester(a.settingsView, 820, 1600)
+	tt.Frame()
+	if err := tt.Click("rsync"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tt.Frame()
+	}
+	if a.set.FilesTransfer != "rsync" || settings.Load().FilesTransfer != "rsync" {
+		t.Fatalf("files transfer %q, saved %q, after choosing rsync", a.set.FilesTransfer, settings.Load().FilesTransfer)
+	}
+}
+
 // The restore choices, made on the General page, stay and are saved: the
 // rerun segments, and the multiplexer's switch.
 func TestRestoreRerunChoiceSticks(t *testing.T) {

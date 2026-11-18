@@ -421,6 +421,11 @@
   "setFileOpenDetail": "What a double click on a file of the Files view opens it in. Space always previews the chosen file.",
   "setFileOpenSystem": "System default",
   "setFileOpenPane": "File pane",
+  "setFilesTransfer": "Transfer files with",
+  "setFilesTransferDetail": "What the Files view moves files to and from a remote host by. scp and rsync connect from this machine, past the host's Kero; a host without the chosen tool falls back to Kero's own transfer.",
+  "setTransferBuiltin": "Kero",
+  "setTransferScp": "scp",
+  "setTransferRsync": "rsync",
   "setPinnedApps": "Apps in the right-click menu",
   "setPinnedAppsDetail": "The apps the Files view's right-click menu opens a file in, chosen from the installed ones. Pinned apps that are uninstalled leave the menu on their own.",
   "setDimUnfocused": "Dim unfocused terminals",
@@ -755,6 +760,14 @@
     }
   },
   "filesTransferCancelled": "Transfer cancelled",
+  "filesRsyncAbsent": "No rsync on {host}: install it there, or transfer another way",
+  "@filesRsyncAbsent": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
   "changesRevert": "Revert",
   "changesKeep": "Keep",
   "changesRevertTip": "Put the old lines back in the file",

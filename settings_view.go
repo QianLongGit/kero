@@ -597,6 +597,10 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 			segmented(c, "file-open", &s.FileOpen, []string{"system", "pane"},
 				[]string{locales.SetFileOpenSystem(), locales.SetFileOpenPane()})
 		})
+		settingRow(c, pal, locales.SetFilesTransfer(), locales.SetFilesTransferDetail(), func() {
+			segmented(c, "files-transfer", &s.FilesTransfer, []string{"builtin", "scp", "rsync"},
+				[]string{locales.SetTransferBuiltin(), locales.SetTransferScp(), locales.SetTransferRsync()})
+		})
 	})
 	// The pinned apps are macOS's own, as the Open With menu's apps are:
 	// nowhere else names the apps that open a file.

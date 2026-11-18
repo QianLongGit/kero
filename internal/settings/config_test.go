@@ -266,6 +266,28 @@ func TestFileOpen(t *testing.T) {
 	}
 }
 
+// The way the Files view transfers is the built-in stream until the user
+// picks scp or rsync; anything else keeps the default.
+func TestFilesTransferSetting(t *testing.T) {
+	if Default().FilesTransfer != "builtin" {
+		t.Fatal("files transfer is not builtin by default")
+	}
+	s, probs := parse("files-transfer = rsync\n")
+	if s.FilesTransfer != "rsync" || len(probs) != 0 {
+		t.Errorf("files-transfer = rsync: %v, problems %q", s.FilesTransfer, probs)
+	}
+	// What is saved reads back the same, and the default writes nothing.
+	if back, _ := parse(format(s, "")); back.FilesTransfer != "rsync" {
+		t.Errorf("saved and read back %q", back.FilesTransfer)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "files-transfer") {
+		t.Errorf("the default was written:\n%s", out)
+	}
+	if s, _ = parse("files-transfer = ftp\n"); s.FilesTransfer != "builtin" {
+		t.Errorf("files-transfer = ftp kept %q", s.FilesTransfer)
+	}
+}
+
 // The sidebar shows a session's folder on a line of its own in detailed
 // rows unless the user turns it off, and what is saved reads back.
 func TestSidebarPath(t *testing.T) {

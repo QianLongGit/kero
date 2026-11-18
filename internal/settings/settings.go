@@ -37,6 +37,9 @@ type Settings struct {
 	QuitConfirm        bool   `json:"quitConfirm"`        // tell, the first time, that quitting keeps sessions
 	AppIcon            string `json:"appIcon"`            // macOS: AppIcons; elsewhere the icon is always in the notification area
 	FileOpen           string `json:"fileOpen,omitempty"` // what a double click on a file of the Files view opens: "system" or "pane"
+	// what the Files view moves files with a remote host by: "builtin" its
+	// own transfer stream, "scp" or "rsync" a line of its own
+	FilesTransfer string `json:"filesTransfer,omitempty"`
 	// FilesPinnedApps are the bundle paths of the apps the Files view's
 	// right-click menu opens a file in, beside VS Code.
 	FilesPinnedApps []string `json:"filesPinnedApps,omitempty"`
@@ -173,6 +176,7 @@ func Default() Settings {
 		QuitConfirm:        true,
 		AppIcon:            "dock-and-menubar",
 		FileOpen:           "pane",
+		FilesTransfer:      "builtin",
 		KeepAwake:          "off",
 		Appearance:         "system",
 		Language:           "system",
@@ -473,6 +477,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
 	oneOf(&s.FileOpen, d.FileOpen, "system", "pane")
+	oneOf(&s.FilesTransfer, d.FilesTransfer, "builtin", "scp", "rsync")
 	if s.FontSize < 8 || s.FontSize > 36 {
 		s.FontSize = d.FontSize
 	}
