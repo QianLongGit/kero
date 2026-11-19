@@ -739,6 +739,10 @@
   "filesCantPaste": "Can't paste",
   "filesDownload": "Download…",
   "filesUploadHere": "Upload Here…",
+  "filesDownloadByPath": "Download by Path…",
+  "filesDownloadByPathDetail": "Any file or folder of the host: a path relative to the folder shown, an absolute one, or ~/ from the home.",
+  "filesDownloadByPathPlaceholder": "path/to/file, /absolute, or ~/from/home",
+  "filesPathNotFound": "No file or folder at that path",
   "filesTransferBusy": "A transfer is already in progress",
   "filesDownloadToast": "Downloading {name}…",
   "@filesDownloadToast": {

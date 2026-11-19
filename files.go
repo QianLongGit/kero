@@ -55,6 +55,10 @@ type filesState struct {
 	// every transfer's flow takes. Its row rides at the top of the tab
 	// and in the sidebar's tab bar while it is (files_transfer.go).
 	xfer *transferState
+	// dl is the download-by-path dialog (dl_by_path.go): a path typed
+	// rather than walked to, checked against the host before it
+	// downloads.
+	dl dlByPath
 }
 
 // dirList is a folder as kerod listed it.
@@ -213,13 +217,17 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	sid, pid := s.ID, p.ID
 	ui.Row(c.Key("root")).Height(28).Shrink(0).Padding(0, 10, 6, 16).Gap(0).AlignItems(ui.Center).Children(func() {
 		// The label is the folder it names: its menu the upload into it,
-		// as a folder's row of the tree has — a remote host's, for this
-		// machine's files need no upload.
+		// and the download by a path typed rather than walked to, as a
+		// folder's row of the tree has — a remote host's, for this
+		// machine's files need none of those.
 		lbl := ui.Text(c, h.shortDir(root)).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0).Grow(1).Tooltip(root)
 		if h.remote() {
 			lbl.ContextMenu(func(m *ui.Menu) {
 				if m.Item(locales.FilesUploadHere()).Chosen() {
 					a.uploadTo(h, root)
+				}
+				if m.Item(locales.FilesDownloadByPath()).Chosen() {
+					a.downloadByPath(h, root)
 				}
 			})
 		}
@@ -239,6 +247,13 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 		iconButton(c, "files-reload", reloadIcon, locales.FilesRefresh(), pal, func() {
 			a.defer_(func() { a.side.files.gen++ })
 		})
+		// The download of a path typed, not walked to in the tree
+		// (dl_by_path.go): this machine's files are here already.
+		if h.remote() {
+			iconButton(c, "dl-by-path", downloadIcon, locales.FilesDownloadByPath(), pal, func() {
+				a.downloadByPath(h, root)
+			})
+		}
 		// The Preview toggle: on, a click on a file opens it in the
 		// viewer; off, the click only chooses the row, and the viewer
 		// keeps what it shows.

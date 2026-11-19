@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -43,6 +44,8 @@ type filesHost struct {
 
 	mu       sync.Mutex
 	files    map[string][]byte          // the host's, by path
+	dirs     map[string]bool            // fs.stat's folders, by path
+	stats    map[string]int             // fs.stat as they came, by path
 	listing  map[string][]proto.FSEntry // fs.list's answers, by dir, nil for empty
 	reads    map[string]int             // fs.read as they came, by path
 	writes   []proto.FSWriteParams      // fs.write as they came
@@ -59,7 +62,7 @@ type filesHost struct {
 // is: the app's updates run inline, as a window would marshal them.
 func newFilesHost(t *testing.T) *filesHost {
 	t.Helper()
-	f := &filesHost{files: map[string][]byte{}, reads: map[string]int{}}
+	f := &filesHost{files: map[string][]byte{}, dirs: map[string]bool{}, stats: map[string]int{}, reads: map[string]int{}}
 	cl, _ := projectClient(t, f.handle)
 	a := testApp(t)
 	a.updateFn = func(fn func()) { f.ui.Lock(); defer f.ui.Unlock(); fn() }
@@ -67,6 +70,26 @@ func newFilesHost(t *testing.T) *filesHost {
 	a.hosts = append(a.hosts, f.h)
 	a.owner = map[string]*host{"s1": f.h, "p1": f.h, "a": f.h, "b": f.h}
 	return f
+}
+
+// statPath resolves a stat's path as the daemon's hostPath does
+// (internal/daemon/fs.go): ~ the home's, ~/… under it, an absolute one
+// cleaned, a relative one the base's — the home's when base is "". The
+// fixture's home stands where the tests' paths say it does.
+func (f *filesHost) statPath(p, base string) string {
+	const home = "/home/u"
+	switch {
+	case p == "~":
+		return home
+	case strings.HasPrefix(p, "~/"):
+		return path.Join(home, p[2:])
+	case path.IsAbs(p):
+		return path.Clean(p)
+	}
+	if base == "" {
+		base = home
+	}
+	return path.Join(base, p)
 }
 
 // handle answers as the host's kerod would, from the test's own files.
@@ -79,11 +102,15 @@ func (f *filesHost) handle(method string, raw json.RawMessage) (any, error) {
 		if err := json.Unmarshal(raw, &p); err != nil {
 			return nil, err
 		}
-		b, ok := f.files[p.Path]
-		if !ok {
-			return proto.FSStat{}, nil
+		f.stats[p.Path]++
+		resolved := f.statPath(p.Path, p.Base)
+		if f.dirs[resolved] {
+			return proto.FSStat{Path: resolved, Exists: true, Dir: true}, nil
 		}
-		return proto.FSStat{Path: p.Path, Exists: true, Size: int64(len(b))}, nil
+		if b, ok := f.files[resolved]; ok {
+			return proto.FSStat{Path: resolved, Exists: true, Size: int64(len(b))}, nil
+		}
+		return proto.FSStat{}, nil
 	case "fs.read":
 		var p proto.FSReadParams
 		if err := json.Unmarshal(raw, &p); err != nil {

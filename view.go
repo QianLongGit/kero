@@ -208,6 +208,7 @@ func (a *App) view(c *ui.Context) {
 	}
 	a.paletteView(c, pal)
 	a.pickerView(c, pal)
+	a.dlByPathView(c, pal)
 	a.confirmView(c, pal)
 	a.worktreeView(c, pal)
 	// A preview that showed no more fades in anew next time.

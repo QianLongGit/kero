@@ -5426,6 +5426,48 @@ func (msgs Messages) FilesUploadHere() string {
 	return Catalog.Format(msgs.locale, "filesUploadHere", nil)
 }
 
+// FilesDownloadByPath says "Download by Path…"
+// in the language the app shows.
+func FilesDownloadByPath() string { return In(i18n.Locale()).FilesDownloadByPath() }
+
+// FilesDownloadByPath says "Download by Path…"
+// in the language of msgs.
+func (msgs Messages) FilesDownloadByPath() string {
+	return Catalog.Format(msgs.locale, "filesDownloadByPath", nil)
+}
+
+// FilesDownloadByPathDetail says "Any file or folder of the host: a path relative to the folder shown, an absolute one, or ~/ from the home."
+// in the language the app shows.
+func FilesDownloadByPathDetail() string { return In(i18n.Locale()).FilesDownloadByPathDetail() }
+
+// FilesDownloadByPathDetail says "Any file or folder of the host: a path relative to the folder shown, an absolute one, or ~/ from the home."
+// in the language of msgs.
+func (msgs Messages) FilesDownloadByPathDetail() string {
+	return Catalog.Format(msgs.locale, "filesDownloadByPathDetail", nil)
+}
+
+// FilesDownloadByPathPlaceholder says "path/to/file, /absolute, or ~/from/home"
+// in the language the app shows.
+func FilesDownloadByPathPlaceholder() string {
+	return In(i18n.Locale()).FilesDownloadByPathPlaceholder()
+}
+
+// FilesDownloadByPathPlaceholder says "path/to/file, /absolute, or ~/from/home"
+// in the language of msgs.
+func (msgs Messages) FilesDownloadByPathPlaceholder() string {
+	return Catalog.Format(msgs.locale, "filesDownloadByPathPlaceholder", nil)
+}
+
+// FilesPathNotFound says "No file or folder at that path"
+// in the language the app shows.
+func FilesPathNotFound() string { return In(i18n.Locale()).FilesPathNotFound() }
+
+// FilesPathNotFound says "No file or folder at that path"
+// in the language of msgs.
+func (msgs Messages) FilesPathNotFound() string {
+	return Catalog.Format(msgs.locale, "filesPathNotFound", nil)
+}
+
 // FilesTransferBusy says "A transfer is already in progress"
 // in the language the app shows.
 func FilesTransferBusy() string { return In(i18n.Locale()).FilesTransferBusy() }
