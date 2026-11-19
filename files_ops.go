@@ -67,7 +67,7 @@ func (a *App) startRenameEntry(s *proto.Session, pane string, it fileItem) {
 func (a *App) nameRow(c *ui.Context, pal *palette, it fileItem) {
 	fs := &a.side.files
 	e := fs.edit
-	row := treeRow(c, pal, it.depth, true)
+	row := treeRow(c, pal, it.depth, true, false)
 	row.Children(func() {
 		ui.Box(c).Size(9, 9).Shrink(0)
 		// The icon of the name as typed.

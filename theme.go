@@ -171,6 +171,54 @@ var darkTermTheme = &terminal.Theme{
 	},
 }
 
+// onAccent is the text color that reads on the palette's accent: white,
+// the card's color or the theme's own text — whichever of the three
+// carries the most contrast, by WCAG's measure, as the terminal themes
+// pair their cursor with its text. Where none of them reads — a Ghostty
+// theme of one lightness throughout — kero's ink or white, whichever the
+// accent sits farther from, which on any color at all reads. A tree's
+// list fills its chosen row with the accent (ListState.Selected), and
+// the row's own colors (pal.text and its kin) say little on it.
+func onAccent(pal *palette) ui.Color {
+	best, bestC := ui.Hex("#ffffff"), 0.0
+	for _, fg := range []ui.Color{ui.Hex("#ffffff"), pal.card, pal.text} {
+		if c := contrast(fg, pal.accent); c > bestC {
+			best, bestC = fg, c
+		}
+	}
+	if bestC >= 4 {
+		return best
+	}
+	ink := ui.Hex("#1d1d1f")
+	if contrast(ink, pal.accent) > contrast(ui.Hex("#ffffff"), pal.accent) {
+		return ink
+	}
+	return ui.Hex("#ffffff")
+}
+
+// contrast is how well a reads on b, by WCAG's measure: the ratio of
+// their relative luminances, 1 alike and 21 black on white.
+func contrast(a, b ui.Color) float64 {
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// luminance is a color's relative luminance, as WCAG defines it: sRGB
+// taken to linear light, weighted as the eye sees it.
+func luminance(c ui.Color) float64 {
+	lin := func(v uint8) float64 {
+		x := float64(v) / 255
+		if x <= 0.04045 {
+			return x / 12.92
+		}
+		return math.Pow((x+0.055)/1.055, 2.4)
+	}
+	return 0.2126*lin(c.R) + 0.7152*lin(c.G) + 0.0722*lin(c.B)
+}
+
 // backdrop paints the window's wash of color, under the sidebar and
 // between the cards: the base on the root, a glow from the top right on
 // row, which holds everything else. It lies over the window's material,

@@ -129,7 +129,7 @@ func (a *App) changesTree(c *ui.Context, pal *palette, s *proto.Session, cf *cha
 	ui.List(c.Key("tree"), tl, len(items), func(i int) {
 		it := items[i]
 		if it.file < 0 {
-			a.treeFolder(c, pal, it.name, it.path, it.depth, it.open, false, func() {
+			a.treeFolder(c, pal, it.name, it.path, it.depth, it.open, false, false, func() {
 				if ch.treeClosed == nil {
 					ch.treeClosed = map[string]bool{}
 				}
@@ -159,14 +159,17 @@ type treeKey struct {
 }
 
 // treeRow is a row of a tree, depth folders in, the one there chosen as
-// a session's row is.
-func treeRow(c *ui.Context, pal *palette, depth int, current bool) ui.Element {
+// a session's row is. A row the list has chosen it leaves to the list,
+// which fills it with the accent: the row paints nothing of its own on
+// it, not its own choice nor its hover.
+func treeRow(c *ui.Context, pal *palette, depth int, current, selected bool) ui.Element {
 	row := ui.Row(c.Key("row")).Height(26).Padding(0, 8, 0, 6+12*float32(depth)).Gap(5).AlignItems(ui.Center).Radius(7)
 	if pal.dark {
 		// Room for the chosen row's edge in every row.
 		row.Border(1, ui.Transparent)
 	}
 	switch {
+	case selected:
 	case current:
 		row.Background(pal.rowSelected)
 		chosen(row, pal)
@@ -177,10 +180,11 @@ func treeRow(c *ui.Context, pal *palette, depth int, current bool) ui.Element {
 }
 
 // treeFolder is a folder of a tree, which a click folds or unfolds;
-// faded, it is one git ignores.
-func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth int, open, faded bool, toggle func()) ui.Element {
-	row := treeRow(c, pal, depth, false).Tooltip(tip)
-	if faded {
+// faded, it is one git ignores, save while the list has chosen its row,
+// whose text turns to the accent's own.
+func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth int, open, faded, selected bool, toggle func()) ui.Element {
+	row := treeRow(c, pal, depth, false, selected).Tooltip(tip)
+	if faded && !selected {
 		row.Opacity(0.55)
 	}
 	if row.Clicked() {
@@ -188,9 +192,16 @@ func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth in
 	}
 	row.Children(func() {
 		chev := ui.Icon(c, chevronIcon).Size(9, 9).TextColor(pal.textFaint).Shrink(0)
+		if selected {
+			chev.TextColor(onAccent(pal).Alpha(0.75))
+		}
 		chev.Rotate(chev.AnimateTo("turn", 90*b2f(open), ui.Snappy))
 		fileIconImage(c, pal, name, true, open)
-		ui.Text(c, name).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
+		fg := pal.textMuted
+		if selected {
+			fg = onAccent(pal)
+		}
+		ui.Text(c, name).FontSize(12.5).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
 	})
 	return row
 }
@@ -202,7 +213,7 @@ func (a *App) treeFile(c *ui.Context, pal *palette, it treeItem, f proto.GitFile
 	if f.OldPath != "" {
 		tip = f.OldPath + " → " + f.Path
 	}
-	row := treeRow(c, pal, it.depth, current).Tooltip(tip)
+	row := treeRow(c, pal, it.depth, current, false).Tooltip(tip)
 	if row.Clicked() {
 		pick()
 	}

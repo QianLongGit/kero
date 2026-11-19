@@ -300,16 +300,23 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	if v := a.viewOf(s); v != nil && v.kind == sideFiles && v.file != nil {
 		shown = v.file.path
 	}
-	tree := ui.List(c.Key("files"), ls, len(items), func(i int) {
+	tree := ui.List(c.Key("files"), ls, len(items)).Rows(func(r ui.ListRow) {
+		i := r.Index
 		it := items[i]
 		switch {
 		case it.edit:
 			a.nameRow(c, pal, it)
 		case it.err != "":
-			ui.Text(c, it.err).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Padding(4, 8, 4, 6+12*float32(it.depth)+28).Tooltip(it.err)
+			// Chosen, the error's text takes the chosen row's, as any
+			// row's, not a dimmer one of its own.
+			fg := pal.textFaint
+			if r.Selected() {
+				fg = onAccent(pal)
+			}
+			ui.Text(c, it.err).FontSize(12).TextColor(fg).SingleLine().Ellipsis("…").Padding(4, 8, 4, 6+12*float32(it.depth)+28).Tooltip(it.err)
 		case it.Dir:
 			key := filesKey(h, it.path)
-			row := a.treeFolder(c, pal, it.Name, it.rel, it.depth, it.open, it.Ignored, func() {
+			row := a.treeFolder(c, pal, it.Name, it.rel, it.depth, it.open, it.Ignored, r.Selected(), func() {
 				// As a file's row: the folder's click chooses it and
 				// hands the tree the keyboard, then folds or unfolds.
 				*sel = i
@@ -329,7 +336,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			row.Drag(fileDrag{host: h.name, path: it.path})
 			a.dropTarget(row, pal, pid, it.path)
 		default:
-			row := a.treeEntry(c, pal, h, pid, it, it.path == shown, func() {
+			row := a.treeEntry(c, pal, h, pid, it, it.path == shown, r.Selected(), func() {
 				// The row keeps its click to itself, so the list does
 				// not choose it or take the keyboard: the click does
 				// both, and with the preview on, opens the file in the
@@ -413,14 +420,15 @@ func (a *App) openInView(sid, pane, path, rel string) {
 
 // treeEntry is a file of the Files tab's tree: a click chooses its row
 // and hands the tree the keyboard, and with the preview on opens it in
-// the viewer; faded, it is one git ignores. A double click opens it as
-// Settings say, in a file pane beside its own pane or in the system's app
-// for it (openBySetting); a drag of it offers the file to the system: to
-// another app, to a folder of the Finder's — a remote host's as the
-// cache's copy of it, as any drag of it is.
-func (a *App) treeEntry(c *ui.Context, pal *palette, h *host, pane string, it fileItem, current bool, open func()) ui.Element {
-	row := treeRow(c, pal, it.depth, current).Tooltip(it.rel)
-	if it.Ignored {
+// the viewer; faded, it is one git ignores, save while the list has
+// chosen its row, whose text turns to the accent's own. A double click
+// opens it as Settings say, in a file pane beside its own pane or in the
+// system's app for it (openBySetting); a drag of it offers the file to
+// the system: to another app, to a folder of the Finder's — a remote
+// host's as the cache's copy of it, as any drag of it is.
+func (a *App) treeEntry(c *ui.Context, pal *palette, h *host, pane string, it fileItem, current, selected bool, open func()) ui.Element {
+	row := treeRow(c, pal, it.depth, current, selected).Tooltip(it.rel)
+	if it.Ignored && !selected {
 		row.Opacity(0.55)
 	}
 	if row.Clicked() {
@@ -433,7 +441,11 @@ func (a *App) treeEntry(c *ui.Context, pal *palette, h *host, pane string, it fi
 	row.Children(func() {
 		ui.Box(c).Size(9, 9).Shrink(0)
 		fileIconImage(c, pal, it.Name, false, false)
-		ui.Text(c, it.Name).FontSize(12.5).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0)
+		fg := pal.text
+		if selected {
+			fg = onAccent(pal)
+		}
+		ui.Text(c, it.Name).FontSize(12.5).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
 	})
 	return row
 }
