@@ -1,5 +1,56 @@
 # Changelog
 
+## 2.3.39
+
+- A chosen row of the Files view is readable again: its text now
+  picks, from white, the card and the theme's own text, whichever
+  stands off the accent best, and a git-ignored or error row drops
+  its dimming while it stays chosen — on every theme, Ghostty's
+  included.
+- **Wrap long lines** in the viewer's files and diffs, from the Wrap
+  Lines button above them or Settings › General (`wrap-lines`),
+  rather than scrolling them sideways.
+- Drag a file or folder from the Files view onto a pane to type its
+  path, quoted for the pane's shell. A row's menu also gains Reveal
+  in Finder, Copy Path, Copy Relative Path and Send to the Agent,
+  which types the path without pressing Return.
+- Files and folders dropped from Finder or Explorer onto the Files
+  view are copied into the folder they land on, asking before
+  replacing a name that is already there — this computer, for now.
+- Updating Kero over an SSH bridge no longer loses the saved
+  sessions, a session whose panes can't be restored is kept rather
+  than dropped, and a pane that wakes to a broken shell is kept too,
+  and comes back on the next start. Hosts get these with their next
+  update.
+- Pasting a JPEG, GIF or WebP image into a pane on a remote host
+  uploads it there, as a PNG already did, and a file dropped on the
+  pane is uploaded too, rather than typing this computer's path.
+- Hovering a session in the sidebar shows a close button on it, and
+  double-clicking the sidebar's empty space starts a session, as
+  <kbd>⌘</kbd> <kbd>T</kbd> does.
+- **New sessions start in** takes a folder of your own (Custom…), as
+  `new-session-directory = ~/Developer` does; a folder that is gone
+  starts sessions in home.
+- **Badge the Dock icon** can also count the finished sessions you
+  haven't looked at yet (`dock-badge = waiting-and-unread`), or be
+  turned off.
+- `font-zoom = false` stops <kbd>⌘</kbd>-scroll and its kin from
+  changing the font size, and **window-padding-color** picks what the
+  padding around a terminal's text shows.
+- On macOS, <kbd>⌥</kbd><kbd>←</kbd> and <kbd>⌥</kbd><kbd>→</kbd>
+  move the shell's cursor by a word, and <kbd>⌘</kbd>-clicking a link
+  that wraps onto the next row opens the whole link.
+- Kero knows **CodeBuddy Code** and **PiG** as agents: when they
+  work, wait or need you shows in the sidebar, and their
+  conversations resume after kerod restarts.
+- A wide zsh prompt, such as Powerlevel10k's, no longer leaves copies
+  of itself behind when the window is resized.
+- Streaming sessions take less memory in the app and in kerod, and
+  `KERO_HEAP_PROFILE=1` writes heap profiles for reports of high use.
+- On a Linux host with glibc older than 2.28, installing the server
+  build stops with a message that says so, rather than installing a
+  server whose sessions fail to start.
+
 ## 2.3.38
 
 - scp moves work again on OpenSSH 9 and newer, which copies through
