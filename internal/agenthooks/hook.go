@@ -260,9 +260,9 @@ func (h Hook) editEvent(hooks object, event string, add bool) (object, error) {
 }
 
 // Hooks returns kero's hooks for agent: Claude Code's, on every event
-// kero takes, and Codex's, on SessionStart, when it is installed (or
-// named). The plugins of Pi and OpenCode are the cli's, not this
-// package's.
+// kero takes, and CodeBuddy Code's and Codex's, on SessionStart, when
+// they are installed (or named). The plugins of Pi, OMP, PiG and
+// OpenCode are the cli's, not this package's.
 func Hooks(agent string) []Hook {
 	home := proto.Home()
 	dirOf := func(env string, def ...string) string {
@@ -272,6 +272,9 @@ func Hooks(agent string) []Hook {
 		return filepath.Join(append([]string{home}, def...)...)
 	}
 	claude := dirOf("CLAUDE_CONFIG_DIR", ".claude")
+	// CodeBuddy Code keeps its config under CODEBUDDY_CONFIG_DIR (default
+	// ~/.codebuddy), and reads its hooks from the settings file there.
+	codebuddy := dirOf("CODEBUDDY_CONFIG_DIR", ".codebuddy")
 	codex := dirOf("CODEX_HOME", ".codex")
 	installed := func(dir string) bool {
 		st, err := os.Stat(dir)
@@ -282,6 +285,7 @@ func Hooks(agent string) []Hook {
 		hook Hook
 	}{
 		{claude, Hook{Agent: "claude", Events: claudeEvents, File: filepath.Join(claude, "settings.json")}},
+		{codebuddy, Hook{Agent: "codebuddy", Events: []string{"SessionStart"}, File: filepath.Join(codebuddy, "settings.json")}},
 		{codex, Hook{Agent: "codex", Events: []string{"SessionStart"}, File: filepath.Join(codex, "hooks.json")}},
 	}
 	var out []Hook

@@ -772,15 +772,16 @@ func TestFilesOpenWithRemoteMenu(t *testing.T) {
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
-	// The Open With group first (the apps of it macOS alone offers), then
-	// the transfers a remote host's rows carry, then the tree's own items
-	// and the row's rename and delete. Its apps are the configuration's
-	// own now — none pinned here, so Open alone of them.
+	// The path items first (upstream's Copy Path group), then a file's
+	// Open With (the apps of it macOS alone offers, none pinned here, so
+	// Open alone of them), then the transfers a remote host's rows
+	// carry, then the tree's own items and the row's rename and delete.
 	got := tt.Menu()
-	if len(got) < 3 || got[0] != locales.CommonOpen() {
+	if len(got) < 3 || got[0] != locales.FilesCopyPath() {
 		t.Fatalf("a remote file's menu is %q", got)
 	}
-	for _, want := range []string{locales.FilesDownload(), locales.FilesCopy(), locales.FilesPaste(), locales.FilesDeleteItem()} {
+	for _, want := range []string{locales.FilesCopyRelPath(), locales.FilesSendToAgent(), locales.CommonOpen(),
+		locales.FilesDownload(), locales.FilesCopy(), locales.FilesPaste(), locales.FilesDeleteItem()} {
 		if !slices.Contains(got, want) {
 			t.Fatalf("a remote file's menu is %q, want %q in it", got, want)
 		}

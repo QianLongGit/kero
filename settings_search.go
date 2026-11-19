@@ -23,7 +23,7 @@ type searchEntry struct {
 // language the app shows, as their rows are.
 func settingsIndex() []searchEntry {
 	entries := []searchEntry{
-		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home tab"},
+		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home custom tab"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetSidebarRows(), "sidebar-rows compact detailed status message branch two lines"},
 		{"general", locales.SetSidebarCount(), "sidebar-session-count project sessions number count header"},
@@ -40,6 +40,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetFilesTransfer(), "files-transfer scp rsync builtin copy move upload download ssh"},
 		{"general", locales.SetScpPath(), "files scp path bin opt homebrew brew"},
 		{"general", locales.SetRsyncPath(), "files rsync path bin opt homebrew brew"},
+		{"general", locales.SetWrapLines(), "wrap-lines diff file viewer wrap long lines soft wrap changes files"},
 		{"general", locales.AwakeTitle(), "keep-computer-awake awake sleep caffeinate power agents idle lid"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
 		{"general", locales.SetVersion(), "updates check for updates software update about"},
@@ -82,7 +83,7 @@ func settingsIndex() []searchEntry {
 		{"notifications", locales.SetNotifyDone(), "notify-on-done done complete"},
 		{"notifications", locales.SetNotifyFailed(), "notify-on-error error"},
 		{"notifications", locales.SetPlaySound(), "notify-sound audio"},
-		{"notifications", locales.SetDockBadge(), "dock-badge count"},
+		{"notifications", locales.SetDockBadge(), "dock-badge count badge waiting unread done finished unseen"},
 		{"notifications", locales.SetDockBounce(), "dock-bounce attention"},
 
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus browser automation"},

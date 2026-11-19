@@ -91,40 +91,53 @@ func (d *Daemon) saveState() {
 	d.mu.Lock()
 	st := savedState{Version: 2, Projects: d.projects, Saved: time.Now().UnixMilli()}
 	for _, s := range d.sessions {
-		ss := savedSession{ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed, Created: s.created, Layout: s.layout, Focus: s.focus, Pin: s.pin, Worktree: s.worktree}
+		ss := savedSessionOf(s)
 		for _, p := range s.panes {
 			p.mu.Lock()
-			sp := savedPane{ID: p.info.ID, Dir: p.info.Dir, Command: p.info.Command, URL: p.info.URL, File: p.info.File,
-				Agent: p.info.AgentSession, Turn: p.info.Turn, Created: p.info.Created, Cols: p.info.Cols, Rows: p.info.Rows}
-			if p.info.Browser() {
-				sp.Title = p.info.Title
-			}
-			// What a materialize runs again. A pane with a program in the
-			// foreground tells it from that program; any other — dormant,
-			// or the shell alone — keeps what it was restored with, which
-			// a save must not blank before the pane runs anything again.
-			if p.fgPGID != 0 && p.fgPGID != p.shellPID {
-				sp.RestoreCmd = procArgs(p.fgPGID)
-				sp.Tmux = tmuxProc(procName(p.fgPGID))
-				// Where the program runs, when it left the pane's own
-				// directory, as an agent in a worktree did.
-				if dir := procCwd(p.fgPGID); dir != "" && dir != p.info.Dir {
-					sp.RestoreDir = dir
-				}
-			} else {
-				sp.RestoreCmd, sp.RestoreDir, sp.Tmux = p.restoreCmd, p.restoreDir, p.restoreTmux
-			}
-			ss.Panes = append(ss.Panes, sp)
+			ss.Panes = append(ss.Panes, savedPaneOf(p))
 			p.mu.Unlock()
 		}
 		st.Sessions = append(st.Sessions, ss)
 	}
+	st.Sessions = append(st.Sessions, d.unrestored...)
 	data, err := json.MarshalIndent(st, "", "  ")
 	d.mu.Unlock()
 	if err != nil {
 		return
 	}
 	writeAtomic(d.statePath(), data)
+}
+
+// savedSessionOf is a session as the saved state keeps it (saveState),
+// its panes added by the caller under their own locks.
+func savedSessionOf(s *session) savedSession {
+	return savedSession{ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed, Created: s.created, Layout: s.layout, Focus: s.focus, Pin: s.pin, Worktree: s.worktree}
+}
+
+// savedPaneOf is a pane as the saved state keeps it (saveState), held
+// under the pane's own lock by the caller.
+func savedPaneOf(p *pane) savedPane {
+	sp := savedPane{ID: p.info.ID, Dir: p.info.Dir, Command: p.info.Command, URL: p.info.URL, File: p.info.File,
+		Agent: p.info.AgentSession, Turn: p.info.Turn, Created: p.info.Created, Cols: p.info.Cols, Rows: p.info.Rows}
+	if p.info.Browser() {
+		sp.Title = p.info.Title
+	}
+	// What a materialize runs again. A pane with a program in the
+	// foreground tells it from that program; any other — dormant,
+	// or the shell alone — keeps what it was restored with, which
+	// a save must not blank before the pane runs anything again.
+	if p.fgPGID != 0 && p.fgPGID != p.shellPID {
+		sp.RestoreCmd = procArgs(p.fgPGID)
+		sp.Tmux = tmuxProc(procName(p.fgPGID))
+		// Where the program runs, when it left the pane's own
+		// directory, as an agent in a worktree did.
+		if dir := procCwd(p.fgPGID); dir != "" && dir != p.info.Dir {
+			sp.RestoreDir = dir
+		}
+	} else {
+		sp.RestoreCmd, sp.RestoreDir, sp.Tmux = p.restoreCmd, p.restoreDir, p.restoreTmux
+	}
+	return sp
 }
 
 // saveHistories writes the panes' histories that changed, or all.
@@ -181,6 +194,10 @@ func (d *Daemon) restore() {
 			}
 		}
 		if len(s.panes) == 0 {
+			if len(ss.Panes) > 0 {
+				d.unrestored = append(d.unrestored, ss)
+				d.log.Printf("session %s not restored; kept for the next start", ss.ID)
+			}
 			continue
 		}
 		if sameLeaves(ss.Layout, s.panes) {
@@ -263,12 +280,12 @@ func resumeCommandWithReason(a *proto.AgentSession) ([]string, string) {
 	switch a.Agent {
 	case "claude":
 		return []string{"claude", "--resume", a.ID}, ""
+	case "codebuddy":
+		return []string{"codebuddy", "--resume", a.ID}, ""
 	case "codex":
 		return []string{"codex", "resume", a.ID}, ""
-	case "pi", "opencode":
+	case "pi", "omp", "opencode", "pig":
 		return []string{a.Agent, "--session", a.ID}, ""
-	case "omp":
-		return []string{"omp", "--session", a.ID}, ""
 	}
 	return nil, "unsupported agent"
 }

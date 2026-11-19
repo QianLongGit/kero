@@ -61,6 +61,67 @@
   Wayland, whose title bar has its own. `KERO_WINDOW_CONTROLS=1` or `0`
   shows or hides them anyway.
 
+## 2.1.36
+
+- **New sessions start in** in Settings › General takes a folder of your
+  own (Custom…), as `new-session-directory = ~/Developer` does, besides
+  current, project and home. A folder that is gone starts sessions in
+  home, as do other hosts.
+- Drag a file or folder from the Files tab onto a pane to type its path,
+  quoted for the pane's shell. A row's menu also has Reveal in Finder,
+  Copy Path, Copy Relative Path and Send to the Agent, which types the
+  path without pressing Return. Thanks @joei4cm
+- Files and folders dropped from Finder or Explorer on the Files tab are
+  copied into the folder they land on, asking before replacing a name
+  already there. This works on this computer only, for now.
+- Double-click the sidebar's empty space to start a session, as
+  <kbd>⌘</kbd><kbd>T</kbd> does.
+- **Badge the Dock icon** in Settings › Notifications can also count the
+  finished sessions you haven't looked at yet (`dock-badge =
+  waiting-and-unread`), or be turned off. `dock-badge = true` and
+  `false` keep working. Thanks @joei4cm
+- `font-zoom = false` stops <kbd>⌘</kbd>-scroll, <kbd>⌘</kbd><kbd>=</kbd>,
+  <kbd>⌘</kbd><kbd>-</kbd>, <kbd>⌘</kbd><kbd>0</kbd> and the View menu
+  from changing the font size. Thanks @bwangll
+- Kero knows **CodeBuddy Code** and **PiG** as agents: the sidebar shows
+  when they work, wait or need you, `kero skill setup` installs their
+  hook, and their conversations resume after kerod restarts.
+  Thanks @joei4cm
+- A wide zsh prompt, such as Powerlevel10k's, no longer leaves copies of
+  itself behind when the window is resized.
+- <kbd>⌘</kbd>-clicking a link that wraps onto the next row opens the
+  whole link.
+- On a Linux host with glibc older than 2.28, installing the server
+  build stops with a message that says so, rather than installing a
+  server whose sessions fail to start. Thanks @joei4cm
+- Streaming sessions allocate less memory in the app and in kerod, and
+  `KERO_HEAP_PROFILE=1` writes heap profiles to the temporary directory,
+  at exit and on `kill -USR1`, for reports of high memory use.
+  Thanks @joei4cm
+
+## 2.1.35
+
+- **Wrap long lines** in the viewer's diffs and files, from the Wrap
+  Lines button above them or Settings › General (`wrap-lines`), rather
+  than scrolling them sideways. Thanks @Th1nkK1D
+- Hovering a session in the sidebar shows a close button on it.
+  Thanks @bigboss2063
+- `window-padding-color` picks what the padding around a terminal's text
+  shows: `background`, the terminal's background; `extend`, the default,
+  the colors of the cells beside it, but for a row left at the
+  background; or `extend-always`, theirs always, as in Ghostty.
+- On a pane on a remote host, pasting a JPEG, GIF or WebP image uploads
+  it to the host as a PNG already did, and a file dropped on the pane is
+  uploaded too, rather than pasting this computer's path.
+- On macOS, <kbd>⌥</kbd><kbd>←</kbd> and <kbd>⌥</kbd><kbd>→</kbd> move
+  the shell's cursor by a word, as in Ghostty, rather than typing a `D`
+  or a `C`.
+- Updating Kero while an SSH bridge is connected no longer loses the
+  saved sessions, and a session whose panes can't be restored is kept
+  rather than dropped. Hosts get it with their next update.
+- The Kero skill teaches agents when to run short commands themselves
+  and to reuse the panes they already started.
+
 ## 2.3.35
 
 - The Files tab's right-click menu drops its built-in
@@ -269,7 +330,6 @@
   keeps too: before, it kept the terminal's default of 10 MB whatever
   the setting said, even 0.
 - A quick tap in the settings sidebar is no longer missed.
-
 ## 2.1.34
 
 - **Reorder projects** in the sidebar: drag a project's header up or

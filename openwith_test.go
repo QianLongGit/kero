@@ -195,9 +195,10 @@ func TestFilesOpenWithMenu(t *testing.T) {
 	if err := tt.RightClick("main.go"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{locales.FilesOpenDefault(), "-",
-		locales.CommonOpen(), locales.FilesOpenIn("Calculator"), locales.FilesChooseApp(),
-		"-", locales.FilesCopy(), locales.FilesPaste(), locales.FilesCopyPath(), locales.FilesCopyRelativePath(),
+	want := []string{locales.FilesOpenDefault(), locales.FilesRevealIn(fileManager()), "-",
+		locales.FilesCopyPath(), locales.FilesCopyRelPath(), "-", locales.FilesSendToAgent(),
+		"-", locales.CommonOpen(), locales.FilesOpenIn("Calculator"), locales.FilesChooseApp(),
+		"-", locales.FilesCopy(), locales.FilesPaste(),
 		"-", locales.FilesNewFile(), locales.FilesNewFolder(), "-", locales.FilesRename(), locales.FilesDeleteItem()}
 	if got := tt.Menu(); !slices.Equal(got, want) {
 		t.Fatalf("the file's menu is %q, want %q", got, want)

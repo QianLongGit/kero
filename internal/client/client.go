@@ -92,6 +92,12 @@ func StartDaemon() error {
 		if exe, err = os.Executable(); err != nil {
 			return err
 		}
+		// The app's, not the CLI's link to it (bin/kero), which a bridge
+		// over SSH runs as: on macOS os.Executable names the link, beside
+		// which the app's libraries are not.
+		if real, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = real
+		}
 	}
 	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
 		return err
@@ -216,24 +222,23 @@ func (c *Client) read(r *bufio.Reader) {
 		if err != nil {
 			return
 		}
+		// One pass over the line: a response keeps its result as the
+		// bytes it came in, for its call to decode, while an event's
+		// fields come typed out of the Message embedded here, whose
+		// Result the outer one shadows.
 		var m struct {
-			ID     int64           `json:"id"`
+			proto.Message
 			Result json.RawMessage `json:"result"`
-			Error  string          `json:"error"`
-			Event  string          `json:"event"`
 		}
 		if json.Unmarshal(line, &m) != nil {
 			continue
 		}
 		if m.Event != "" {
-			var ev proto.Message
-			if json.Unmarshal(line, &ev) == nil {
-				c.mu.Lock()
-				fn := c.onEvent
-				c.mu.Unlock()
-				if fn != nil {
-					fn(ev)
-				}
+			c.mu.Lock()
+			fn := c.onEvent
+			c.mu.Unlock()
+			if fn != nil {
+				fn(m.Message)
 			}
 			continue
 		}
@@ -294,7 +299,7 @@ func (c *Client) Go(method string, params any, fn func(error)) {
 // with its size and its colors.
 type Stream struct {
 	conn    net.Conn
-	r       *bufio.Reader
+	frames  *proto.FrameReader
 	Welcome proto.Welcome
 
 	wmu    sync.Mutex
@@ -326,7 +331,7 @@ func AttachVia(d Dialer, id string) (*Stream, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &Stream{conn: conn, r: r, Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
+	return &Stream{conn: conn, frames: proto.NewFrameReader(r), Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
 }
 
 // AttachViaRaw opens a session's stream asking for the program's original
@@ -343,12 +348,12 @@ func AttachViaRaw(d Dialer, id string) (*Stream, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &Stream{conn: conn, r: r, Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
+	return &Stream{conn: conn, frames: proto.NewFrameReader(r), Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
 }
 
 func (s *Stream) Read(p []byte) (int, error) {
 	for len(s.buf) == 0 {
-		kind, payload, err := proto.ReadFrame(s.r)
+		kind, payload, err := s.frames.Read()
 		if err != nil {
 			return 0, io.EOF
 		}

@@ -41,7 +41,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 
 | Key                     | Default   | Description                                                   |
 | ----------------------- | --------- | ------------------------------------------------------------- |
-| `new-session-directory` | `current` | Where a new session starts: `current`, `project` or `home`    |
+| `new-session-directory` | `current` | Where a new session starts: `current`, `project`, `home`, or a folder such as `~/Developer` |
 | `session-name`          | `focused` | What names a session you haven't: `focused`, `lead` or `folder` ([more](./sessions.md#how-an-unnamed-session-is-named)) |
 | `sidebar-rows`          | `detailed` | How the sidebar shows a session: `detailed`, with its status message, else its branch and changes, on a second line; or `compact`, on one line |
 | `sidebar-session-count` | `true`    | Show, beside a project's name in the sidebar, how many sessions it holds |
@@ -74,11 +74,13 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `font-ligatures`      | `true`  | Join characters the way the font draws them                              |
 | `font-thicken`        | `false` | A heavier stroke, as in Ghostty                                          |
 | `minimum-contrast`    | `3`     | The least contrast text keeps with its background, from `1` (none) to `21`, so that colors meant for a dark background stay readable on a light one, as in Ghostty |
+| `window-padding-color` | `extend` | What the padding around a terminal's text shows: `background`, the terminal's background; `extend`, the colors of the cells beside it, but for a row left at the background; or `extend-always`, theirs always, as in Ghostty. With `background`, a program's bottom bar stays one row tall |
 | `dim-unfocused-terminals` | `true` | Fade the terminals you're not in, when a session has several panes |
 | `cursor-style`        | `block` | `block`, `bar` or `underline`; programs may change it                    |
 | `cursor-style-blink`  | `true`  | Blink the cursor                                                         |
 | `macos-option-as-alt` | `false` | Option sends Alt (Meta) to programs                                      |
 | `copy-on-select`      | `false` | Copy what you select to the clipboard                                    |
+| `font-zoom`           | `true`  | The wheel with Command held and Command+= / - change the font size       |
 | `clipboard-read`      | `ask`   | Programs reading the clipboard (OSC 52): `ask`, `allow` or `deny`        |
 | `right-click-action`  | `context-menu` | `context-menu`, `paste` or `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | How far scrolling goes, as in Ghostty: `precision:` scales a touchpad's, `discrete:` is the rows a notch of a mouse wheel scrolls (on Windows, a notch at its 3-line setting); one number sets both, from `0.01` to `10000` |
@@ -95,6 +97,12 @@ values close together can look the same or differ by a pixel.
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
 
+zsh starts with a `.zshenv` of Kero's, which sets `ZDOTDIR` back to yours (or
+unsets it) and runs your startup files as zsh would. It then marks where each
+prompt starts and ends, so that the terminal can clear the prompt when it
+resizes before zsh draws it again. Without this, a prompt as wide as the
+terminal, such as Powerlevel10k's, would leave a copy behind at each width.
+
 ## Notifications
 
 | Key                 | Default | Description                                    |
@@ -103,7 +111,7 @@ values close together can look the same or differ by a pixel.
 | `notify-on-done`    | `true`  | When an agent finishes                         |
 | `notify-on-error`   | `true`  | When a program reports it failed               |
 | `notify-sound`      | `false` | Play a sound with notifications                |
-| `dock-badge`        | `true`  | Show how many sessions need you on the Dock icon |
+| `dock-badge`        | `waiting` | What the Dock icon's badge counts: `waiting`, `waiting-and-unread` or `off` |
 | `dock-bounce`       | `false` | Bounce the Dock icon once when a session comes to need you |
 
 ## Agents
@@ -129,6 +137,7 @@ Other machines whose sessions the app shows, and `kero -H` reaches. See [Remote 
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | Show each session's branch and [changes](./changes.md)                                            |
 | `diff-layout` | `auto`  | Diffs of the Changes tab: `unified`, `split` (side by side), or `auto`, side by side once they're wide |
+| `wrap-lines`  | `false` | Wrap the long lines of diffs and of files from Files rather than scrolling them sideways          |
 | `worktree-base` | `default` | What a [session's own worktree](./changes.md#sessions-in-their-own-worktree) branches from: `default`, the repository's default branch, or `current`, the branch of the session you're in |
 | `worktree-dir` |        | Where sessions' own worktrees go, each under its repository's name; empty for `.kero/worktrees` in the repository |
 

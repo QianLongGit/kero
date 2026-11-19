@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -80,6 +81,10 @@ type fileItem struct {
 	err       string
 	edit      bool
 }
+
+// fileDrag is a file or folder of the tree dragged onto a pane, which
+// types its path there (insertPath).
+type fileDrag struct{ host, path string }
 
 // fileView is a file the viewer shows, as its text.
 type fileView struct {
@@ -295,7 +300,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	if v := a.viewOf(s); v != nil && v.kind == sideFiles && v.file != nil {
 		shown = v.file.path
 	}
-	ui.List(c.Key("files"), ls, len(items), func(i int) {
+	tree := ui.List(c.Key("files"), ls, len(items), func(i int) {
 		it := items[i]
 		switch {
 		case it.edit:
@@ -317,8 +322,12 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 			// A drag of the folder offers it to the system, as a file's
-			// row does (files_drag.go).
+			// row does (files_drag.go), offers its path to a pane
+			// (fileDrag), and takes files dropped onto it into the
+			// folder (files_drop.go).
 			row.DragDataFrom(func() transfer.Data { return a.fileDragData(h, it.path, true) })
+			row.Drag(fileDrag{host: h.name, path: it.path})
+			a.dropTarget(row, pal, pid, it.path)
 		default:
 			row := a.treeEntry(c, pal, h, pid, it, it.path == shown, func() {
 				// The row keeps its click to itself, so the list does
@@ -332,8 +341,12 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 				}
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
+			row.Drag(fileDrag{host: h.name, path: it.path})
+			a.dropTarget(row, pal, pid, it.parent)
 		}
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
+	// Dropped below the rows, files go into the root.
+	a.dropTarget(tree, pal, pid, root)
 	// Space previews the row a click chose, as macOS does — the file the
 	// viewer shows while the choice is a folder's, an error's or none —
 	// a remote host's through the cache, as any preview of it is.
@@ -352,6 +365,22 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 				})
 			})
 		}
+	}
+}
+
+// dropTarget makes an element of the Files tab take files dropped from
+// the file manager, which go into dir (dropInto), showing it would while
+// they are over it.
+func (a *App) dropTarget(e ui.Element, pal *palette, pane, dir string) {
+	if a.confirm != nil && a.confirm.open {
+		return
+	}
+	if files := e.DroppedFiles(); len(files) > 0 {
+		files = slices.Clone(files)
+		a.defer_(func() { a.dropInto(pane, dir, files) })
+	}
+	if e.FileDragOver() {
+		e.Background(pal.accent.Alpha(0.12))
 	}
 }
 
@@ -508,6 +537,7 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 			ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(fv.path)
 		}
 	}, func() {
+		a.wrapButton(c, pal)
 		// The pane the file opens in beside its own, as a double click of
 		// the tree's does; the open of the system beside it, a local
 		// file's alone.
@@ -532,6 +562,7 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 		fv.st.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 		fv.st.Theme = a.codeTheme(c, pal)
 		fv.st.NoScrollPastEnd = true
+		fv.st.SoftWrap = a.set.WrapLines
 		editor.View(c.Key("text-"+fv.path), fv.st).Grow(1).FillWidth().MinHeight(0)
 	}
 }

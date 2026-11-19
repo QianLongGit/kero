@@ -555,6 +555,39 @@ func TestCloseInBrowserBesideViewer(t *testing.T) {
 	}
 }
 
+// The button above a file of Files wraps its long lines, then stops, as
+// it does the diffs', keeping wrap-lines.
+func TestWrapFile(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	fv := &fileView{pane: s.Panes[0].ID, path: "/tmp/a.go", rel: "a.go", fetched: time.Now()}
+	a.showFile(fv, []byte("package a\n\nvar s = \""+strings.Repeat("a long line ", 30)+"\"\n"))
+	a.openView(s, sideFiles, fv)
+	tt.Frame()
+
+	for _, want := range []bool{true, false} {
+		label := locales.ViewerWrap()
+		if !want {
+			label = locales.ViewerNoWrap()
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if a.set.WrapLines != want || fv.st.SoftWrap != want {
+			t.Fatalf("clicking %q left wrap-lines %v, the file's wrap %v", label, a.set.WrapLines, fv.st.SoftWrap)
+		}
+		tt.Frame()
+		row, long := fv.st.LineTop(1)-fv.st.LineTop(0), fv.st.LineTop(3)-fv.st.LineTop(2)
+		if wrapped := long > row; wrapped != want {
+			t.Errorf("with wrap-lines %v, the long line is %v high, a row %v", want, long, row)
+		}
+		shot(t, tt, map[bool]string{true: "file-wrapped", false: "file-unwrapped"}[want])
+	}
+}
+
 func TestIsBinary(t *testing.T) {
 	if isBinary([]byte("hello\nworld")) || !isBinary([]byte("PNG\x00\x01")) || isBinary(nil) {
 		t.Error("isBinary is wrong")
@@ -916,84 +949,6 @@ func TestFilesTabChanges(t *testing.T) {
 	shot(t, tt, "files-delete")
 }
 
-// A row's menu copies its entry's path to the clipboard: the path on the
-// host it is on, and the entry's own in the tree's root — a folder's row
-// carries the two as a file's does.
-func TestFilesTabCopyPath(t *testing.T) {
-	a := testApp(t)
-	s := &a.st.Sessions[0]
-	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
-	s.Panes[0].Git, s.Panes[1].Git = g, g
-	s.Panes[0].Dir = g.Root // the pane works at the worktree's root
-	a.prefs.Side = sideFiles
-	h := a.hostOf(s.ID)
-	fs := &a.side.files
-	fs.dirs = map[string]*dirList{
-		filesKey(h, "/tmp/demo"):          {entries: []proto.FSEntry{{Name: "internal", Dir: true}, {Name: "main.go"}}},
-		filesKey(h, "/tmp/demo/internal"): {entries: []proto.FSEntry{{Name: "auth.go"}}},
-	}
-	fs.open = map[string]bool{filesKey(h, "/tmp/demo/internal"): true} // the folder unfolded
-	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
-		return nil, errors.New("the tree keeps what it listed")
-	})
-	defer stop()
-	tt := ui.NewTester(a.view, 1280, 720)
-	tt.Frame()
-	tt.Advance(time.Second)
-	tt.Frame()
-	a.local().cl = cl
-
-	// A file's row, in a folder of the root.
-	if err := tt.RightClick("auth.go"); err != nil {
-		t.Fatal(err)
-	}
-	if got := tt.Menu(); !slices.Contains(got, "Copy Path") || !slices.Contains(got, "Copy Relative Path") {
-		t.Fatalf("the file's menu is %q", got)
-	}
-	if err := tt.ChooseMenuItem("Copy Path"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := tt.Clipboard(); got != "/tmp/demo/internal/auth.go" {
-		t.Errorf("Copy Path put %q", got)
-	}
-	if err := tt.RightClick("auth.go"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Copy Relative Path"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := tt.Clipboard(); got != "internal/auth.go" {
-		t.Errorf("Copy Relative Path put %q", got)
-	}
-
-	// A folder's row carries the two as a file's does.
-	if err := tt.RightClick("internal"); err != nil {
-		t.Fatal(err)
-	}
-	if got := tt.Menu(); !slices.Contains(got, "Copy Path") || !slices.Contains(got, "Copy Relative Path") {
-		t.Fatalf("the folder's menu is %q", got)
-	}
-	if err := tt.ChooseMenuItem("Copy Path"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := tt.Clipboard(); got != "/tmp/demo/internal" {
-		t.Errorf("Copy Path put %q", got)
-	}
-	if err := tt.RightClick("internal"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Copy Relative Path"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if got := tt.Clipboard(); got != "internal" {
-		t.Errorf("Copy Relative Path put %q", got)
-	}
-}
-
 // The app opening with the right sidebar shown shows it at once, not
 // sliding in as kerod's state comes; showing it later slides it in.
 func TestRightSidebarOpensShown(t *testing.T) {
@@ -1162,6 +1117,7 @@ func TestViewerFollowsResize(t *testing.T) {
 		}
 	}
 }
+
 
 // The row above the tree carries the Preview toggle: off, as it starts,
 // a click on a file only chooses its row and the viewer keeps whatever
@@ -1502,5 +1458,89 @@ func TestFilesTabFollowsPaneDir(t *testing.T) {
 	}
 	if _, ok := tt.Find("outside.txt"); ok {
 		t.Error("the tree kept the pane no longer focused")
+	}
+}
+
+// A row's menu sends its path to the agent in the pane, as dragging the
+// row there does, and copies it, in full and as the tree shows it — a
+// folder's row carrying the two as a file's does.
+func TestFilesRowMenu(t *testing.T) {
+	a, sink, _ := pasteApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git = g
+	s.Panes[0].Dir = g.Root // the pane works where the tree stands
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	// The folder listed, counted as the tab's own (gen): the listing
+	// sits as it is, asked of no one.
+	fs := &a.side.files
+	fs.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"):          {entries: []proto.FSEntry{{Name: "internal", Dir: true}, {Name: "main.go"}}, gen: 1},
+		filesKey(h, "/tmp/demo/internal"): {entries: []proto.FSEntry{{Name: "auth.go"}}, gen: 1},
+	}
+	fs.open = map[string]bool{filesKey(h, "/tmp/demo/internal"): true} // the folder unfolded
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	if _, ok := tt.Find("main.go"); !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+
+	// The menu holds the row's own items beside the ones the tree has.
+	if err := tt.RightClick("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	menu := tt.Menu()
+	for _, want := range []string{locales.FilesOpenDefault(), locales.FilesRevealIn(fileManager()),
+		locales.FilesCopyPath(), locales.FilesCopyRelPath(), locales.FilesSendToAgent(),
+		locales.FilesNewFile(), locales.FilesRename(), locales.FilesDeleteItem()} {
+		if !slices.Contains(menu, want) {
+			t.Errorf("the menu has no %q: %q", want, menu)
+		}
+	}
+
+	// Sending the path types it into the pane, as the drag does, without
+	// pressing Enter.
+	if err := tt.ChooseMenuItem(locales.FilesSendToAgent()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if got := sink.written(t); got != "/tmp/demo/main.go" {
+		t.Errorf("pane a got %q", got)
+	}
+	if s.Focus != "a" {
+		t.Errorf("the keyboard is in %q", s.Focus)
+	}
+
+	// The tree's own path is what the agent and a diff would name; the
+	// full one is the host's, which another machine's folder has as that
+	// machine names it. A file in a folder of the root names its place
+	// in the tree's own terms, and a folder's row carries the two as a
+	// file's does.
+	for _, copy := range []struct {
+		row, item, want string
+	}{
+		{"main.go", locales.FilesCopyRelPath(), "main.go"},
+		{"main.go", locales.FilesCopyPath(), "/tmp/demo/main.go"},
+		{"auth.go", locales.FilesCopyRelPath(), "internal/auth.go"},
+		{"auth.go", locales.FilesCopyPath(), "/tmp/demo/internal/auth.go"},
+		{"internal", locales.FilesCopyRelPath(), "internal"},
+		{"internal", locales.FilesCopyPath(), "/tmp/demo/internal"},
+	} {
+		if err := tt.RightClick(copy.row); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if err := tt.ChooseMenuItem(copy.item); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if got := tt.Clipboard(); got != copy.want {
+			t.Errorf("%s of %s put %q on the clipboard, want %q", copy.item, copy.row, got, copy.want)
+		}
 	}
 }

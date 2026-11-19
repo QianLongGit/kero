@@ -536,6 +536,16 @@ func (msgs Messages) CommonOpen() string {
 	return Catalog.Format(msgs.locale, "commonOpen", nil)
 }
 
+// CommonChoose says "Choose"
+// in the language the app shows.
+func CommonChoose() string { return In(i18n.Locale()).CommonChoose() }
+
+// CommonChoose says "Choose"
+// in the language of msgs.
+func (msgs Messages) CommonChoose() string {
+	return Catalog.Format(msgs.locale, "commonChoose", nil)
+}
+
 // CommonShow says "Show"
 // in the language the app shows.
 func CommonShow() string { return In(i18n.Locale()).CommonShow() }
@@ -912,6 +922,26 @@ func OpenProjectMessage() string { return In(i18n.Locale()).OpenProjectMessage()
 // in the language of msgs.
 func (msgs Messages) OpenProjectMessage() string {
 	return Catalog.Format(msgs.locale, "openProjectMessage", nil)
+}
+
+// NewSessionFolderTitle says "New Sessions Start In"
+// in the language the app shows.
+func NewSessionFolderTitle() string { return In(i18n.Locale()).NewSessionFolderTitle() }
+
+// NewSessionFolderTitle says "New Sessions Start In"
+// in the language of msgs.
+func (msgs Messages) NewSessionFolderTitle() string {
+	return Catalog.Format(msgs.locale, "newSessionFolderTitle", nil)
+}
+
+// NewSessionFolderMessage says "Choose the folder new sessions start in."
+// in the language the app shows.
+func NewSessionFolderMessage() string { return In(i18n.Locale()).NewSessionFolderMessage() }
+
+// NewSessionFolderMessage says "Choose the folder new sessions start in."
+// in the language of msgs.
+func (msgs Messages) NewSessionFolderMessage() string {
+	return Catalog.Format(msgs.locale, "newSessionFolderMessage", nil)
 }
 
 // ConfirmCloseTitle says "Close “{name}”?"
@@ -2138,6 +2168,36 @@ func SetDirHome() string { return In(i18n.Locale()).SetDirHome() }
 // in the language of msgs.
 func (msgs Messages) SetDirHome() string {
 	return Catalog.Format(msgs.locale, "setDirHome", nil)
+}
+
+// SetDirCustom says "Custom…"
+// in the language the app shows.
+func SetDirCustom() string { return In(i18n.Locale()).SetDirCustom() }
+
+// SetDirCustom says "Custom…"
+// in the language of msgs.
+func (msgs Messages) SetDirCustom() string {
+	return Catalog.Format(msgs.locale, "setDirCustom", nil)
+}
+
+// SetNewSessionFolderDetail says "Sessions on other hosts start in their home, as they do here when the folder is gone."
+// in the language the app shows.
+func SetNewSessionFolderDetail() string { return In(i18n.Locale()).SetNewSessionFolderDetail() }
+
+// SetNewSessionFolderDetail says "Sessions on other hosts start in their home, as they do here when the folder is gone."
+// in the language of msgs.
+func (msgs Messages) SetNewSessionFolderDetail() string {
+	return Catalog.Format(msgs.locale, "setNewSessionFolderDetail", nil)
+}
+
+// SetChooseFolder says "Choose…"
+// in the language the app shows.
+func SetChooseFolder() string { return In(i18n.Locale()).SetChooseFolder() }
+
+// SetChooseFolder says "Choose…"
+// in the language of msgs.
+func (msgs Messages) SetChooseFolder() string {
+	return Catalog.Format(msgs.locale, "setChooseFolder", nil)
 }
 
 // SetSessionName says "Name sessions after"
@@ -3754,14 +3814,44 @@ func (msgs Messages) SetDockBadge() string {
 	return Catalog.Format(msgs.locale, "setDockBadge", nil)
 }
 
-// SetDockBadgeDetail says "With the number of sessions that need you."
+// SetDockBadgeDetail says "With the number of sessions that need you, or those and the finished ones you haven’t seen."
 // in the language the app shows.
 func SetDockBadgeDetail() string { return In(i18n.Locale()).SetDockBadgeDetail() }
 
-// SetDockBadgeDetail says "With the number of sessions that need you."
+// SetDockBadgeDetail says "With the number of sessions that need you, or those and the finished ones you haven’t seen."
 // in the language of msgs.
 func (msgs Messages) SetDockBadgeDetail() string {
 	return Catalog.Format(msgs.locale, "setDockBadgeDetail", nil)
+}
+
+// SetDockBadgeWaiting says "Sessions needing you"
+// in the language the app shows.
+func SetDockBadgeWaiting() string { return In(i18n.Locale()).SetDockBadgeWaiting() }
+
+// SetDockBadgeWaiting says "Sessions needing you"
+// in the language of msgs.
+func (msgs Messages) SetDockBadgeWaiting() string {
+	return Catalog.Format(msgs.locale, "setDockBadgeWaiting", nil)
+}
+
+// SetDockBadgeUnread says "Those and finished ones"
+// in the language the app shows.
+func SetDockBadgeUnread() string { return In(i18n.Locale()).SetDockBadgeUnread() }
+
+// SetDockBadgeUnread says "Those and finished ones"
+// in the language of msgs.
+func (msgs Messages) SetDockBadgeUnread() string {
+	return Catalog.Format(msgs.locale, "setDockBadgeUnread", nil)
+}
+
+// SetDockBadgeOff says "Off"
+// in the language the app shows.
+func SetDockBadgeOff() string { return In(i18n.Locale()).SetDockBadgeOff() }
+
+// SetDockBadgeOff says "Off"
+// in the language of msgs.
+func (msgs Messages) SetDockBadgeOff() string {
+	return Catalog.Format(msgs.locale, "setDockBadgeOff", nil)
 }
 
 // SetDockBounce says "Bounce the Dock icon"
@@ -4458,6 +4548,46 @@ func (msgs Messages) FilesOpenDefault() string {
 	return Catalog.Format(msgs.locale, "filesOpenDefault", nil)
 }
 
+// FilesRevealIn says "Reveal in {app}"
+// in the language the app shows.
+func FilesRevealIn(app string) string { return In(i18n.Locale()).FilesRevealIn(app) }
+
+// FilesRevealIn says "Reveal in {app}"
+// in the language of msgs.
+func (msgs Messages) FilesRevealIn(app string) string {
+	return Catalog.Format(msgs.locale, "filesRevealIn", map[string]any{"app": app})
+}
+
+// FilesCopyPath says "Copy Path"
+// in the language the app shows.
+func FilesCopyPath() string { return In(i18n.Locale()).FilesCopyPath() }
+
+// FilesCopyPath says "Copy Path"
+// in the language of msgs.
+func (msgs Messages) FilesCopyPath() string {
+	return Catalog.Format(msgs.locale, "filesCopyPath", nil)
+}
+
+// FilesCopyRelPath says "Copy Relative Path"
+// in the language the app shows.
+func FilesCopyRelPath() string { return In(i18n.Locale()).FilesCopyRelPath() }
+
+// FilesCopyRelPath says "Copy Relative Path"
+// in the language of msgs.
+func (msgs Messages) FilesCopyRelPath() string {
+	return Catalog.Format(msgs.locale, "filesCopyRelPath", nil)
+}
+
+// FilesSendToAgent says "Send to the Agent"
+// in the language the app shows.
+func FilesSendToAgent() string { return In(i18n.Locale()).FilesSendToAgent() }
+
+// FilesSendToAgent says "Send to the Agent"
+// in the language of msgs.
+func (msgs Messages) FilesSendToAgent() string {
+	return Catalog.Format(msgs.locale, "filesSendToAgent", nil)
+}
+
 // FilesNewFile says "New File…"
 // in the language the app shows.
 func FilesNewFile() string { return In(i18n.Locale()).FilesNewFile() }
@@ -4558,6 +4688,76 @@ func FilesDeleteFailed(name string, error string) string {
 // in the language of msgs.
 func (msgs Messages) FilesDeleteFailed(name string, error string) string {
 	return Catalog.Format(msgs.locale, "filesDeleteFailed", map[string]any{"name": name, "error": error})
+}
+
+// FilesReplaceTitle says "Replace “{name}”?"
+// in the language the app shows.
+func FilesReplaceTitle(name string) string { return In(i18n.Locale()).FilesReplaceTitle(name) }
+
+// FilesReplaceTitle says "Replace “{name}”?"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceTitle(name string) string {
+	return Catalog.Format(msgs.locale, "filesReplaceTitle", map[string]any{"name": name})
+}
+
+// FilesReplaceManyTitle says "{count, plural, one {Replace # item?} other {Replace # items?}}"
+// in the language the app shows.
+func FilesReplaceManyTitle(count int) string { return In(i18n.Locale()).FilesReplaceManyTitle(count) }
+
+// FilesReplaceManyTitle says "{count, plural, one {Replace # item?} other {Replace # items?}}"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceManyTitle(count int) string {
+	return Catalog.Format(msgs.locale, "filesReplaceManyTitle", map[string]any{"count": count})
+}
+
+// FilesReplaceDetail says "{count, plural, one {The folder already has an item with this name. Replacing it can't be undone.} other {The folder …"
+// in the language the app shows.
+func FilesReplaceDetail(count int) string { return In(i18n.Locale()).FilesReplaceDetail(count) }
+
+// FilesReplaceDetail says "{count, plural, one {The folder already has an item with this name. Replacing it can't be undone.} other {The folder …"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceDetail(count int) string {
+	return Catalog.Format(msgs.locale, "filesReplaceDetail", map[string]any{"count": count})
+}
+
+// FilesReplace says "Replace"
+// in the language the app shows.
+func FilesReplace() string { return In(i18n.Locale()).FilesReplace() }
+
+// FilesReplace says "Replace"
+// in the language of msgs.
+func (msgs Messages) FilesReplace() string {
+	return Catalog.Format(msgs.locale, "filesReplace", nil)
+}
+
+// FilesSkip says "Skip"
+// in the language the app shows.
+func FilesSkip() string { return In(i18n.Locale()).FilesSkip() }
+
+// FilesSkip says "Skip"
+// in the language of msgs.
+func (msgs Messages) FilesSkip() string {
+	return Catalog.Format(msgs.locale, "filesSkip", nil)
+}
+
+// FilesCopyFailed says "Couldn't copy {errors}"
+// in the language the app shows.
+func FilesCopyFailed(errors string) string { return In(i18n.Locale()).FilesCopyFailed(errors) }
+
+// FilesCopyFailed says "Couldn't copy {errors}"
+// in the language of msgs.
+func (msgs Messages) FilesCopyFailed(errors string) string {
+	return Catalog.Format(msgs.locale, "filesCopyFailed", map[string]any{"errors": errors})
+}
+
+// FilesDropRemote says "Dropping files into Files works on this computer only, not on {host} yet"
+// in the language the app shows.
+func FilesDropRemote(host string) string { return In(i18n.Locale()).FilesDropRemote(host) }
+
+// FilesDropRemote says "Dropping files into Files works on this computer only, not on {host} yet"
+// in the language of msgs.
+func (msgs Messages) FilesDropRemote(host string) string {
+	return Catalog.Format(msgs.locale, "filesDropRemote", map[string]any{"host": host})
 }
 
 // FilesCreateFailed says "Couldn't create “{name}”: {error}"
@@ -4812,6 +5012,26 @@ func ChangesHideTree() string { return In(i18n.Locale()).ChangesHideTree() }
 // in the language of msgs.
 func (msgs Messages) ChangesHideTree() string {
 	return Catalog.Format(msgs.locale, "changesHideTree", nil)
+}
+
+// ViewerWrap says "Wrap Lines"
+// in the language the app shows.
+func ViewerWrap() string { return In(i18n.Locale()).ViewerWrap() }
+
+// ViewerWrap says "Wrap Lines"
+// in the language of msgs.
+func (msgs Messages) ViewerWrap() string {
+	return Catalog.Format(msgs.locale, "viewerWrap", nil)
+}
+
+// ViewerNoWrap says "Don't Wrap Lines"
+// in the language the app shows.
+func ViewerNoWrap() string { return In(i18n.Locale()).ViewerNoWrap() }
+
+// ViewerNoWrap says "Don't Wrap Lines"
+// in the language of msgs.
+func (msgs Messages) ViewerNoWrap() string {
+	return Catalog.Format(msgs.locale, "viewerNoWrap", nil)
 }
 
 // ChangesCollapseFiles says "Collapse All"
@@ -5092,26 +5312,6 @@ func FilesPaste() string { return In(i18n.Locale()).FilesPaste() }
 // in the language of msgs.
 func (msgs Messages) FilesPaste() string {
 	return Catalog.Format(msgs.locale, "filesPaste", nil)
-}
-
-// FilesCopyPath says "Copy Path"
-// in the language the app shows.
-func FilesCopyPath() string { return In(i18n.Locale()).FilesCopyPath() }
-
-// FilesCopyPath says "Copy Path"
-// in the language of msgs.
-func (msgs Messages) FilesCopyPath() string {
-	return Catalog.Format(msgs.locale, "filesCopyPath", nil)
-}
-
-// FilesCopyRelativePath says "Copy Relative Path"
-// in the language the app shows.
-func FilesCopyRelativePath() string { return In(i18n.Locale()).FilesCopyRelativePath() }
-
-// FilesCopyRelativePath says "Copy Relative Path"
-// in the language of msgs.
-func (msgs Messages) FilesCopyRelativePath() string {
-	return Catalog.Format(msgs.locale, "filesCopyRelativePath", nil)
 }
 
 // FilesDelete says "Delete"
@@ -5630,6 +5830,26 @@ func SetDiffAuto() string { return In(i18n.Locale()).SetDiffAuto() }
 // in the language of msgs.
 func (msgs Messages) SetDiffAuto() string {
 	return Catalog.Format(msgs.locale, "setDiffAuto", nil)
+}
+
+// SetWrapLines says "Wrap long lines"
+// in the language the app shows.
+func SetWrapLines() string { return In(i18n.Locale()).SetWrapLines() }
+
+// SetWrapLines says "Wrap long lines"
+// in the language of msgs.
+func (msgs Messages) SetWrapLines() string {
+	return Catalog.Format(msgs.locale, "setWrapLines", nil)
+}
+
+// SetWrapLinesDetail says "Lines of diffs and files wider than the viewer wrap rather than scroll sideways."
+// in the language the app shows.
+func SetWrapLinesDetail() string { return In(i18n.Locale()).SetWrapLinesDetail() }
+
+// SetWrapLinesDetail says "Lines of diffs and files wider than the viewer wrap rather than scroll sideways."
+// in the language of msgs.
+func (msgs Messages) SetWrapLinesDetail() string {
+	return Catalog.Format(msgs.locale, "setWrapLinesDetail", nil)
 }
 
 // PageBrowser says "Browser"

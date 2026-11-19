@@ -280,7 +280,8 @@ type integration interface {
 
 // hookIntegration is the cli's handle on package agenthooks — where the
 // machinery for kero's hooks in agents' settings lives, shared with the
-// daemon — as the integration the skill commands drive.
+// daemon — as the integration the skill commands drive. The agents it
+// covers — Claude Code, CodeBuddy Code, Codex — are agenthooks.Hooks'.
 type hookIntegration struct {
 	hook agenthooks.Hook
 }
@@ -381,9 +382,11 @@ func (p agentPlugin) remove() error {
 }
 
 // agentHooks returns what kero installs to hook agents into Kero: for
-// Claude Code, and for Codex, Pi, OMP and OpenCode when they are installed
-// (or named). The hooks of the settings files are package agenthooks', shared
-// with the daemon; the plugins of Pi, OMP and OpenCode are the cli's own.
+// Claude Code and CodeBuddy Code, and for Codex, when they are
+// installed (or named) — the hooks of their settings files are package
+// agenthooks', shared with the daemon — and for Pi, OMP, PiG and
+// OpenCode when they are installed (or named), whose plugins are the
+// cli's own.
 func agentHooks(agent string) []integration {
 	var out []integration
 	for _, h := range agenthooks.Hooks(agent) {
@@ -406,6 +409,18 @@ func agentHooks(agent string) []integration {
 		ompRoot = filepath.Join(home, ".omp")
 	}
 	omp := filepath.Join(ompRoot, "agent")
+	// PiG, a Go port of Pi, keeps its config under PIG_HOME (default
+	// ~/.pig), with the agent directory in agent/ there, which
+	// PIG_CODING_AGENT_DIR names. It reads neither ~/.pi nor Pi's
+	// environment, so its extension goes in its own directory.
+	pigRoot := os.Getenv("PIG_HOME")
+	if pigRoot == "" {
+		pigRoot = filepath.Join(home, ".pig")
+	}
+	pig := os.Getenv("PIG_CODING_AGENT_DIR")
+	if pig == "" {
+		pig = filepath.Join(pigRoot, "agent")
+	}
 	opencode := filepath.Join(dirOf("XDG_CONFIG_HOME", ".config"), "opencode")
 	installed := func(dir string) bool {
 		st, err := os.Stat(dir)
@@ -417,6 +432,7 @@ func agentHooks(agent string) []integration {
 	}{
 		{"pi", pi, agentPlugin{agent: "pi", dir: filepath.Join(pi, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"omp", omp, agentPlugin{agent: "omp", dir: filepath.Join(omp, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
+		{"pig", pig, agentPlugin{agent: "pig", dir: filepath.Join(pig, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"opencode", opencode, agentPlugin{agent: "opencode", dir: filepath.Join(opencode, "plugins", "kero"), own: true, files: map[string]string{
 			"package.json": "agents/opencode/package.json", "index.js": "agents/opencode/index.js", "tui.js": "agents/opencode/tui.js",
 		}}},

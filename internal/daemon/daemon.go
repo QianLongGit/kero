@@ -31,6 +31,7 @@ import (
 	"kero/internal/clilink"
 	"kero/internal/detach"
 	"kero/internal/detect"
+	"kero/internal/heapdump"
 	"kero/internal/proto"
 	"kero/internal/settings"
 	"kero/internal/shell"
@@ -52,8 +53,12 @@ type Daemon struct {
 	// their panes' programs: they wait, as the last daemon left them,
 	// until a client connects and wakes them.
 	dormant []*session
-	panes   map[string]*pane
-	subs    map[*controlConn]struct{}
+	// unrestored are the last daemon's sessions none of whose panes
+	// started again, as when the terminal's library was missing: saved
+	// as they were, for the next start to try again, rather than lost.
+	unrestored []savedSession
+	panes      map[string]*pane
+	subs       map[*controlConn]struct{}
 	// watchers are the connections that follow the state and notices,
 	// as kero events does, but are no app: no action, select or browser
 	// call goes to them, nor do they count as an app being open.
@@ -156,7 +161,7 @@ func Run(opts Options) error {
 	}
 	defer os.Remove(sock)
 
-	exe, _ := os.Executable()
+	exe := executable()
 	d := &Daemon{
 		dir: dir, exe: exe, opts: opts, started: time.Now(), log: lg,
 		subs:     map[*controlConn]struct{}{},
@@ -201,6 +206,7 @@ func Run(opts Options) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	notifyStop(sigs)
+	heapdump.Enable()
 	go func() {
 		s := <-sigs
 		lg.Printf("%v: saving and exiting", s)
@@ -241,6 +247,7 @@ func Run(opts Options) error {
 	if d.restarting {
 		d.successor()
 	}
+	heapdump.Dump()
 	return nil
 }
 
@@ -282,17 +289,32 @@ func (d *Daemon) stop() { d.quitOnce.Do(func() { close(d.quit) }) }
 // linkCLI keeps bin/kero pointing at this executable (package clilink),
 // which sessions have on their PATH: the kero CLI, for agents to drive
 // other sessions.
+// executable is this program's path, links resolved: started through the
+// CLI's link (bin/kero), as a bridge over SSH is, os.Executable on macOS
+// names the link, beside which the app's libraries are not, and linking
+// the CLI to it would make the link point at itself.
+func executable() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		return real
+	}
+	return exe
+}
+
 func (d *Daemon) linkCLI() {
+	if dir := d.zshDir(); dir != "" {
+		if err := writeZshenv(dir, d.binFirst()); err != nil {
+			d.log.Printf("writing zsh's startup file: %v", err)
+		}
+	}
 	if d.exe == "" {
 		return
 	}
 	if err := clilink.Link(d.exe, filepath.Join(d.dir, "bin")); err != nil {
 		d.log.Printf("linking the CLI: %v", err)
-	}
-	if bin := d.binFirst(); bin != "" {
-		if err := writeZshenv(bin); err != nil {
-			d.log.Printf("writing zsh's startup file: %v", err)
-		}
 	}
 }
 
@@ -590,6 +612,7 @@ func expandHome(p string) string {
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
 	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi", "omp",
+	"codebuddy", "pig",
 }
 
 func detectAgent(name string, args []string) string {
@@ -811,10 +834,29 @@ func (d *Daemon) wakePane(p *pane) {
 // dropUnstarted takes a pane whose wake could not start it out of the
 // daemon, leaving its history on disk: a wake that fails is a retry,
 // not an end, so what the pane showed stays for a daemon that can run
-// it; the file goes only with a pane the user closes (removePane).
+// it; the file goes only with a pane the user closes (removePane). The
+// session it leaves empty is kept in the saved state — as the restore
+// keeps a session none of whose panes came back — for the next start
+// to try again, rather than lost with the next save.
 func (d *Daemon) dropUnstarted(p *pane) {
+	d.mu.Lock()
+	s := d.sessionOfLocked(p)
+	var kept savedSession
+	keep := s != nil && len(s.panes) == 1 // its last pane: the session goes with it
+	if keep {
+		kept = savedSessionOf(s)
+		p.mu.Lock()
+		kept.Panes = append(kept.Panes, savedPaneOf(p))
+		p.mu.Unlock()
+	}
+	d.mu.Unlock()
 	if d.takePane(p.info.ID) == nil {
 		return
+	}
+	if keep {
+		d.mu.Lock()
+		d.unrestored = append(d.unrestored, kept)
+		d.mu.Unlock()
 	}
 	p.close()
 	d.changed()

@@ -136,6 +136,11 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 		ClipboardRead: terminal.ClipboardForward,
 		OnTitle:       s.onTitle,
 		OnNotify:      s.onNotify,
+		// zsh marks its prompts (Kero's .zshenv, zshDir), which the
+		// terminal clears when it resizes, as zsh draws them again: a
+		// prompt as wide as the terminal, as Powerlevel10k's, would leave
+		// a copy at each size otherwise.
+		ShellIntegration: zshPrompts(),
 	})
 	if err != nil {
 		return nil, err
@@ -150,10 +155,13 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 func (s *pane) start(command []string, env []string) error {
 	shell := userShell()
 	name := shellName(shell)
-	bin := s.d.binFirst()
-	args := shellArgs(shell, bin, command)
-	if bin != "" && name == "zsh" {
-		env = append(env[:len(env):len(env)], zshEnv(bin)...)
+	bin, zdot := s.d.binFirst(), ""
+	if name == "zsh" {
+		zdot = s.d.zshDir()
+	}
+	args := shellArgs(shell, bin, zdot, command)
+	if zdot != "" {
+		env = append(env[:len(env):len(env)], zshEnv(zdot)...)
 	}
 	dir := s.info.Dir
 	if st, err := os.Stat(dir); dir == "" || err != nil || !st.IsDir() {
@@ -939,13 +947,15 @@ func newAttachment(conn net.Conn) *attachment {
 }
 
 func (a *attachment) send(kind byte, payload []byte) {
-	f := proto.AppendFrames(nil, kind, payload)
+	f := proto.AppendFrames(proto.GetFrame(5+len(payload)), kind, payload)
 	select {
 	case a.out <- f:
 	case <-a.done:
+		proto.PutFrame(f)
 	default:
 		// Too far behind: drop it, and it attaches again, from a first
 		// frame.
+		proto.PutFrame(f)
 		a.finish()
 	}
 }
@@ -966,6 +976,7 @@ func (a *attachment) write() {
 				a.finish()
 				return
 			}
+			proto.PutFrame(f)
 		case <-a.done:
 			a.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			for {
@@ -974,6 +985,7 @@ func (a *attachment) write() {
 					if _, err := a.conn.Write(f); err != nil {
 						return
 					}
+					proto.PutFrame(f)
 				default:
 					return
 				}

@@ -3,12 +3,12 @@ package main
 // The extras a right click on a row of the Files tab carries past what
 // files_ops.go gives it (the new, the rename and the delete): a file's
 // Open With, the transfers a remote host's rows carry (files_transfer.go)
-// — a Download… of the row's own, an Upload Here… into a folder — the
-// tree's own copy and paste, and the row's own path to the clipboard,
-// whole and in the root the tree stands in. A copy is of the tab alone —
-// it notes the file and the host it is on, and a paste reads it there
-// and writes it into the folder the paste is of, any host's folder as
-// any other's, so a file crosses machines on a paste.
+// — a Download… of the row's own, an Upload Here… into a folder — and
+// the tree's own copy and paste. A copy is of the tab alone — it notes
+// the file and the host it is on, and a paste reads it there and writes
+// it into the folder the paste is of, any host's folder as any other's,
+// so a file crosses machines on a paste. The row's path to the clipboard
+// sits in entryMenu itself (files_ops.go).
 
 import (
 	"os"
@@ -32,9 +32,8 @@ type fileClip struct {
 // entryExtras is what a row's menu (files_ops.go's entryMenu) carries
 // past the new, the rename and the delete: a file's Open With, then the
 // items fileMenuEntries orders — the download of a remote host's file or
-// folder and the upload into its folder, the copy of a file, the paste
-// of what was copied into the folder the click is of — and the row's own
-// path to the clipboard, whole and in the tree's root.
+// folder and the upload into its folder, the copy of a file, and the
+// paste of what was copied into the folder the click is of.
 func (a *App) entryExtras(m *ui.Menu, pane string, it fileItem) {
 	h := a.hostOf(pane)
 	if !it.Dir {
@@ -67,15 +66,6 @@ func (a *App) entryExtras(m *ui.Menu, pane string, it fileItem) {
 				a.pasteFileInto(pane, into)
 			}
 		}
-	}
-	// The row's path to the clipboard as any copy of the app's is
-	// (palette.go), on the host it is on and in the root the tree stands
-	// in, a file's row and a folder's alike.
-	if m.Item(locales.FilesCopyPath()).Chosen() {
-		a.copyText = it.path
-	}
-	if m.Item(locales.FilesCopyRelativePath()).Chosen() {
-		a.copyText = it.rel
 	}
 }
 

@@ -468,7 +468,7 @@ func (a *App) showNotification(id, title, body string) {
 // notify tells about sessions that came to need the user, or finished,
 // while the user was elsewhere: a notification, and the Dock's badge.
 func (a *App) notify(first bool) {
-	waiting := 0
+	waiting, unread := 0, 0
 	for i := range a.st.Sessions {
 		s := &a.st.Sessions[i]
 		// A host the app lost shows its sessions as they were: what they
@@ -478,8 +478,13 @@ func (a *App) notify(first bool) {
 		}
 		prev, seen := a.statuses[s.ID]
 		a.statuses[s.ID] = s.Status
-		if s.Status == proto.Waiting {
+		switch {
+		case s.Status == proto.Waiting:
 			waiting++
+		case s.Unread:
+			// One that finished unseen, and one that needs the user is
+			// unread as well, so each session counts once.
+			unread++
 		}
 		if first || !seen || prev == s.Status || a.watching(s.ID) {
 			continue
@@ -514,7 +519,11 @@ func (a *App) notify(first bool) {
 			delete(a.statuses, id)
 		}
 	}
-	if !a.set.DockBadge {
+	switch a.set.DockBadge {
+	case settings.DockBadgeWaitingUnread:
+		// What finished while the user was away counts as what needs them.
+		waiting += unread
+	case settings.DockBadgeOff:
 		waiting = 0
 	}
 	mygo.App.SetBadgeCount(waiting)
@@ -1027,6 +1036,31 @@ var commandKeys = map[ui.Key]byte{
 	ui.KeyRight:     0x05, // Control+E, end-of-line
 }
 
+// optionKeys are the keys that, with Option alone on a Mac, send the
+// program Esc and a letter, as Ghostty's, Terminal's and iTerm's do:
+// shells take Esc b and Esc f as backward-word and forward-word, where
+// the Alt arrows' own sequences, unbound, would type a letter.
+var optionKeys = map[ui.Key]byte{
+	ui.KeyLeft:  'b', // backward-word
+	ui.KeyRight: 'f', // forward-word
+}
+
+// macKeySend is what a key with these modifiers sends the program on a
+// Mac in place of its own sequence, nil for the key's own.
+func macKeySend(mods ui.Modifiers, key ui.Key) []byte {
+	switch mods {
+	case ui.Super:
+		if b, ok := commandKeys[key]; ok {
+			return []byte{b}
+		}
+	case ui.Alt:
+		if b, ok := optionKeys[key]; ok {
+			return []byte{0x1b, b}
+		}
+	}
+	return nil
+}
+
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	light, dark := a.termThemes()
 	o := terminal.Options{
@@ -1043,9 +1077,10 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// another pane.
 		Transparent: true,
 		// Text lines up with the pane's title; a full-screen program's
-		// colors reach the card's edges.
+		// colors reach the card's edges, unless window-padding-color says
+		// otherwise.
 		Padding:      terminal.Padding{X: 16, Y: 6},
-		PaddingColor: terminal.PaddingExtend,
+		PaddingColor: map[string]terminal.PaddingColor{"background": terminal.PaddingBackground, "extend": terminal.PaddingExtend, "extend-always": terminal.PaddingExtendAlways}[a.set.PaddingColor],
 		// Text a program colored for the other appearance, as a dark
 		// theme's light grays on a light one, stays legible.
 		MinimumContrast:  a.set.MinContrast,
@@ -1065,23 +1100,22 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			conn.Clear(proto.ClearScreen)
 			return true
 		},
-		// ⌘⌫ clears the line the shell is on, and ⌘← and ⌘→ go to its
-		// start and end, as in Ghostty: they send Control+U, Control+A and
-		// Control+E, which shells take as kill-line, beginning-of-line and
-		// end-of-line.
+		// ⌘⌫ clears the line the shell is on, ⌘← and ⌘→ go to its start
+		// and end, and ⌥← and ⌥→ move by a word, as in Ghostty
+		// (macKeySend).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool {
-			if runtime.GOOS != "darwin" || mods != ui.Super {
+			if runtime.GOOS != "darwin" {
 				return false
 			}
-			b, ok := commandKeys[key]
-			if !ok {
+			b := macKeySend(mods, key)
+			if b == nil {
 				return false
 			}
 			t := a.termFor(id)
 			if t == nil {
 				return false
 			}
-			t.Send([]byte{b})
+			t.Send(b)
 			return true
 		},
 		// The wheel, the user's even over a window not focused, tells they
@@ -1108,10 +1142,12 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	if a.set.CopyOnSelect {
 		o.CopyOnSelect = terminal.CopyOnSelectClipboard
 	}
-	// Files and images pasted into a pane of another machine go there; a
-	// local pane's image alone pastes as the path of a file with it.
+	// Files and images pasted into, or dropped on, a pane of another
+	// machine go there; a local pane's image alone pastes as the path of
+	// a file with it.
 	if a.hostOf(id).remote() {
 		o.OnPaste = func(d transfer.Data) bool { return a.remotePaste(id, d) }
+		o.OnDrop = func(paths []string) bool { return a.remoteDrop(id, paths) }
 	}
 	return o
 }
@@ -1119,6 +1155,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 // zoom makes every terminal's text bigger or smaller, which Settings
 // remembers as the font's size.
 func (a *App) zoom(steps int, reset bool) {
+	if !a.set.FontZoom {
+		return
+	}
 	s := a.set
 	s.FontSize = min(max(s.FontSize+float32(steps), 8), 36)
 	if reset {
@@ -1149,7 +1188,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 		!slices.Equal(old.FontFeatures, s.FontFeatures)
 	themes := old.LightTheme != s.LightTheme || old.DarkTheme != s.DarkTheme
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||
-		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick
+		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick || old.PaddingColor != s.PaddingColor
 	light, dark := a.termThemes()
 	retune := func(t *terminal.Terminal) {
 		if font {
@@ -1454,13 +1493,38 @@ func (a *App) newSessionOn(h *host, projectID string) {
 	if h.remote() {
 		home = "~" // the host's, as kerod there takes it
 	}
-	if a.set.NewSessionDir == "home" {
+	switch a.set.NewSessionDir {
+	case "home":
 		p.Dir = home
+	case "custom":
+		p.Dir = home
+		if !h.remote() {
+			if dir := expandHome(a.set.NewSessionPath); isDir(dir) {
+				p.Dir = dir
+			}
+		}
 	}
-	if p.Project == "" && len(a.projectsOf(h)) == 0 {
+	if p.Project == "" && len(a.projectsOf(h)) == 0 && a.set.NewSessionDir != "custom" {
 		p.Dir = home
 	}
 	a.create(h, p, "")
+}
+
+// expandHome makes a path of ~/… this machine's home's.
+func expandHome(p string) string {
+	if p == "~" {
+		return proto.Home()
+	}
+	if strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) {
+		return filepath.Join(proto.Home(), p[2:])
+	}
+	return p
+}
+
+// isDir tells whether a folder exists.
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
 
 // create starts a session on a host, and shows it, opening the project

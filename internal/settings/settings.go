@@ -23,7 +23,8 @@ import (
 // choice of its own: Load fills defaults in.
 type Settings struct {
 	// General
-	NewSessionDir      string `json:"newSessionDir"`      // "current", "project" or "home"
+	NewSessionDir      string `json:"newSessionDir"`      // "current", "project", "home" or "custom", NewSessionPath
+	NewSessionPath     string `json:"newSessionPath"`     // the folder new sessions start in when NewSessionDir is "custom", as ~/… or absolute
 	SessionName        string `json:"sessionName"`        // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
 	SidebarRows        string `json:"sidebarRows"`        // "detailed", two lines a session, or "compact", one
 	SidebarCount       bool   `json:"sidebarCount"`       // a project's header shows how many sessions it holds
@@ -71,12 +72,14 @@ type Settings struct {
 	Thicken      bool     `json:"thicken"`
 	MinContrast  float32  `json:"minContrast"`           // a WCAG ratio text keeps with its background
 	DimUnfocused bool     `json:"dimUnfocusedTerminals"` // the terminals the user is not in fade
+	PaddingColor string   `json:"paddingColor"`          // one of PaddingColors: what the padding around a terminal's text shows
 	Cursor       string   `json:"cursor"`                // "block", "bar" or "underline"
 	CursorBlink  bool     `json:"cursorBlink"`
 	LightTheme   string   `json:"lightTheme"` // one of KeroThemes by its Name, or a Ghostty theme's
 	DarkTheme    string   `json:"darkTheme"`
 	OptionAsAlt  bool     `json:"optionAsAlt"`
 	CopyOnSelect bool     `json:"copyOnSelect"`
+	FontZoom     bool     `json:"fontZoom"`
 	Clipboard    string   `json:"clipboard"`  // programs reading it: "ask", "allow" or "deny"
 	RightClick   string   `json:"rightClick"` // "menu", "paste" or "copyOrPaste"
 	// ScrollPrecision scales a touchpad's scrolling, and ScrollDiscrete is
@@ -91,12 +94,12 @@ type Settings struct {
 	Scrollback int      `json:"scrollback"`
 
 	// Notifications
-	NotifyWaiting bool `json:"notifyWaiting"` // a session needs you
-	NotifyDone    bool `json:"notifyDone"`    // an agent finished
-	NotifyFailed  bool `json:"notifyFailed"`  // a program reported it failed
-	NotifySound   bool `json:"notifySound"`
-	DockBadge     bool `json:"dockBadge"`
-	BounceDock    bool `json:"bounceDock"`
+	NotifyWaiting bool      `json:"notifyWaiting"` // a session needs you
+	NotifyDone    bool      `json:"notifyDone"`    // an agent finished
+	NotifyFailed  bool      `json:"notifyFailed"`  // a program reported it failed
+	NotifySound   bool      `json:"notifySound"`
+	DockBadge     DockBadge `json:"dockBadge"` // one of DockBadgeModes: what the badge counts
+	BounceDock    bool      `json:"bounceDock"`
 
 	// Agents
 	RemoteControl bool `json:"remoteControl"` // kero focus and kero do drive the app
@@ -107,6 +110,7 @@ type Settings struct {
 	SidebarBranch bool   `json:"sidebarBranch"` // a session's branch beside its name in the sidebar; needs GitStatus
 	SidebarPath   bool   `json:"sidebarPath"`   // a session's folder on a line of its own in the sidebar's detailed rows
 	DiffLayout    string `json:"diffLayout"`    // the changes panel's diffs: "auto", "unified" or "split"
+	WrapLines     bool   `json:"wrapLines"`     // the viewer's diffs and files wrap long lines
 	// WorktreeBase is what a session's own worktree branches from:
 	// "default", the repository's default branch, or "current", the
 	// branch of the session the user is in. WorktreeDir is where its
@@ -194,7 +198,9 @@ func Default() Settings {
 		CellWidth:          1,
 		FontWeight:         400,
 		Ligatures:          true,
+		FontZoom:           true,
 		MinContrast:        3,
+		PaddingColor:       "extend",
 		Cursor:             "block",
 		CursorBlink:        true,
 		LightTheme:         "paper",
@@ -207,7 +213,7 @@ func Default() Settings {
 		NotifyWaiting:      true,
 		NotifyDone:         true,
 		NotifyFailed:       true,
-		DockBadge:          true,
+		DockBadge:          DockBadgeWaiting,
 		RemoteControl:      true,
 		GitStatus:          true,
 		SidebarBranch:      true,
@@ -234,9 +240,50 @@ var Languages = []string{"en", "ja", "zh-Hans"}
 // bar, the Dock alone, or the menu bar alone.
 var AppIcons = []string{"dock-and-menubar", "dock", "menubar"}
 
+// PaddingColors are what the padding around a terminal's text shows, as
+// Ghostty's window-padding-color: the terminal's background; the colors
+// of the cells beside it, but for a row a program left at the background;
+// or theirs always.
+var PaddingColors = []string{"background", "extend", "extend-always"}
+
 // KeepAwakeModes are when Kero keeps the computer from sleeping: never,
 // as long as it runs, or while an agent on this machine works.
 var KeepAwakeModes = []string{"off", "on", "agents"}
+
+// DockBadge is what the Dock's badge counts, one of DockBadgeModes.
+type DockBadge string
+
+// The modes of DockBadge (DockBadgeModes): the sessions that need you,
+// those and the finished ones you haven't seen, or nothing.
+const (
+	DockBadgeWaiting       DockBadge = "waiting"
+	DockBadgeWaitingUnread DockBadge = "waiting-and-unread"
+	DockBadgeOff           DockBadge = "off"
+)
+
+// DockBadgeModes are what the Dock's badge counts: the sessions that need
+// you, those and the finished ones you haven't seen yet, or nothing.
+var DockBadgeModes = []DockBadge{DockBadgeWaiting, DockBadgeWaitingUnread, DockBadgeOff}
+
+// UnmarshalJSON reads a mode, and the true and false the setting had
+// before it took modes: what the JSON settings kero kept then held.
+func (d *DockBadge) UnmarshalJSON(b []byte) error {
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		*d = DockBadge(s)
+		return nil
+	}
+	var v bool
+	if json.Unmarshal(b, &v) != nil {
+		return fmt.Errorf("dockBadge is neither a mode nor true or false")
+	}
+	if v {
+		*d = DockBadgeWaiting
+	} else {
+		*d = DockBadgeOff
+	}
+	return nil
+}
 
 // KeroThemes are kero's themes: the wash each shows under the window's
 // cards, and its name in the configuration.
@@ -471,7 +518,10 @@ func (s *Settings) normalize() {
 		}
 		*v = def
 	}
-	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home")
+	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home", "custom")
+	if s.NewSessionDir == "custom" && !IsFolderPath(s.NewSessionPath) {
+		s.NewSessionDir = d.NewSessionDir
+	}
 	oneOf(&s.SidebarRows, d.SidebarRows, "detailed", "compact")
 	oneOf(&s.Appearance, d.Appearance, "system", "light", "dark")
 	oneOf(&s.SidebarDensity, d.SidebarDensity, "compact", "standard")
@@ -484,6 +534,9 @@ func (s *Settings) normalize() {
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
 	oneOf(&s.FileOpen, d.FileOpen, "system", "pane")
 	oneOf(&s.FilesTransfer, d.FilesTransfer, "builtin", "scp", "rsync")
+	if !slices.Contains(DockBadgeModes, s.DockBadge) {
+		s.DockBadge = d.DockBadge
+	}
 	if s.FontSize < 8 || s.FontSize > 36 {
 		s.FontSize = d.FontSize
 	}

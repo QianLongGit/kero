@@ -77,6 +77,84 @@ func shot(t *testing.T, tt *ui.Tester, name string) {
 	png.Encode(f, tt.Image())
 }
 
+func TestSessionHoverClose(t *testing.T) {
+	for _, mode := range []string{"compact", "detailed"} {
+		for _, selected := range []bool{false, true} {
+			for _, dark := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/selected=%t/dark=%t", mode, selected, dark), func(t *testing.T) {
+					a := testApp(t)
+					a.set.SidebarRows, a.set.ConfirmClose = mode, true
+					other := a.st.Sessions[0]
+					other.ID, other.Name = "s2", "other session"
+					other.Panes = []proto.Pane{{ID: "c", Shell: "fish", Progress: -1}}
+					other.Layout, other.Focus = nil, "c"
+					a.st.Sessions = append(a.st.Sessions, other)
+					id, remaining := "s2", "s1"
+					if selected {
+						id, remaining = remaining, id
+					}
+					s := a.session(id)
+					s.Name, s.Process, s.Status = "hover target", "claude", proto.Working
+					tt := ui.NewTester(a.view, 1100, 640)
+					tt.SetDark(dark)
+					tt.Frame()
+					tt.Advance(time.Second)
+					tt.Frame()
+					label := locales.ActionCloseSession()
+					if _, ok := tt.Find(label); ok {
+						t.Fatal("close button shown without hover")
+					}
+					before, ok := tt.Find("hover target")
+					if !ok {
+						t.Fatalf("no session title; texts %q", tt.Texts())
+					}
+					for range 2 {
+						tt.Move(before.X+before.W/2, before.Y+before.H/2)
+						tt.Frame()
+						if _, ok := tt.Find(label); !ok {
+							t.Fatal("hover did not show close button")
+						}
+						if after, _ := tt.Find("hover target"); after != before {
+							t.Fatalf("hover moved title: %v → %v", before, after)
+						}
+						tt.Move(1000, 600)
+						tt.Frame()
+						if _, ok := tt.Find(label); ok {
+							t.Fatal("close button remained after pointer left")
+						}
+					}
+					tt.Move(before.X+before.W/2, before.Y+before.H/2)
+					tt.Frame()
+					button, ok := tt.Find(label)
+					if !ok {
+						t.Fatal("close button did not return")
+					}
+					tt.Move(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					shot(t, tt, fmt.Sprintf("session-close-%s-%t-%t", mode, selected, dark))
+					tt.Press(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					if a.selected != "s1" {
+						t.Fatal("pressing close selected the background session")
+					}
+					tt.Release(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					// A busy session asks first, as Close Session does
+					// (confirm-close).
+					if a.confirm == nil || !a.confirm.open || a.session(id) == nil {
+						t.Fatal("closing a working session did not ask first")
+					}
+					a.confirm.run()
+					tt.Frame()
+					if a.session(id) != nil || len(a.st.Sessions) != 1 || a.selected != remaining {
+						t.Fatalf("wrong session closed: selected=%q sessions=%v", a.selected, a.st.Sessions)
+					}
+				})
+			}
+		}
+	}
+}
+
 func testDropApp(t *testing.T) *App {
 	t.Helper()
 	a := testApp(t)
@@ -1763,5 +1841,54 @@ func TestSidebarSplitPanes(t *testing.T) {
 	tt.Frame()
 	if a.prefs.Expanded["s1"] || count("Review the tests") != shown {
 		t.Error("the count of panes didn't collapse the session")
+	}
+}
+
+// A double click on the sidebar's empty space starts a session, as ⌘T
+// does; one on a session's row renames it instead.
+func TestDoubleClickSidebarNewSession(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	created := make(chan proto.CreateParams, 2)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "create" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.CreateParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		created <- p
+		return proto.Session{ID: "s2", Project: p.Project}, nil
+	})
+	a.local().cl = cl
+	defer stop()
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	row, ok := tt.Find("demo")
+	if !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+	// Well below the rows.
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	select {
+	case p := <-created:
+		if p.Project != "p1" || p.After != "s1" {
+			t.Errorf("created %+v, want after s1 in p1, as ⌘T", p)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the double click started no session")
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	select {
+	case p := <-created:
+		t.Errorf("a single click created %+v", p)
+	case <-time.After(200 * time.Millisecond):
 	}
 }

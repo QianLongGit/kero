@@ -624,6 +624,13 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 	// takes the colors of the cells beside it, so that a full-screen
 	// program's background reaches the card's edges.
 	body := ui.Box(c.Key("body")).Grow(1).MinHeight(0)
+	// A file or folder of the Files tab dropped on the terminal: its
+	// path, as a file dropped from the file manager types it.
+	_, fileOver := ui.DragOver[fileDrag](body)
+	if d, ok := ui.Drop[fileDrag](body); ok {
+		sid, pid := s.ID, p.ID
+		a.defer_(func() { a.insertPath(sid, pid, d) })
+	}
 	// A named theme's colors are tuned to its own background, which the
 	// transparent terminal does not paint: the card's color would show
 	// through them, so the theme's background goes under the terminal.
@@ -638,6 +645,13 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 		body.Background(theme.Background)
 	}
 	body.Children(func() {
+		if fileOver {
+			// Over the terminal, drawn after it.
+			defer func() {
+				ui.Box(c.Key("file-over")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Radius(10).
+					Background(pal.accent.Alpha(0.06)).Border(2, pal.accent.Alpha(0.55))
+			}()
+		}
 		switch {
 		case e != nil && e.term != nil:
 			ref := a.paneRef(p.ID)

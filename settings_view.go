@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"io"
 	"math"
 	"os"
@@ -71,6 +72,11 @@ type settingsState struct {
 	rsyncPathDraft   string
 	scpPathEditing   bool
 	rsyncPathEditing bool
+	// dirBefore is where new sessions started before Custom was picked,
+	// to go back to when its dialog is cancelled; choosingDir, that the
+	// dialog is open.
+	dirBefore   string
+	choosingDir bool
 	// featuresDraft is font-feature as the field has it, while
 	// featuresEditing.
 	featuresDraft   string
@@ -531,8 +537,22 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 	s := &a.set
 	settingsGroup(c, pal, locales.SetSessions(), locales.SetSessionsDetail(a.tip(strings.TrimSuffix(actionTitle("app.quitAll"), "…"), "app.quitAll")), func() {
 		settingRow(c, pal, locales.SetNewSessionsStartIn(), "", func() {
-			segmented(c, "newdir", &s.NewSessionDir, []string{"current", "project", "home"}, []string{locales.SetDirCurrent(), locales.SetDirProject(), locales.SetDirHome()})
+			segmented(c, "newdir", &s.NewSessionDir, []string{"current", "project", "home", "custom"},
+				[]string{locales.SetDirCurrent(), locales.SetDirProject(), locales.SetDirHome(), locales.SetDirCustom()})
 		})
+		// Custom, picked with no folder yet, asks for one.
+		if s.NewSessionDir == "custom" && s.NewSessionPath == "" {
+			a.chooseNewSessionDir()
+		}
+		if s.NewSessionDir != "custom" {
+			a.ss.dirBefore = s.NewSessionDir
+		} else {
+			settingRow(c, pal, s.NewSessionPath, locales.SetNewSessionFolderDetail(), func() {
+				if button(c, "newdir-choose", locales.SetChooseFolder(), "", false, pal) {
+					a.chooseNewSessionDir()
+				}
+			})
+		}
 		settingRow(c, pal, locales.SetSessionName(), locales.SetSessionNameDetail(), func() {
 			segmented(c, "sessionname", &s.SessionName, []string{proto.NameFocused, proto.NameLead, proto.NameFolder},
 				[]string{locales.SetNameFocused(), locales.SetNameLead(), locales.SetNameFolder()})
@@ -596,6 +616,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetDiffLayout(), locales.SetDiffLayoutDetail(), func() {
 			segmented(c, "diff-layout", &s.DiffLayout, []string{"auto", "unified", "split"},
 				[]string{locales.SetDiffAuto(), locales.ChangesUnified(), locales.ChangesSplit()})
+		})
+		settingRow(c, pal, locales.SetWrapLines(), locales.SetWrapLinesDetail(), func() {
+			toggle(c.Key("wrap-lines"), &s.WrapLines, pal)
 		})
 	})
 	settingsGroup(c, pal, locales.SideFiles(), "", func() {
@@ -1285,7 +1308,7 @@ func (a *App) notificationsPage(c *ui.Context, pal *palette) {
 	})
 	settingsGroup(c, pal, locales.SetHow(), "", func() {
 		settingRow(c, pal, locales.SetPlaySound(), "", func() { toggle(c.Key("ns"), &s.NotifySound, pal) })
-		settingRow(c, pal, locales.SetDockBadge(), locales.SetDockBadgeDetail(), func() { toggle(c.Key("nb"), &s.DockBadge, pal) })
+		settingRow(c, pal, locales.SetDockBadge(), locales.SetDockBadgeDetail(), func() { popup(c, "dock-badge", &s.DockBadge, settings.DockBadgeModes, dockBadgeName, 180, pal) })
 		settingRow(c, pal, locales.SetDockBounce(), locales.SetDockBounceDetail(), func() { toggle(c.Key("nbo"), &s.BounceDock, pal) })
 	})
 	if button(c, "test-notif", locales.SetTestNotification(), "", false, pal) {
@@ -1329,7 +1352,7 @@ func (a *App) agentsPage(c *ui.Context, pal *palette) {
 	})
 	settingsGroup(c, pal, locales.SetSkills(), locales.SetSkillsDetail(), func() {
 		for _, st := range cli.SkillStates() {
-			name := map[string]string{"claude": "Claude Code", "agents": "Codex, OpenCode, Pi"}[st.Agent]
+			name := map[string]string{"claude": "Claude Code", "codebuddy": "CodeBuddy Code", "agents": "Codex, OpenCode, Pi"}[st.Agent]
 			detail := map[string]string{"current": locales.SetSkillInstalled(), "outdated": locales.SetSkillOutdated(), "missing": locales.SetSkillMissing()}[st.State] + " · " + proto.ShortDir(st.Dir)
 			settingRow(c, pal, name, detail, func() {
 				agent := st.Agent
@@ -1460,6 +1483,32 @@ func (a *App) advancedPage(c *ui.Context, pal *palette) {
 			}
 		})
 	})
+}
+
+// chooseNewSessionDir asks, with the system's dialog, for the folder new
+// sessions start in. Cancelled with none chosen yet, the choice goes back
+// to what it was.
+func (a *App) chooseNewSessionDir() {
+	if a.ss.choosingDir {
+		return
+	}
+	a.ss.choosingDir = true
+	win := a.win
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Parent: win, Title: locales.NewSessionFolderTitle(), Directory: true, ButtonLabel: locales.CommonChoose(),
+			Message: locales.NewSessionFolderMessage(),
+		})
+		a.update(func() {
+			a.ss.choosingDir = false
+			switch {
+			case err == nil && len(paths) > 0:
+				a.set.NewSessionDir, a.set.NewSessionPath = "custom", proto.ShortDir(paths[0])
+			case a.set.NewSessionPath == "":
+				a.set.NewSessionDir = cmp.Or(a.ss.dirBefore, "current")
+			}
+		})
+	}()
 }
 
 // ensureConfig writes the configuration file, with its header, when
