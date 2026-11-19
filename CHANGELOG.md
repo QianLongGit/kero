@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.40
+
+- **Download by Path** in a remote host's Files view: a button on
+  the root row and an item in its label's menu open a small dialog
+  that takes a path relative to the current directory, absolute, or
+  from `~` — a path that isn't there is refused inline in red
+  without closing, files land through the save dialog and folders
+  through the folder picker, and all three transfer modes (builtin,
+  scp, rsync) carry it unchanged.
+
 ## 2.3.39
 
 - A chosen row of the Files view is readable again: its text now
