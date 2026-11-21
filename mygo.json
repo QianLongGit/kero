@@ -4,7 +4,7 @@
   "urlSchemes": [
     "kero"
   ],
-  "version": "2.3.40",
+  "version": "2.3.41",
   "out": "build",
   "i18n": {
     "dir": "locales",

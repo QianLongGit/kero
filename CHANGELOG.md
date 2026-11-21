@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.3.41
+
+- **Export and import your data** between computers: `kero export`
+  writes a single JSON file with every host, every setting that
+  differs from the default, and agents.toml; `kero import` and a new
+  Settings › Transfer page preview the merge before applying it —
+  hosts upsert by name, settings apply key by key, and the six keys
+  that hold machine-local paths (scp and rsync paths, pinned apps,
+  and the like) are filtered on both ends so a Mac's brew paths
+  never reach a Windows box. Sessions need no export: they live on
+  each remote host, and connecting from the new computer shows them
+  all.
+- **Windows installers** join every release: NSIS cross-compiles
+  them on the build machine, so `kero-setup-2.3.41-<arch>.exe`,
+  install.ps1, and SHA256SUMS are published alongside the other
+  assets and `irm … | iex` installs Kero on Windows in one line.
+
 ## 2.3.40
 
 - **Download by Path** in a remote host's Files view: a button on
