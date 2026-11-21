@@ -145,6 +145,13 @@ Usage:
                                 the configuration file: where it is, every
                                 key with its value (--defaults: as kero
                                 comes), open it in $EDITOR, check it
+  kero export [-o file]         write this machine's hosts, settings and
+                                agents.toml as one file for another
+                                computer's kero import (default
+                                kero-data-<date>.json; - writes stdout)
+  kero import <file> [--yes]    merge what another computer exported:
+                                hosts by name, settings one by one, the
+                                agents rules; asks first (--yes skips)
   kero projects [--json]        list projects, in the sidebar's order
   kero projects move <project> <position|top|bottom|up|down>
                                 move a project in that order (1 is the
@@ -183,7 +190,7 @@ ambiguous one), 4 kerod unreachable.
 // Commands lists the subcommands, which main sends here.
 var Commands = []string{"ls", "list", "new", "attach", "tui", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
-	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
+	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version", "export", "import"}
 
 // IsCommand reports whether an argument starts a command of the CLI, as
 // main tells them from the app's.
@@ -322,6 +329,10 @@ func run(args []string, host string) error {
 		return hookCmd(args)
 	case "config":
 		return configCmd(args)
+	case "export":
+		return exportCmd(args)
+	case "import":
+		return importCmd(args)
 	}
 	if cmd == "ls" || cmd == "list" {
 		f, err := parse(args, nil, map[string]string{"json": "json", "j": "json", "all": "all", "a": "all"})

@@ -98,6 +98,9 @@ func settingsIndex() []searchEntry {
 		{"hosts", locales.SetHostRemoteControl(), "remote-control host kero do focus"},
 		{"hosts", locales.SetListen(), "listen tailnet tailscale share this computer host port 7373 listen-allow"},
 
+		{"transfer", locales.TransferExport(), "export backup copy move migrate data another computer windows mac kero-data json"},
+		{"transfer", locales.TransferImport(), "import merge restore data file kero-data json"},
+
 		{"advanced", locales.SetConfigFile(), "configuration ghostty edit file dotfiles"},
 		{"advanced", "kerod", "daemon background service restart sessions"},
 		{"advanced", locales.SetLog(), "kerod log debug"},

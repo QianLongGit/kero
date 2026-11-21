@@ -51,6 +51,7 @@ var settingsPages = []settingsPage{
 	{"keyboard", locales.PageKeyboard, glyph("f7-keyboard"), false},
 	{"agents", locales.PageAgents, glyph("f7-sparkles"), false},
 	{"hosts", locales.PageHosts, hostIcon, true},
+	{"transfer", locales.PageTransfer, glyph("f7-arrow-right-arrow-left"), false},
 	{"advanced", locales.PageAdvanced, glyph("f7-slider-horizontal-3"), false},
 }
 
@@ -98,6 +99,7 @@ type settingsState struct {
 	tailnet         tailnetLook                // this machine on the tailnet, for the Hosts page
 	hooks           map[string]*hostHooksLook  // each host's agent hooks, as the Hosts page last asked
 	confirm         *confirmation              // a question, asked in this window
+	xfer            importPreview              // a transfer file, previewed before its merge
 	// preview is the Terminal page's sample terminal, made once
 	// previewLoad, which waits for terminal.Load off the main thread,
 	// gives its result; previewText is its text, for assistive technology.
@@ -314,6 +316,8 @@ func (a *App) settingsView(c *ui.Context) {
 								a.agentsPage(c, pal)
 							case "hosts":
 								a.hostsPage(c, pal)
+							case "transfer":
+								a.transferPage(c, pal)
 							case "advanced":
 								a.advancedPage(c, pal)
 							}
@@ -339,6 +343,9 @@ func (a *App) settingsView(c *ui.Context) {
 	})
 	if a.ss.confirm != nil {
 		confirmDialog(c, pal, &a.ss.confirm)
+	}
+	if a.ss.xfer.open {
+		a.transferImportView(c, pal)
 	}
 	// The controls edit a.set: what changed applies, and saves.
 	if !reflect.DeepEqual(a.set, a.applied) {

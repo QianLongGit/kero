@@ -6074,6 +6074,16 @@ func (msgs Messages) PageExperimental() string {
 	return Catalog.Format(msgs.locale, "pageExperimental", nil)
 }
 
+// PageTransfer says "Transfer"
+// in the language the app shows.
+func PageTransfer() string { return In(i18n.Locale()).PageTransfer() }
+
+// PageTransfer says "Transfer"
+// in the language of msgs.
+func (msgs Messages) PageTransfer() string {
+	return Catalog.Format(msgs.locale, "pageTransfer", nil)
+}
+
 // HostThisComputer says "This Computer"
 // in the language the app shows.
 func HostThisComputer() string { return In(i18n.Locale()).HostThisComputer() }
@@ -7518,4 +7528,182 @@ func SetSidebarSmartDetail() string { return In(i18n.Locale()).SetSidebarSmartDe
 // in the language of msgs.
 func (msgs Messages) SetSidebarSmartDetail() string {
 	return Catalog.Format(msgs.locale, "setSidebarSmartDetail", nil)
+}
+
+// TransferNote says "Carry your remote hosts, settings and agents rules to another computer as one file. Sessions live on their hosts — …"
+// in the language the app shows.
+func TransferNote() string { return In(i18n.Locale()).TransferNote() }
+
+// TransferNote says "Carry your remote hosts, settings and agents rules to another computer as one file. Sessions live on their hosts — …"
+// in the language of msgs.
+func (msgs Messages) TransferNote() string {
+	return Catalog.Format(msgs.locale, "transferNote", nil)
+}
+
+// TransferExport says "Export"
+// in the language the app shows.
+func TransferExport() string { return In(i18n.Locale()).TransferExport() }
+
+// TransferExport says "Export"
+// in the language of msgs.
+func (msgs Messages) TransferExport() string {
+	return Catalog.Format(msgs.locale, "transferExport", nil)
+}
+
+// TransferExportDetail says "Write this machine's data to a file"
+// in the language the app shows.
+func TransferExportDetail() string { return In(i18n.Locale()).TransferExportDetail() }
+
+// TransferExportDetail says "Write this machine's data to a file"
+// in the language of msgs.
+func (msgs Messages) TransferExportDetail() string {
+	return Catalog.Format(msgs.locale, "transferExportDetail", nil)
+}
+
+// TransferExportButton says "Export…"
+// in the language the app shows.
+func TransferExportButton() string { return In(i18n.Locale()).TransferExportButton() }
+
+// TransferExportButton says "Export…"
+// in the language of msgs.
+func (msgs Messages) TransferExportButton() string {
+	return Catalog.Format(msgs.locale, "transferExportButton", nil)
+}
+
+// TransferImport says "Import"
+// in the language the app shows.
+func TransferImport() string { return In(i18n.Locale()).TransferImport() }
+
+// TransferImport says "Import"
+// in the language of msgs.
+func (msgs Messages) TransferImport() string {
+	return Catalog.Format(msgs.locale, "transferImport", nil)
+}
+
+// TransferImportDetail says "Merge a file another computer wrote"
+// in the language the app shows.
+func TransferImportDetail() string { return In(i18n.Locale()).TransferImportDetail() }
+
+// TransferImportDetail says "Merge a file another computer wrote"
+// in the language of msgs.
+func (msgs Messages) TransferImportDetail() string {
+	return Catalog.Format(msgs.locale, "transferImportDetail", nil)
+}
+
+// TransferImportButton says "Import…"
+// in the language the app shows.
+func TransferImportButton() string { return In(i18n.Locale()).TransferImportButton() }
+
+// TransferImportButton says "Import…"
+// in the language of msgs.
+func (msgs Messages) TransferImportButton() string {
+	return Catalog.Format(msgs.locale, "transferImportButton", nil)
+}
+
+// TransferImportTitle says "Import Kero data"
+// in the language the app shows.
+func TransferImportTitle() string { return In(i18n.Locale()).TransferImportTitle() }
+
+// TransferImportTitle says "Import Kero data"
+// in the language of msgs.
+func (msgs Messages) TransferImportTitle() string {
+	return Catalog.Format(msgs.locale, "transferImportTitle", nil)
+}
+
+// TransferImportFrom says "Exported from {from} (Kero {version})"
+// in the language the app shows.
+func TransferImportFrom(from string, version string) string {
+	return In(i18n.Locale()).TransferImportFrom(from, version)
+}
+
+// TransferImportFrom says "Exported from {from} (Kero {version})"
+// in the language of msgs.
+func (msgs Messages) TransferImportFrom(from string, version string) string {
+	return Catalog.Format(msgs.locale, "transferImportFrom", map[string]any{"from": from, "version": version})
+}
+
+// TransferImportHosts says "Hosts to merge: {n} ({added} new, {replaced} replaced)"
+// in the language the app shows.
+func TransferImportHosts(n string, added string, replaced string) string {
+	return In(i18n.Locale()).TransferImportHosts(n, added, replaced)
+}
+
+// TransferImportHosts says "Hosts to merge: {n} ({added} new, {replaced} replaced)"
+// in the language of msgs.
+func (msgs Messages) TransferImportHosts(n string, added string, replaced string) string {
+	return Catalog.Format(msgs.locale, "transferImportHosts", map[string]any{"n": n, "added": added, "replaced": replaced})
+}
+
+// TransferImportSettings says "Settings to apply: {n}"
+// in the language the app shows.
+func TransferImportSettings(n string) string { return In(i18n.Locale()).TransferImportSettings(n) }
+
+// TransferImportSettings says "Settings to apply: {n}"
+// in the language of msgs.
+func (msgs Messages) TransferImportSettings(n string) string {
+	return Catalog.Format(msgs.locale, "transferImportSettings", map[string]any{"n": n})
+}
+
+// TransferImportSkipped says "Settings kept here (local to the exporter): {names}"
+// in the language the app shows.
+func TransferImportSkipped(names string) string {
+	return In(i18n.Locale()).TransferImportSkipped(names)
+}
+
+// TransferImportSkipped says "Settings kept here (local to the exporter): {names}"
+// in the language of msgs.
+func (msgs Messages) TransferImportSkipped(names string) string {
+	return Catalog.Format(msgs.locale, "transferImportSkipped", map[string]any{"names": names})
+}
+
+// TransferAgentsReplace says "agents.toml will be replaced"
+// in the language the app shows.
+func TransferAgentsReplace() string { return In(i18n.Locale()).TransferAgentsReplace() }
+
+// TransferAgentsReplace says "agents.toml will be replaced"
+// in the language of msgs.
+func (msgs Messages) TransferAgentsReplace() string {
+	return Catalog.Format(msgs.locale, "transferAgentsReplace", nil)
+}
+
+// TransferAgentsKeep says "agents.toml stays as it is"
+// in the language the app shows.
+func TransferAgentsKeep() string { return In(i18n.Locale()).TransferAgentsKeep() }
+
+// TransferAgentsKeep says "agents.toml stays as it is"
+// in the language of msgs.
+func (msgs Messages) TransferAgentsKeep() string {
+	return Catalog.Format(msgs.locale, "transferAgentsKeep", nil)
+}
+
+// TransferImportedToast says "Imported {hosts} hosts and {settings} settings"
+// in the language the app shows.
+func TransferImportedToast(hosts string, settings string) string {
+	return In(i18n.Locale()).TransferImportedToast(hosts, settings)
+}
+
+// TransferImportedToast says "Imported {hosts} hosts and {settings} settings"
+// in the language of msgs.
+func (msgs Messages) TransferImportedToast(hosts string, settings string) string {
+	return Catalog.Format(msgs.locale, "transferImportedToast", map[string]any{"hosts": hosts, "settings": settings})
+}
+
+// TransferExportedToast says "Exported to {path}"
+// in the language the app shows.
+func TransferExportedToast(path string) string { return In(i18n.Locale()).TransferExportedToast(path) }
+
+// TransferExportedToast says "Exported to {path}"
+// in the language of msgs.
+func (msgs Messages) TransferExportedToast(path string) string {
+	return Catalog.Format(msgs.locale, "transferExportedToast", map[string]any{"path": path})
+}
+
+// TransferPreviewButton says "Import"
+// in the language the app shows.
+func TransferPreviewButton() string { return In(i18n.Locale()).TransferPreviewButton() }
+
+// TransferPreviewButton says "Import"
+// in the language of msgs.
+func (msgs Messages) TransferPreviewButton() string {
+	return Catalog.Format(msgs.locale, "transferPreviewButton", nil)
 }
