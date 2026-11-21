@@ -17,7 +17,7 @@ unset GOROOT GOPATH
 ```
 
 - macOS 开发机：go 不在 PATH；环境残留失效的 `GOROOT`/`GOPATH`，不 unset 直接报 `cannot find GOROOT directory`
-- **Linux 构建机**：先确认 `zip` 命令存在（`apt install zip`；缺它 build-server.sh 只产 4/6 归档、install 脚本不盖戳，**还 exit 0**）；darwin 平台不产 DMG——mygo 警告 `Skipping the disk image: it needs macOS` 后跳过（非错误，无 flag 可绕），产物是 `Kero.app` 目录，打 zip 发布（第 3 节）；更新私钥需从 macOS 机复制到 `~/.config/mygo/update-keys/mygo-update.key`（第 4 节）
+- **Linux 构建机**：先确认 `zip` 命令存在（`apt install zip`；缺它 build-server.sh 只产 4/6 归档、install 脚本不盖戳，**还 exit 0**）；构建 Windows 安装器还需 **NSIS**（`apt install nsis`，提供 `makensis`；上游 CI 同样在 ubuntu 上交叉构建 Windows，见 release.yml 的 Windows matrix）；darwin 平台不产 DMG——mygo 警告 `Skipping the disk image: it needs macOS` 后跳过（非错误，无 flag 可绕），产物是 `Kero.app` 目录，打 zip 发布（第 3 节）；更新私钥需从 macOS 机复制到 `~/.config/mygo/update-keys/mygo-update.key`（第 4 节）
 - 模块下载失败时前缀 `GOPROXY=https://goproxy.cn,direct`（默认 proxy.golang.org 在本机不可达）
 - **gh 每条命令必带 `-R QianLongGit/kero`**——仓库有多个 remote（origin/上游 egoist/其他），gh 默认解析到 upstream egoist/kero
 - **rtk hook 的 exit code 不可信**（出现过 DATA RACE + FAIL 但 exit 0）：判绿必须看输出里有 `ok` 行、grep 不到 `FAIL`/`DATA RACE`；输出被吞用 `rtk proxy <cmd>` 跑原始命令
@@ -47,12 +47,13 @@ gh repo view QianLongGit/kero --json visibility             # 必须 PUBLIC：�
 ## 3. 构建
 
 ```sh
-# app：darwin（macOS 开发机 → DMG；Linux 构建机 → .app 打 zip）+ linux tar/deb（Windows 安装器是 CI-only，本 fork 不做；server 的 Windows zip 覆盖远程安装）
-go tool mygo build -platform "darwin/arm64,linux/amd64,linux/arm64" -sign - -skip-notarize
+# app：darwin（macOS 开发机 → DMG；Linux 构建机 → .app 打 zip）+ linux tar/deb + windows 安装器（NSIS 交叉构建，见第 0 节）
+go tool mygo build -platform "darwin/arm64,linux/amd64,linux/arm64,windows/amd64,windows/arm64" -sign - -skip-notarize
 # → macOS 机：build/darwin-arm64/kero-X.Y.Z-arm64.dmg + Kero.app；Linux 机：只有 Kero.app（mygo 跳过 DMG: "Skipping the disk image: it needs macOS"）
+# → windows：build/windows-<arch>/kero-setup-X.Y.Z-<arch>.exe + install.ps1（两 arch 的 install.ps1 完全相同，arch 运行时探测）+ build/SHA256SUMS（install.ps1 靠它校验，漏传则 irm|iex 安装 404）
 # 仅 Linux 构建机执行下一行（macOS 机跳过，直接用 .dmg）：从 .app 打 zip 发布（Kero.app 无符号链接，zip -r 无损；用户解压后拖入 /Applications）
 cd build/darwin-arm64 && rm -f kero-X.Y.Z-arm64.zip && zip -qr kero-X.Y.Z-arm64.zip Kero.app && cd ../..
-ls build/darwin-arm64/*.dmg build/darwin-arm64/*.zip build/linux-*/ 2>/dev/null   # 哪台机构建就存在哪个 darwin 资产；upload 前核对确切文件名（.deb 是 kero_X.Y.Z_amd64.deb，下划线、无 linux- 前缀）
+ls build/darwin-arm64/*.dmg build/darwin-arm64/*.zip build/linux-*/ build/windows-*/kero-setup-*.exe 2>/dev/null   # 哪台机构建就存在哪个 darwin 资产；upload 前核对确切文件名（.deb 是 kero_X.Y.Z_amd64.deb，下划线、无 linux- 前缀）
 
 # server：6 平台归档 + install-server.sh/.ps1
 sh scripts/build-server.sh
@@ -93,6 +94,8 @@ gh release upload vX.Y.Z -R QianLongGit/kero \
   build/darwin-arm64/kero-X.Y.Z-arm64.zip \
   build/linux-amd64/kero-X.Y.Z-linux-amd64.tar.gz build/linux-amd64/kero_X.Y.Z_amd64.deb \
   build/linux-arm64/kero-X.Y.Z-linux-arm64.tar.gz build/linux-arm64/kero_X.Y.Z_arm64.deb \
+  build/windows-amd64/kero-setup-X.Y.Z-amd64.exe build/windows-arm64/kero-setup-X.Y.Z-arm64.exe \
+  build/windows-amd64/install.ps1 build/SHA256SUMS \
   build/server/kero-server-X.Y.Z-* \
   build/server/install-server.sh build/server/install-server.ps1
 
@@ -103,10 +106,12 @@ gh release edit vX.Y.Z -R QianLongGit/kero --draft=false
 
 ```sh
 gh release view vX.Y.Z -R QianLongGit/kero --json isDraft,assets -q '{draft:.isDraft, assets:(.assets|length)}'
-# 期望 {"draft":false,"assets":25}：5 app（darwin 1 个——macOS 机 .dmg / Linux 机 .zip—— + 2 tar.gz + 2 deb）+ 18 server（6 归档 ×3）+ 2 install 脚本
+# 期望 {"draft":false,"assets":29}：5 app（darwin 1 个——macOS 机 .dmg / Linux 机 .zip—— + 2 tar.gz + 2 deb）+ 4 windows（2 setup.exe + install.ps1 + SHA256SUMS）+ 18 server（6 归档 ×3）+ 2 install 脚本
 # 数目不对时按此分项定位缺的是哪类；重传同名资产加 --clobber
 # 匿名可达（远程安装就是匿名下载，缺一个 = 远程 404）：
 curl -fsSL -o /dev/null -w '%{http_code}\n' https://github.com/QianLongGit/kero/releases/download/vX.Y.Z/install-server.sh
+# Windows 一键安装同样匿名可达：
+curl -fsSL -o /dev/null -w '%{http_code}\n' https://github.com/QianLongGit/kero/releases/download/vX.Y.Z/SHA256SUMS
 ```
 
 ## 坑速查
@@ -122,4 +127,6 @@ curl -fsSL -o /dev/null -w '%{http_code}\n' https://github.com/QianLongGit/kero/
 | 测试 exit 0 但其实挂了 | rtk 假阴性，grep FAIL/DATA RACE |
 | build 后无 .dmg 只有 Kero.app/ | Linux 构建机正常：mygo 跳过 DMG（需 macOS）；按第 3 节从 .app 打 zip 发布 |
 | build-server.sh 只出 4/6 归档、install 脚本未盖戳、还 exit 0 | 本机缺 `zip` 命令：`apt install zip` 后重跑整个脚本 |
+| Windows 构建不产 setup.exe | Linux 构建机缺 NSIS：`apt install nsis`（`makensis` 必须在 PATH），重跑 build |
+| `irm …|iex` 装 Windows 版 404 或校验失败 | release 缺 `SHA256SUMS` 或 `install.ps1`（install.ps1 靠 SHA256SUMS 校验 setup.exe），对照第 5 节补传 |
 | Linux 机 daemon/zsh 子测试、TestFilesOpenWith* 挂 | 环境性失败非回归，见第 1 节裁决；`git diff vX.Y.Z` 判回归 |

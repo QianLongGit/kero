@@ -44,12 +44,12 @@ The fork's releases are built **entirely on the local machine** — GitHub Actio
 Steps (version X.Y.Z throughout):
 
 1. Bump `mygo.json` `version`, add the user-facing section atop `CHANGELOG.md`, commit `Release X.Y.Z`, `git tag vX.Y.Z`, push `main` and the tag.
-2. Build the app assets (no cgo, cross-compiles fine; `-sign - -skip-notarize` = ad-hoc, this fork has no Developer ID):
-   `go tool mygo build -platform "darwin/arm64,linux/amd64,linux/arm64" -sign - -skip-notarize`
-   → `build/darwin-arm64/kero-X.Y.Z-arm64.dmg`, `build/linux-*/…tar.gz` + `.deb` (Windows installers are CI-only; the server's Windows zips below still cover remote installs).
+2. Build the app assets (no cgo, cross-compiles fine; `-sign - -skip-notarize` = ad-hoc, this fork has no Developer ID; Windows installers need NSIS on the build machine — `apt install nsis`):
+   `go tool mygo build -platform "darwin/arm64,linux/amd64,linux/arm64,windows/amd64,windows/arm64" -sign - -skip-notarize`
+   → `build/darwin-arm64/kero-X.Y.Z-arm64.dmg`, `build/linux-*/…tar.gz` + `.deb`, `build/windows-*/kero-setup-X.Y.Z-<arch>.exe` + `install.ps1` + `build/SHA256SUMS` (install.ps1 fetches and checksum-verifies the setup.exe; upload SHA256SUMS too or Windows one-line installs 404).
 3. Build the server assets: `sh scripts/build-server.sh` → `build/server/kero-server-X.Y.Z-{os}-{arch}.tar.gz|.zip` + `install-server.sh|.ps1`. The script needs network for libghostty-vt; on `curl: (35)`/SSL errors just rerun it (the route to GitHub is flaky here).
 4. Sidecars the script does not write: the sign tool writes a `.sig` and a `.sha256` per archive in one run (`MYGO_UPDATER_PRIVATE_KEY=$(cat ~/Library/Application\ Support/mygo/update-keys/mygo-update.key) go run ./internal/update/sign build/server/kero-server-X.Y.Z-*.tar.gz …zip`); rerun it whenever the script rebuilt an archive — a stale `.sig` fails the updater's Verify. Version-stamp the install scripts if the script left them at the old version (`sed 's/OLD/NEW/g'`).
-5. Publish: `gh release create vX.Y.Z -R QianLongGit/kero --draft --title "Kero X.Y.Z" --notes "<CHANGELOG section + ad-hoc signing note>"`, then `gh release upload vX.Y.Z <all assets, globs with * take the .sha256/.sig> -R QianLongGit/kero`, then `gh release edit vX.Y.Z -R QianLongGit/kero --draft=false`. Verify assets ≈ 25.
+5. Publish: `gh release create vX.Y.Z -R QianLongGit/kero --draft --title "Kero X.Y.Z" --notes "<CHANGELOG section + ad-hoc signing note>"`, then `gh release upload vX.Y.Z <all assets, globs with * take the .sha256/.sig> -R QianLongGit/kero`, then `gh release edit vX.Y.Z -R QianLongGit/kero --draft=false`. Verify assets ≈ 29.
 
 ## Working rules (avoid LLM coding pitfalls)
 
