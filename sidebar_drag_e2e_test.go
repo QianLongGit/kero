@@ -33,6 +33,11 @@ var kerodBin = sync.OnceValue(func() string {
 func spawnKerod(t *testing.T) *client.Client {
 	t.Helper()
 	home := t.TempDir()
+	// HOME too, and claude's config inside it: the daemon self-heals its
+	// hooks as it starts (agenthooks.Ensure in main), which would install
+	// them — pointing at this sandbox's kero — in the real ~/.claude.
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 	t.Setenv("KERO_HOME", home)
 	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
 	t.Setenv("KERO_SOCKET", "")
