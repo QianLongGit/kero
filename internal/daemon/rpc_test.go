@@ -405,6 +405,51 @@ func TestAgentEventApplies(t *testing.T) {
 	}
 }
 
+// An agent that started before its hook was installed fires no
+// SessionStart for kero to see: its later events still name its session,
+// and a pane no session holds binds the first one that comes — but a
+// session's end never binds one, an unresumable session binds nothing,
+// and a pane already bound keeps its session.
+func TestAgentEventLateBind(t *testing.T) {
+	d := testDaemon(t)
+	s, err := d.create(proto.CreateParams{URL: "localhost:3000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := s.Panes[0].ID
+	pn := d.findPane(id)
+	bound := func() *proto.AgentSession {
+		t.Helper()
+		pn.mu.Lock()
+		defer pn.mu.Unlock()
+		return pn.info.AgentSession
+	}
+	if _, err := agentEventCall(t, d, proto.AgentEventParams{Pane: id, Agent: "claude", Session: "sess1", Event: "SessionEnd"}); err != nil {
+		t.Fatal(err)
+	}
+	if as := bound(); as != nil {
+		t.Errorf("after a session's end: agent session %+v, want none", as)
+	}
+	if _, err := agentEventCall(t, d, proto.AgentEventParams{Pane: id, Agent: "claude", Session: "no session ids", Event: "UserPromptSubmit"}); err != nil {
+		t.Fatal(err)
+	}
+	if as := bound(); as != nil {
+		t.Errorf("after an unresumable session's event: agent session %+v, want none", as)
+	}
+	if _, err := agentEventCall(t, d, proto.AgentEventParams{Pane: id, Agent: "claude", Session: "sess1", Event: "UserPromptSubmit"}); err != nil {
+		t.Fatal(err)
+	}
+	if as := bound(); as == nil || as.Agent != "claude" || as.ID != "sess1" {
+		t.Errorf("the pane's agent session = %+v, want claude's sess1", as)
+	}
+	if _, err := agentEventCall(t, d, proto.AgentEventParams{Pane: id, Agent: "claude", Session: "sess2", Event: "Stop"}); err != nil {
+		t.Fatal(err)
+	}
+	if as := bound(); as == nil || as.ID != "sess1" {
+		t.Errorf("after another session's event: agent session = %+v, want still sess1", as)
+	}
+}
+
 // A state.json from before pins loads: its sessions come back unpinned,
 // and an unpinned session tells no pin on the wire.
 func TestSessionMoveOldState(t *testing.T) {

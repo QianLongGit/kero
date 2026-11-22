@@ -728,6 +728,16 @@ func (d *Daemon) agentEvent(p proto.AgentEventParams) (proto.AgentEventResult, e
 	if pn.info.Agent == "" {
 		pn.info.Agent = p.Agent
 	}
+	if as == nil && pn.info.AgentSession == nil && p.Session != "" && p.Event != "SessionEnd" {
+		// An agent that started before its hook was installed still tells
+		// of its session on every event it fires: late-bind it, exactly as
+		// its SessionStart would have. A session kero cannot resume stays
+		// unbound, and an event of a pane already bound changes nothing.
+		as = &proto.AgentSession{Agent: p.Agent, ID: p.Session}
+		if resumeCommand(as) == nil {
+			as = nil
+		}
+	}
 	if as != nil {
 		pn.info.AgentSession = as
 	}
