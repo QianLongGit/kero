@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.42
+
+- **Agents that started before Kero's hook was installed now bind to
+  their session too**: any of their later events (a prompt, a stop)
+  does what their missing SessionStart would have, so they show up
+  and stay clickable in the sidebar instead of staying anonymous.
+  The fix lives in each machine's own daemon — update the remote
+  host (`kero hosts install <name>`) to get it there.
+
 ## 2.3.41
 
 - **Export and import your data** between computers: `kero export`
